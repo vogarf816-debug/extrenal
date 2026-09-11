@@ -9,6 +9,7 @@ final class LicenseManager: ObservableObject {
     @Published private(set) var expirationDate: Date?
     @Published private(set) var isActive = false
     @Published private(set) var isBusy = false
+    @Published private(set) var isLoadingScreen = true
     @Published private(set) var message: String?
     @Published private(set) var contactOwner: String?
     @Published var rememberKey = true
@@ -27,9 +28,14 @@ final class LicenseManager: ObservableObject {
 
     func beginLaunchSession() {
         guard !isBusy else { return }
+        isLoadingScreen = true
         guard let key = string(for: keyAccount) else {
             isActive = false
             message = "Key required — enter your access key"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) { [weak self] in
+                guard let self, !self.isBusy, !self.isActive else { return }
+                self.isLoadingScreen = false
+            }
             return
         }
         verify(key: key, remember: true)
@@ -44,6 +50,7 @@ final class LicenseManager: ObservableObject {
         }
         lastAttemptAt = Date()
         isBusy = true
+        isLoadingScreen = true
         message = "Checking access key…"
         verify(key: trimmed, remember: rememberKey)
     }
@@ -57,6 +64,7 @@ final class LicenseManager: ObservableObject {
     func deactivate() {
         delete(keyAccount)
         isActive = false
+        isLoadingScreen = false
         message = "Activation removed from this device"
     }
 
@@ -99,6 +107,7 @@ final class LicenseManager: ObservableObject {
     private func verify(key: String, remember: Bool) {
         guard let configuration = APIConfiguration.load() else {
             isBusy = false
+            isLoadingScreen = false
             isActive = false
             message = "Subscription API is not configured"
             return
@@ -118,6 +127,7 @@ final class LicenseManager: ObservableObject {
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes]),
               let url = URL(string: configuration.baseURL + "/api/sdk/verify") else {
             isBusy = false
+            isLoadingScreen = false
             isActive = false
             message = "Invalid subscription API configuration"
             return
@@ -144,6 +154,7 @@ final class LicenseManager: ObservableObject {
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.isBusy = false
+                self.isLoadingScreen = false
                 switch result {
                 case .success(let state):
                     self.expirationDate = state.expiresAt
