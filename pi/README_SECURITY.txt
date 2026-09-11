@@ -1,0 +1,1 @@
+This complete SDK archive is generated for one M3SB API package and one application Bundle ID. Keep the config and plist private. Signature v3 is mandatory.\n

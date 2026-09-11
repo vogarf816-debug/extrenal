@@ -1,0 +1,12 @@
+{
+  "sdk_version": "1.1.0",
+  "api_base_url": "https://api.m3sbapi.shop",
+  "package_id": 85,
+  "package_name": "ext",
+  "telegram_username": "container",
+  "token": "35104a7d752b22a1250540ea353831e71d7aac54ad3d007f6da0fc280631",
+  "hmac_secret": "5d449b24eba4ba809b8d031aedb2bb95610ea6e3a7437370757014b1825d0eb6",
+  "signature_version": 3,
+  "free_version": "package-controlled",
+  "target_bundle_id": "com.dts.freefireth"
+}

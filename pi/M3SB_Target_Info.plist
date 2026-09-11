@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>com.apple.mobile.MobileHouseArrest</string>
+<key>M3SBAPIBaseURL</key><string>https://api.m3sbapi.shop</string>
+<key>M3SBPackageID</key><integer>78</integer>
+<key>M3SBPackageName</key><string>EXTRENAL</string>
+<key>M3SBPackageToken</key><string>REPLACE_WITH_M3SB_PACKAGE_TOKEN</string>
+<key>M3SBHMACSecret</key><string>REPLACE_WITH_M3SB_HMAC_SECRET</string>
+<key>M3SBSignatureVersion</key><integer>3</integer>
+<key>M3SBSDKVersion</key><string>1.1.0</string>
+<key>M3SBFreeVersionPolicy</key><string>package-controlled</string>
+</dict></plist>
