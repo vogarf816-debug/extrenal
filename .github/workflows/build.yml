@@ -1,0 +1,51 @@
+name: Build HYper key-enabled IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build unsigned IPA
+        run: |
+          chmod +x build_unsigned.sh build_esign_ready_ipa.sh
+          ./build_unsigned.sh
+        env:
+          M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
+          M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
+
+      - name: Prepare IPA
+        run: ./build_esign_ready_ipa.sh build/HYper-Regedit-Key-Enabled-unsigned.ipa
+
+      - name: Verify API configuration in IPA
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hyper-ipa-check
+          mkdir -p /tmp/hyper-ipa-check
+          unzip -q build/HYper-Regedit-Key-Enabled-unsigned.ipa -d /tmp/hyper-ipa-check
+          APP_PLIST="$(find /tmp/hyper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)/Info.plist"
+          test -f "$APP_PLIST"
+          TOKEN="$(/usr/libexec/PlistBuddy -c 'Print :M3SB_PACKAGE_TOKEN' "$APP_PLIST")"
+          SECRET="$(/usr/libexec/PlistBuddy -c 'Print :M3SB_HMAC_SECRET' "$APP_PLIST")"
+          PACKAGE="$(/usr/libexec/PlistBuddy -c 'Print :M3SB_PACKAGE_NAME' "$APP_PLIST")"
+          test "$PACKAGE" = "ext" || { echo "Unexpected package (expected ext): $PACKAGE" >&2; exit 1; }
+          test "${#TOKEN}" -gt 10 || { echo 'M3SB_PACKAGE_TOKEN missing from IPA' >&2; exit 1; }
+          test "${#SECRET}" -gt 10 || { echo 'M3SB_HMAC_SECRET missing from IPA' >&2; exit 1; }
+          test "$TOKEN" != '$(M3SB_PACKAGE_TOKEN)' || { echo 'M3SB_PACKAGE_TOKEN is still a placeholder' >&2; exit 1; }
+          test "$SECRET" != '$(M3SB_HMAC_SECRET)' || { echo 'M3SB_HMAC_SECRET is still a placeholder' >&2; exit 1; }
+          echo "API configuration embedded for package: $PACKAGE"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HYper-Regedit-Key-Enabled-unsigned-ipa
+          path: build/HYper-Regedit-Key-Enabled-unsigned.ipa
