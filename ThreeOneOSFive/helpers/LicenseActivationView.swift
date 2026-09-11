@@ -148,7 +148,7 @@ struct LicenseActivationView: View {
 }
 
 
-private struct LoginBackdrop: View {
+struct LoginBackdrop: View {
     var body: some View {
         ZStack {
             LinearGradient(
