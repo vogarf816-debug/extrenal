@@ -298,7 +298,11 @@ struct ContentView: View {
 
     private func patchCard(name: String, target: String, package: String, color: Color, state: Binding<Bool>) -> some View {
         PatchOptionCard(name: name, target: target, color: color, isEnabled: state, isBusy: patchOperationBusy) {
-            togglePatch(packageFilename: package, state: state)
+            togglePatch(
+                packageFilename: package,
+                state: state,
+                targetBundleID: target == "FREE FIRE • MAX" ? "com.dts.freefiremax" : "com.dts.freefireth"
+            )
         }
     }
 
@@ -687,7 +691,11 @@ struct ContentView: View {
         patchEnabled[packageFilename] = enabled
     }
 
-    private func togglePatch(packageFilename: String, state: Binding<Bool>) {
+    private func togglePatch(
+        packageFilename: String,
+        state: Binding<Bool>,
+        targetBundleID: String = "com.dts.freefireth"
+    ) {
         guard !patchOperationBusy else { return }
         guard let item = patchItem(for: packageFilename) else {
             patchMessage = "ERROR — PACKAGE NOT FOUND"
@@ -726,7 +734,9 @@ struct ContentView: View {
                         }
                         return
                     }
-                    _ = try DevicePatchService.apply(project: project)
+                    _ = try DevicePatchService.apply(
+                        project: project.retargeted(to: targetBundleID)
+                    )
                     result = .applied
                 }
             } catch {

@@ -116,6 +116,30 @@ struct PatchProject: Codable, Identifiable, Hashable {
     }
 }
 
+extension PatchProject {
+    func retargeted(to bundleID: String) -> PatchProject {
+        PatchProject(
+            id: id,
+            name: name,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            bundleIdentifiers: [bundleID],
+            directories: directories.map {
+                PatchDirectory(id: $0.id, bundleID: bundleID, relativePath: $0.relativePath)
+            },
+            rules: rules.map {
+                PatchRule(
+                    id: $0.id,
+                    bundleID: bundleID,
+                    relativePath: $0.relativePath,
+                    replacementFilename: $0.replacementFilename,
+                    replacementData: $0.replacementData
+                )
+            }
+        )
+    }
+}
+
 struct PatchPackageSummary: Equatable, Identifiable {
     var id: UUID { packageID }
     let packageID: UUID

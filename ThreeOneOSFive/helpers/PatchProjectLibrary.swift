@@ -92,8 +92,10 @@ enum PatchProjectLibrary {
                 $0.pathExtension.caseInsensitiveCompare("3105") == .orderedSame
             }
         }
+        let allBundleURLs = bundle.paths(forResourcesOfType: "3105", inDirectory: nil)
+            .map(URL.init(fileURLWithPath:))
         var seen = Set<String>()
-        let bundledURLs = (nestedURLs + skinURLs + flattenedURLs + recursiveURLs)
+        let bundledURLs = (nestedURLs + skinURLs + flattenedURLs + recursiveURLs + allBundleURLs)
             .filter { seen.insert($0.standardizedFileURL.path).inserted }
 
         for sourceURL in bundledURLs {
@@ -102,10 +104,14 @@ enum PatchProjectLibrary {
             // the user for their own password.
             let bundledName = bundledFilenamePrefix + sourceURL.lastPathComponent
             let destinationURL = root.appendingPathComponent(bundledName)
-            guard !fileManager.fileExists(atPath: destinationURL.path) else { continue }
             do {
                 let data = try Data(contentsOf: sourceURL, options: .mappedIfSafe)
                 _ = try PatchPackageCodec.inspect(data)
+                if fileManager.fileExists(atPath: destinationURL.path),
+                   let existing = try? Data(contentsOf: destinationURL, options: .mappedIfSafe),
+                   existing == data {
+                    continue
+                }
                 try data.write(to: destinationURL, options: [.atomic, .completeFileProtection])
             } catch {
                 log("patch: skipped bundled package \(sourceURL.lastPathComponent): \(error)")
