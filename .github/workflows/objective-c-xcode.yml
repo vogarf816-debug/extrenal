@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v5
       - name: Build
         env:
-          scheme: JVZTXNX
+          scheme: 3105
           M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
           M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
         run: |
