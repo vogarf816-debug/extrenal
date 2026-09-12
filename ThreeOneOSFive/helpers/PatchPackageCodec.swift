@@ -12,6 +12,7 @@ enum PatchPackageCodec {
     // application to unlock its bundled resources; imported packages still
     // require the user-supplied password.
     static let bundledResourcePassword = "XRE"
+    static let bundledResourcePasswords = ["XRE", "SKAM"]
 
     private struct Envelope: Codable {
         let schemaVersion: Int

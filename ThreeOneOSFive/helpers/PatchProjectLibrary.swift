@@ -127,8 +127,9 @@ enum PatchProjectLibrary {
                 let data = try readPackage(at: url)
                 let summary = try PatchPackageCodec.inspect(data)
                 let decoded: DecodedPatchPackage?
-                if let contentKey = try PatchKeyStore.load(for: summary) {
-                    decoded = try PatchPackageCodec.decode(data, contentKey: contentKey)
+                if let contentKey = try PatchKeyStore.load(for: summary),
+                   let known = try? PatchPackageCodec.decode(data, contentKey: contentKey) {
+                    decoded = known
                 } else if summary.isPasswordProtected {
                     // Only the app's renamed bundled resources use the internal
                     // key; imported packages remain locked for the user.
@@ -137,10 +138,14 @@ enum PatchProjectLibrary {
                         continue
                     }
                     do {
-                        let bundled = try PatchPackageCodec.decode(
-                            data,
-                            password: PatchPackageCodec.bundledResourcePassword
-                        )
+                        var bundled: DecodedPatchPackage?
+                        for password in PatchPackageCodec.bundledResourcePasswords {
+                            if let decoded = try? PatchPackageCodec.decode(data, password: password) {
+                                bundled = decoded
+                                break
+                            }
+                        }
+                        guard let bundled else { throw PatchPackageError.invalidPasswordOrCorruptedPackage }
                         try PatchKeyStore.store(bundled.contentKey, for: summary)
                         decoded = bundled
                     } catch {
