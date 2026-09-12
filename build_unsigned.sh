@@ -12,7 +12,7 @@ command -v xcodebuild >/dev/null || { echo 'xcodebuild is required on macOS' >&2
 
 xcodebuild \
   -project "$ROOT/ThreeOneOSFive.xcodeproj" \
-  -scheme 3105 \
+  -scheme JVZTXNX \
   -configuration Release \
   -sdk iphoneos \
   -archivePath "$ARCHIVE" \
