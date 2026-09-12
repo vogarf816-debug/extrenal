@@ -83,8 +83,18 @@ enum PatchProjectLibrary {
         let nestedURLs = bundle.urls(forResourcesWithExtension: "3105", subdirectory: "Patches") ?? []
         let skinURLs = bundle.urls(forResourcesWithExtension: "3105", subdirectory: "Patches/Skins") ?? []
         let flattenedURLs = bundle.urls(forResourcesWithExtension: "3105", subdirectory: nil) ?? []
+        var recursiveURLs: [URL] = []
+        if let patchesURL = bundle.url(forResource: "Patches", withExtension: nil) {
+            recursiveURLs = (fileManager.enumerator(
+                at: patchesURL,
+                includingPropertiesForKeys: [.isRegularFileKey]
+            )?.allObjects as? [URL] ?? []).filter {
+                $0.pathExtension.caseInsensitiveCompare("3105") == .orderedSame
+            }
+        }
         var seen = Set<String>()
-        let bundledURLs = (nestedURLs + skinURLs + flattenedURLs).filter { seen.insert($0.standardizedFileURL.path).inserted }
+        let bundledURLs = (nestedURLs + skinURLs + flattenedURLs + recursiveURLs)
+            .filter { seen.insert($0.standardizedFileURL.path).inserted }
 
         for sourceURL in bundledURLs {
             // Mark files copied from the signed app bundle so only these internal
