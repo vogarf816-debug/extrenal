@@ -81,9 +81,10 @@ enum PatchProjectLibrary {
         // the intended Patches subdirectory and the flattened bundle root so
         // standalone builds remain self-contained across packaging layouts.
         let nestedURLs = bundle.urls(forResourcesWithExtension: "3105", subdirectory: "Patches") ?? []
+        let skinURLs = bundle.urls(forResourcesWithExtension: "3105", subdirectory: "Patches/Skins") ?? []
         let flattenedURLs = bundle.urls(forResourcesWithExtension: "3105", subdirectory: nil) ?? []
         var seen = Set<String>()
-        let bundledURLs = (nestedURLs + flattenedURLs).filter { seen.insert($0.standardizedFileURL.path).inserted }
+        let bundledURLs = (nestedURLs + skinURLs + flattenedURLs).filter { seen.insert($0.standardizedFileURL.path).inserted }
 
         for sourceURL in bundledURLs {
             // Mark files copied from the signed app bundle so only these internal
