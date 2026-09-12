@@ -118,7 +118,7 @@ struct ContentView: View {
                 HStack(spacing: 12) {
                     Image(systemName: fileSafety[filename, default: true] ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                         .foregroundStyle(fileSafety[filename, default: true] ? AppTheme.secondaryAccent : AppTheme.accent)
-                    Text(filename)
+                    Text(patchDisplayName(for: filename))
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.paper)
                     Spacer()
@@ -311,6 +311,7 @@ struct ContentView: View {
 
     private func patchDisplayName(for filename: String) -> String {
         if filename == "144-FPS.3105" { return "144 FPS • YAGAMI" }
+        if filename == "FFTH AIM NECK.3105" { return "AIMBOT HAX" }
         if filename == "HEADM.3105" {
             return "AIMHEAD"
         }
