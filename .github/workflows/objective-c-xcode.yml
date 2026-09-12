@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v5
       - name: Build
         env:
-          target: 3105
+          scheme: 3105
           M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
           M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
         run: |
@@ -25,5 +25,5 @@ jobs:
           test -n "$M3SB_HMAC_SECRET" || { echo "M3SB_HMAC_SECRET is missing" >&2; exit 1; }
           if [ "`ls -A | grep -i \.xcworkspace\$`" ]; then filetype_parameter="workspace" && file_to_build="`ls -A | grep -i \.xcworkspace\$`"; else filetype_parameter="project" && file_to_build="`ls -A | grep -i \.xcodeproj\$`"; fi
           file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
-          xcodebuild clean build -target "$target" -"$filetype_parameter" "$file_to_build" -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' M3SB_PACKAGE_TOKEN="$M3SB_PACKAGE_TOKEN" M3SB_HMAC_SECRET="$M3SB_HMAC_SECRET"
-          xcodebuild analyze -target "$target" -"$filetype_parameter" "$file_to_build" -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' M3SB_PACKAGE_TOKEN="$M3SB_PACKAGE_TOKEN" M3SB_HMAC_SECRET="$M3SB_HMAC_SECRET"
+          xcodebuild clean build -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' M3SB_PACKAGE_TOKEN="$M3SB_PACKAGE_TOKEN" M3SB_HMAC_SECRET="$M3SB_HMAC_SECRET"
+          xcodebuild analyze -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' M3SB_PACKAGE_TOKEN="$M3SB_PACKAGE_TOKEN" M3SB_HMAC_SECRET="$M3SB_HMAC_SECRET"
