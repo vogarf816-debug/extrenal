@@ -25,12 +25,6 @@ xcodebuild \
 
 APP="$ARCHIVE/Products/Applications/3105.app"
 test -d "$APP"
-PATCH_DIR="$APP/Patches"
-mkdir -p "$PATCH_DIR"
-for package in "$APP"/*.3105; do
-  [ -e "$package" ] || continue
-  mv "$package" "$PATCH_DIR/"
-done
 
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable 3105" "$APP/Info.plist" || true
 /usr/libexec/PlistBuddy -c "Set :CFBundlePackageType APPL" "$APP/Info.plist" || true
