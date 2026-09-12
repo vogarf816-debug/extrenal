@@ -30,7 +30,6 @@ struct ContentView: View {
     var body: some View {
         TabView {
             appTab(title: "FF Normal", icon: "scope") { normalTab }
-            appTab(title: "FF Max", icon: "flame.fill") { maxTab }
             appTab(title: "SKIN PATCH", icon: "sparkles") { modSkinsTab }
             appTab(title: "Developer", icon: "person.crop.circle") { developerTab }
         }
@@ -90,13 +89,6 @@ struct ContentView: View {
         }
     }
 
-    private var maxTab: some View {
-        VStack(spacing: 16) {
-            gameIntro(title: "FF MAX", subtitle: "AIM CONTROL", icon: "flame.fill")
-            patchOptions(for: "FREE FIRE • MAX")
-        }
-    }
-
     private var fileStatusTab: some View {
         VStack(spacing: 16) {
             gameIntro(title: "FILE STATUS", subtitle: "LOCAL SAFETY CHECK", icon: "doc.badge.gearshape")
@@ -135,8 +127,6 @@ struct ContentView: View {
                 .padding(.vertical, 8)
                 Divider().overlay(AppTheme.paper.opacity(0.1))
             }
-
-            launchButton(title: "OPEN FF MAX", subtitle: "Free Fire MAX", color: AppTheme.accent, scheme: "freefiremax")
 
             Text("OFFLINE STATUS • Stored locally. No online control.")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
@@ -290,10 +280,7 @@ struct ContentView: View {
     }
 
     private func files(for target: String) -> [String] {
-        if target == "FREE FIRE • NORMAL" {
-            return ["BODY.3105", "FFTH AIM NECK.3105", "144-FPS.3105"]
-        }
-        return fileNames.filter { $0 != "144-FPS.3105" }
+        return ["BODY.3105", "FFTH AIM NECK.3105", "144-FPS.3105"]
     }
 
     private func patchCard(name: String, target: String, package: String, color: Color, state: Binding<Bool>) -> some View {
@@ -301,7 +288,7 @@ struct ContentView: View {
             togglePatch(
                 packageFilename: package,
                 state: state,
-                targetBundleID: target == "FREE FIRE • MAX" ? "com.dts.freefiremax" : "com.dts.freefireth"
+                targetBundleID: "com.dts.freefireth"
             )
         }
     }
@@ -370,69 +357,6 @@ struct ContentView: View {
         .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 19, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 19, style: .continuous).stroke(color.opacity(0.28), lineWidth: 1))
         .opacity(patchOperationBusy ? 0.58 : 1)
-    }
-
-    private var gameLaunchPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            panelTitle("LAUNCH GAME", icon: "arrow.up.forward.app.fill")
-            HStack(spacing: 12) {
-                launchButton(title: "FF NORMAL", subtitle: "Free Fire Normal", color: AppTheme.accent, scheme: "freefireth")
-                lockedLaunchButton(title: "FF MAX", subtitle: "Locked • Coming Soon", color: AppTheme.secondaryAccent)
-            }
-            Button {
-                showCleaner = true
-            } label: {
-                Label("Clean Cache & Temp", systemImage: "trash.slash.fill")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.accent.opacity(0.52), lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open cache and temporary files cleaner")
-        }
-    }
-
-    private func launchButton(title: String, subtitle: String, color: Color, scheme: String) -> some View {
-        Button { openGame(scheme: scheme) } label: {
-            VStack(alignment: .leading, spacing: 7) {
-                Image(systemName: "arrow.up.right.square.fill")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(color)
-                Text(title)
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-                Text(subtitle)
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.5))
-            }
-            .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
-            .padding(.horizontal, 14)
-            .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(color.opacity(0.38), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func lockedLaunchButton(title: String, subtitle: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(color.opacity(0.72))
-            Text(title)
-                .font(.system(size: 13, weight: .black, design: .rounded))
-                .foregroundStyle(.white.opacity(0.72))
-            Text(subtitle)
-                .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundStyle(color.opacity(0.72))
-        }
-        .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
-        .padding(.horizontal, 14)
-        .background(AppTheme.ink.opacity(0.45), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(color.opacity(0.24), lineWidth: 1))
-        .opacity(0.72)
-        .accessibilityLabel("FF MAX locked, coming soon")
     }
 
     private var footerStatus: some View {
