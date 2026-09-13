@@ -42,7 +42,7 @@ struct ContentView: View {
             appTab(title: "FF Normal", icon: "scope") { normalTab }
             appTab(title: "FF Max", icon: "flame.fill") { maxTab }
             appTab(title: "SKIN PATCH", icon: "sparkles") { modSkinsTab }
-            appTab(title: "Developer", icon: "person.crop.circle") { developerTab }
+            appTab(title: "Developer & Settings", icon: "person.crop.circle") { developerTab }
         }
         .preferredColorScheme(.dark)
         .tint(AppTheme.accent)
@@ -161,6 +161,17 @@ struct ContentView: View {
     private var developerTab: some View {
         VStack(spacing: 16) {
             developerCard
+            NavigationLink {
+                SettingsView()
+            } label: {
+                Label("SETTINGS", systemImage: "gearshape.fill")
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(AppTheme.paper)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(15)
+                    .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+            .buttonStyle(.plain)
             telegramCard
             externalChannelCard
             feedbackCard
@@ -493,13 +504,23 @@ struct ContentView: View {
 
     private var developerCard: some View {
         VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                AppLogo(size: 58)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(developerAccent.opacity(0.7), lineWidth: 2))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("DEVELOPER INFO")
+                        .font(.system(size: 11, weight: .black, design: .rounded))
+                        .foregroundStyle(developerAccent)
+                    Text("YAGAMIxIOS")
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .foregroundStyle(AppTheme.paper)
+                }
+            }
             Label("DEVELOPER INFO • DESIGN \(developerDesign + 1)", systemImage: developerIcon)
                 .font(.system(size: 12, weight: .black, design: .rounded))
                 .tracking(1.4)
                 .foregroundStyle(AppTheme.accent)
-            Text("YAGAMIxIOS")
-                .font(.system(size: 28, weight: .black, design: .rounded))
-                .foregroundStyle(AppTheme.paper)
             Text("YAGAMI EXTRENAL")
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.paper.opacity(0.68))
