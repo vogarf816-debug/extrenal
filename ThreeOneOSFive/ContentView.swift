@@ -493,21 +493,6 @@ struct ContentView: View {
 
     private var developerCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ZStack(alignment: .top) {
-                Image("PatchControlCenter")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 112)
-                    .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                AppLogo(size: 64)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(developerAccent.opacity(0.85), lineWidth: 2))
-                    .shadow(color: .black.opacity(0.5), radius: 8, y: 4)
-                    .offset(y: -18)
-            }
-            .padding(.top, 18)
             HStack(spacing: 12) {
                 Image("VesperBanner")
                     .resizable()
@@ -528,9 +513,6 @@ struct ContentView: View {
                 .font(.system(size: 12, weight: .black, design: .rounded))
                 .tracking(1.4)
                 .foregroundStyle(AppTheme.accent)
-            Text("YAGAMI EXTRENAL")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(AppTheme.paper.opacity(0.68))
             HStack {
                 Text("BUILD")
                 Spacer()
