@@ -5,7 +5,9 @@ import Security
 
 enum PatchPackageCodec {
     private static let magic = Data("3105PATCH\0".utf8)
-    static let latestSchemaVersion = 2
+    // Bundled skin packages use schema 3. Keep decoding backwards compatible
+    // with v1/v2 while allowing the current bundled resources to load.
+    static let latestSchemaVersion = 3
     private static let minimumSchemaVersion = 1
 
     // Built-in resources are encrypted at rest. This value is only used by the
