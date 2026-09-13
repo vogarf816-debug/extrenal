@@ -34,7 +34,7 @@ struct ContentView: View {
         "BODY.3105", "DRAGTH.3105", "FFTH AIM NECK.3105", "144-FPS.3105"
     ]
     private let maxPatchFiles = [
-        "BODYM.3105", "HEADM.3105", "MAGICM.3105", "NECKM.3105"
+        "BODYM.3105", "DRAGM.3105", "HEADM.3105", "MAGICM.3105", "NECKM.3105"
     ]
 
     var body: some View {
