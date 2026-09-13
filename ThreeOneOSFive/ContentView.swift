@@ -493,8 +493,26 @@ struct ContentView: View {
 
     private var developerCard: some View {
         VStack(alignment: .leading, spacing: 12) {
+            ZStack(alignment: .top) {
+                Image("PatchControlCenter")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 112)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                AppLogo(size: 64)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(developerAccent.opacity(0.85), lineWidth: 2))
+                    .shadow(color: .black.opacity(0.5), radius: 8, y: 4)
+                    .offset(y: -18)
+            }
+            .padding(.top, 18)
             HStack(spacing: 12) {
-                AppLogo(size: 58)
+                Image("VesperBanner")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 58, height: 58)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(developerAccent.opacity(0.7), lineWidth: 2))
                 VStack(alignment: .leading, spacing: 3) {
@@ -523,13 +541,7 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background {
-            Image("VesperBanner")
-                .resizable()
-                .scaledToFill()
-                .overlay(Color.black.opacity(0.34))
-                .clipShape(developerShape)
-        }
+        .background(developerBackground, in: developerShape)
         .overlay(developerShape.stroke(developerAccent.opacity(0.5), lineWidth: 1))
     }
 
