@@ -495,6 +495,9 @@ enum PatchTransaction {
         }) ?? []
         guard matches.count == 1 else { return nil }
         let actual = matches[0].split(separator: "/").map(String.init)
+        if expected.count <= 2 {
+            return matches[0]
+        }
         let suffixCount = min(3, expected.count)
         guard actual.suffix(suffixCount) == expected.suffix(suffixCount) else { return nil }
         return matches[0]
