@@ -139,6 +139,7 @@ enum PatchTransaction {
                 target,
                 relativePath: rule.relativePath,
                 containerRoot: root,
+                bundleID: bundleID,
                 allowMissingParents: true,
                 fileManager: fileManager
             )
@@ -418,13 +419,15 @@ enum PatchTransaction {
         _ target: URL,
         relativePath: String,
         containerRoot: URL,
+        bundleID: String,
         allowMissingParents: Bool,
         fileManager: FileManager
     ) throws {
         // A patch must replace an existing game asset. Creating a new file at
         // an outdated path reports "success" but has no effect in-game.
         guard fileManager.fileExists(atPath: target.path) else {
-            throw PatchPackageError.applyFailed
+            log("patch: target missing bundle=\(bundleID) path=\(relativePath)")
+            throw PatchPackageError.missingTarget("\(bundleID):\(relativePath)")
         }
         let components = try PatchPathValidator.canonicalRelativePath(relativePath)
             .split(separator: "/")

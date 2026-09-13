@@ -170,6 +170,7 @@ enum PatchPackageError: Error, Equatable {
     case keychainFailed
     case targetAppUnavailable(String)
     case symbolicLinkUnsupported
+    case missingTarget(String)
     case applyFailed
     case restoreFailed
     case invalidImportLink
@@ -198,6 +199,9 @@ extension PatchPackageError: LocalizedError {
     }
 
     var errorDescription: String? {
+        if case .missingTarget(let path) = self {
+            return "Target file not found in game container: \(path)"
+        }
         let message = String(localized: String.LocalizationValue(localizationKey))
         if let localizationArgument {
             return String(format: message, localizationArgument)
@@ -208,6 +212,9 @@ extension PatchPackageError: LocalizedError {
     var localizationArgument: String? {
         if case .targetAppUnavailable(let bundleID) = self {
             return bundleID
+        }
+        if case .missingTarget(let path) = self {
+            return path
         }
         return nil
     }
