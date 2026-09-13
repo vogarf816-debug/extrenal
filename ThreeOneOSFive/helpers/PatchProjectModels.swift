@@ -191,6 +191,7 @@ extension PatchPackageError: LocalizedError {
         case .keychainFailed: return "patch.error.keychain"
         case .targetAppUnavailable: return "patch.error.app_unavailable"
         case .symbolicLinkUnsupported: return "patch.error.symlink"
+        case .missingTarget: return "patch.error.apply"
         case .applyFailed: return "patch.error.apply"
         case .restoreFailed: return "patch.error.restore"
         case .invalidImportLink: return "patch.error.invalid_import_link"
