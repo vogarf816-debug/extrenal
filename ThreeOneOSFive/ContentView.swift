@@ -83,7 +83,11 @@ struct ContentView: View {
     private var normalTab: some View {
         VStack(spacing: 16) {
             gameIntro(title: "FF NORMAL", subtitle: "AIM CONTROL", icon: "scope")
-            patchOptions(for: "FREE FIRE • NORMAL")
+            patchOptions(
+                files: normalPatchFiles,
+                targetTitle: "FREE FIRE • NORMAL",
+                targetBundleID: "com.dts.freefireth"
+            )
         }
     }
 
@@ -103,7 +107,11 @@ struct ContentView: View {
     private var maxTab: some View {
         VStack(spacing: 16) {
             gameIntro(title: "FF MAX", subtitle: "AIM CONTROL", icon: "flame.fill")
-            patchOptions(for: "FREE FIRE • MAX")
+            patchOptions(
+                files: maxPatchFiles,
+                targetTitle: "FREE FIRE • MAX",
+                targetBundleID: "com.dts.freefiremax"
+            )
         }
     }
 
@@ -263,7 +271,11 @@ struct ContentView: View {
         .buttonStyle(.plain)
     }
 
-    private func patchOptions(for target: String) -> some View {
+    private func patchOptions(
+        files: [String],
+        targetTitle: String,
+        targetBundleID: String
+    ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 panelTitle("PATCH OPTIONS", icon: "bolt.fill")
@@ -274,13 +286,14 @@ struct ContentView: View {
             }
 
             VStack(spacing: 0) {
-                ForEach(Array(files(for: target).enumerated()), id: \.element) { index, filename in
+                ForEach(Array(files.enumerated()), id: \.element) { index, filename in
                     patchCard(
                         name: patchDisplayName(for: filename),
-                        target: target,
+                        target: targetTitle,
                         package: filename,
                         color: index.isMultiple(of: 2) ? AppTheme.accent : AppTheme.secondaryAccent,
-                        state: patchBinding(for: filename)
+                        state: patchBinding(for: filename),
+                        targetBundleID: targetBundleID
                     )
                 }
             }
@@ -299,16 +312,19 @@ struct ContentView: View {
         }
     }
 
-    private func files(for target: String) -> [String] {
-        target == "FREE FIRE • NORMAL" ? normalPatchFiles : maxPatchFiles
-    }
-
-    private func patchCard(name: String, target: String, package: String, color: Color, state: Binding<Bool>) -> some View {
+    private func patchCard(
+        name: String,
+        target: String,
+        package: String,
+        color: Color,
+        state: Binding<Bool>,
+        targetBundleID: String
+    ) -> some View {
         PatchOptionCard(name: name, target: target, color: color, isEnabled: state, isBusy: patchOperationBusy) {
             togglePatch(
                 packageFilename: package,
                 state: state,
-                targetBundleID: target == "FREE FIRE • MAX" ? "com.dts.freefiremax" : "com.dts.freefireth"
+                targetBundleID: targetBundleID
             )
         }
     }
