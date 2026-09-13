@@ -361,6 +361,7 @@ enum PatchTransaction {
                 target,
                 relativePath: record.relativePath,
                 containerRoot: root,
+                bundleID: record.bundleID,
                 allowMissingParents: !requirePatchedDigest,
                 fileManager: fileManager
             )
