@@ -363,7 +363,15 @@ struct ContentView: View {
                     .foregroundStyle(patchEnabled[package, default: false] ? AppTheme.secondaryAccent : .white.opacity(0.5))
                 Toggle("", isOn: Binding(
                     get: { patchEnabled[package, default: false] },
-                    set: { _ in togglePatch(packageFilename: package, state: patchBinding(for: package)) }
+                    set: { _ in
+                        // Skins are Normal-only packages. Keep this explicit so
+                        // a previous Max patch selection can never retarget one.
+                        togglePatch(
+                            packageFilename: package,
+                            state: patchBinding(for: package),
+                            targetBundleID: "com.dts.freefireth"
+                        )
+                    }
                 ))
                 .labelsHidden()
                 .tint(color)
