@@ -42,7 +42,7 @@ struct ContentView: View {
             appTab(title: "FF Normal", icon: "scope") { normalTab }
             appTab(title: "FF Max", icon: "flame.fill") { maxTab }
             appTab(title: "SKIN PATCH", icon: "sparkles") { modSkinsTab }
-            appTab(title: "Developer & Settings", icon: "person.crop.circle") { developerTab }
+            appTab(title: "Developer", icon: "person.crop.circle") { developerTab }
         }
         .preferredColorScheme(.dark)
         .tint(AppTheme.accent)
@@ -161,17 +161,6 @@ struct ContentView: View {
     private var developerTab: some View {
         VStack(spacing: 16) {
             developerCard
-            NavigationLink {
-                SettingsView()
-            } label: {
-                Label("SETTINGS", systemImage: "gearshape.fill")
-                    .font(.system(size: 12, weight: .black, design: .rounded))
-                    .foregroundStyle(AppTheme.paper)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(15)
-                    .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            }
-            .buttonStyle(.plain)
             telegramCard
             externalChannelCard
             feedbackCard
@@ -534,7 +523,13 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(developerBackground, in: developerShape)
+        .background {
+            Image("VesperBanner")
+                .resizable()
+                .scaledToFill()
+                .overlay(Color.black.opacity(0.34))
+                .clipShape(developerShape)
+        }
         .overlay(developerShape.stroke(developerAccent.opacity(0.5), lineWidth: 1))
     }
 
