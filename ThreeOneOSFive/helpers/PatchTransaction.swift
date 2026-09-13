@@ -127,10 +127,24 @@ enum PatchTransaction {
             let bundleID = try PatchPathValidator.canonicalBundleIdentifier(rule.bundleID)
             guard bundleID == rule.bundleID else { throw PatchPackageError.invalidProject }
             let root = try resolvedRoot(for: bundleID)
-            let target = try PatchPathValidator.resolveContainedTargetURL(
+            var effectiveRule = rule
+            var target = try PatchPathValidator.resolveContainedTargetURL(
                 relativePath: rule.relativePath,
                 containerRoot: root
             )
+            if !fileManager.fileExists(atPath: target.path),
+               let discoveredPath = discoverExistingAssetPath(
+                   relativePath: rule.relativePath,
+                   containerRoot: root,
+                   fileManager: fileManager
+               ) {
+                effectiveRule.relativePath = discoveredPath
+                target = try PatchPathValidator.resolveContainedTargetURL(
+                    relativePath: discoveredPath,
+                    containerRoot: root
+                )
+                log("patch: remapped missing asset \(rule.relativePath) -> \(discoveredPath)")
+            }
             let targetKey = target.path
             guard targetKeys.insert(targetKey).inserted else {
                 throw PatchPackageError.duplicateTarget
@@ -143,7 +157,7 @@ enum PatchTransaction {
                 allowMissingParents: true,
                 fileManager: fileManager
             )
-            resolvedRules.append(ResolvedRule(rule: rule, containerRoot: root, target: target))
+            resolvedRules.append(ResolvedRule(rule: effectiveRule, containerRoot: root, target: target))
         }
 
         let transactionID = UUID()
@@ -457,6 +471,33 @@ enum PatchTransaction {
                 throw PatchPackageError.applyFailed
             }
         }
+    }
+
+    private static func discoverExistingAssetPath(
+        relativePath: String,
+        containerRoot: URL,
+        fileManager: FileManager
+    ) -> String? {
+        let filename = URL(fileURLWithPath: relativePath).lastPathComponent
+        let expected = relativePath.split(separator: "/").map(String.init)
+        guard !filename.isEmpty else { return nil }
+        let rootPath = PatchPathValidator.canonicalFileURL(containerRoot).path + "/"
+        let matches = (fileManager.enumerator(
+            at: containerRoot,
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        )?.compactMap { item -> String? in
+            guard let url = item as? URL, url.lastPathComponent == filename,
+                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
+                  values.isRegularFile == true, values.isSymbolicLink != true,
+                  url.path.hasPrefix(rootPath) else { return nil }
+            return String(url.path.dropFirst(rootPath.count))
+        }) ?? []
+        guard matches.count == 1 else { return nil }
+        let actual = matches[0].split(separator: "/").map(String.init)
+        let suffixCount = min(3, expected.count)
+        guard actual.suffix(suffixCount) == expected.suffix(suffixCount) else { return nil }
+        return matches[0]
     }
 
     private static func validateDirectoryTarget(
