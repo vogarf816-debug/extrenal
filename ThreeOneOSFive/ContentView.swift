@@ -839,7 +839,7 @@ private enum PatchAudioFeedback {
     private static var player: AVAudioPlayer?
 
     static func bypassActivated() { play(resource: "ACTIVADA", ext: "wav") }
-    static func originalRestored() { play(resource: "desactivar", ext: "wav") }
+    static func originalRestored() { play(resource: "DESACTIVADA", ext: "wav") }
 
     private static func play(resource: String, ext: String) {
         guard let url = Bundle.main.url(forResource: resource, withExtension: ext) else {
@@ -847,6 +847,9 @@ private enum PatchAudioFeedback {
             return
         }
         do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+            try session.setActive(true, options: [])
             player = try AVAudioPlayer(contentsOf: url)
             player?.prepareToPlay()
             player?.play()
