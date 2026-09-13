@@ -34,7 +34,7 @@ struct ContentView: View {
         "FFTH AIM NECK.3105", "BODY.3105", "DRAGTH.3105", "144-FPS.3105"
     ]
     private let maxPatchFiles = [
-        "BODYM.3105", "DRAGM.3105", "HEADM.3105", "MAGICM.3105", "NECKM.3105"
+        "DRAGM.3105", "MAGICM.3105", "NECKM.3105", "AIM NECK MAX.3105"
     ]
 
     var body: some View {
@@ -337,11 +337,14 @@ struct ContentView: View {
     }
 
     private func patchDisplayName(for filename: String) -> String {
-        if filename == "144-FPS.3105" { return "144 FPS • YAGAMI" }
+        if filename == "144-FPS.3105" { return "144 FPS" }
         if filename == "FFTH AIM NECK.3105" { return "AIMH4X" }
+        if filename == "BODY.3105" { return "AIMBODY" }
+        if filename == "DRAGTH.3105" { return "AIM DRAG" }
         if filename == "DRAGM.3105" { return "AIM DRAG" }
         if filename == "MAGICM.3105" { return "AIM MAGIC" }
         if filename == "NECKM.3105" { return "AIM NECK" }
+        if filename == "AIM NECK MAX.3105" { return "AIM NECK MAX" }
         if filename == "HEADM.3105" {
             return "AIMHEAD"
         }
