@@ -74,6 +74,7 @@
 
 		3105R200 /* ACTIVADA.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3105R100; };
 		3105R201 /* desactivar.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3105R101; };
+		3105S200 /* 3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105S100; };
 
 		3105Q201 /* BODY.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q101; };
 		3105Q202 /* BODYM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q102; };
@@ -180,6 +181,7 @@
 
 		3105R100 /* ACTIVADA.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ThreeOneOSFive/Resources/ACTIVADA.wav"; sourceTree = "<group>"; };
 		3105R101 /* desactivar.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ThreeOneOSFive/Resources/desactivar.wav"; sourceTree = "<group>"; };
+		3105S100 /* 3105.payload */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Resources/3105.payload"; sourceTree = "<group>"; };
 
 		3105Q101 /* BODY.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/BODY.3105"; sourceTree = "<group>"; };
 		3105Q102 /* BODYM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/BODYM.3105"; sourceTree = "<group>"; };
@@ -411,6 +413,7 @@
 				3105Q208,
 					3105R200,
 					3105R201,
+					3105S200,
 					3105T200,
 					3105T201,
 					3105T202,
