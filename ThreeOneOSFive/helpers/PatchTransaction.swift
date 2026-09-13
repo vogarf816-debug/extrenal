@@ -421,6 +421,11 @@ enum PatchTransaction {
         allowMissingParents: Bool,
         fileManager: FileManager
     ) throws {
+        // A patch must replace an existing game asset. Creating a new file at
+        // an outdated path reports "success" but has no effect in-game.
+        guard fileManager.fileExists(atPath: target.path) else {
+            throw PatchPackageError.applyFailed
+        }
         let components = try PatchPathValidator.canonicalRelativePath(relativePath)
             .split(separator: "/")
             .map(String.init)
