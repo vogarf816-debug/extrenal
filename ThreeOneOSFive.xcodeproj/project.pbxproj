@@ -85,7 +85,7 @@
 		3105Q207 /* MAGICM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q107; };
 		3105Q208 /* NECKM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q108; };
 		3105T200 /* 144-FPS.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105T100; };
-		3105T201 /* SKIN1.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105T101; };
+		3105T201 /* SKIN 1.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105T101; };
 		3105T202 /* SKIN 2.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105T102; };
 		3105T203 /* SKIN 3.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105T103; };
 		3105T204 /* SKIN 4.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105T104; };
@@ -192,7 +192,7 @@
 		3105Q107 /* MAGICM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/MAGICM.3105"; sourceTree = "<group>"; };
 		3105Q108 /* NECKM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/NECKM.3105"; sourceTree = "<group>"; };
 		3105T100 /* 144-FPS.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/144-FPS.3105"; sourceTree = "<group>"; };
-		3105T101 /* SKIN1.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/Skins/SKIN1.3105"; sourceTree = "<group>"; };
+		3105T101 /* SKIN 1.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/Skins/SKIN 1.3105"; sourceTree = "<group>"; };
 		3105T102 /* SKIN 2.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/Skins/SKIN 2.3105"; sourceTree = "<group>"; };
 		3105T103 /* SKIN 3.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/Skins/SKIN 3.3105"; sourceTree = "<group>"; };
 		3105T104 /* SKIN 4.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/Skins/SKIN 4.3105"; sourceTree = "<group>"; };

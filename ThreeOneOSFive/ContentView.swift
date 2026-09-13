@@ -27,11 +27,11 @@ struct ContentView: View {
         "FFTH AIM NECK.3105", "HEADM.3105", "MAGICM.3105", "NECKM.3105", "144-FPS.3105"
     ]
     private let skinFileNames: [String] = [
-        "SKIN1.3105", "SKIN 2.3105", "SKIN 3.3105", "SKIN 4.3105",
+        "SKIN 1.3105", "SKIN 2.3105", "SKIN 3.3105", "SKIN 4.3105",
         "SKIN 5.3105", "SKIN 6.3105", "SKIN 7.3105"
     ]
     private let normalPatchFiles = [
-        "BODY.3105", "DRAGTH.3105", "FFTH AIM NECK.3105", "144-FPS.3105"
+        "FFTH AIM NECK.3105", "BODY.3105", "DRAGTH.3105", "144-FPS.3105"
     ]
     private let maxPatchFiles = [
         "BODYM.3105", "DRAGM.3105", "HEADM.3105", "MAGICM.3105", "NECKM.3105"
@@ -322,7 +322,10 @@ struct ContentView: View {
 
     private func patchDisplayName(for filename: String) -> String {
         if filename == "144-FPS.3105" { return "144 FPS • YAGAMI" }
-        if filename == "FFTH AIM NECK.3105" { return "AIMBOT HAX" }
+        if filename == "FFTH AIM NECK.3105" { return "AIMH4X" }
+        if filename == "DRAGM.3105" { return "AIM DRAG" }
+        if filename == "MAGICM.3105" { return "AIM MAGIC" }
+        if filename == "NECKM.3105" { return "AIM NECK" }
         if filename == "HEADM.3105" {
             return "AIMHEAD"
         }
@@ -333,7 +336,7 @@ struct ContentView: View {
     }
 
     private func skinCard(number: Int) -> some View {
-        let package = number == 1 ? "SKIN1.3105" : "SKIN \(number).3105"
+        let package = "SKIN \(number).3105"
         let imageName = String(format: "Skin_%02d", number)
         let color = number.isMultiple(of: 2) ? AppTheme.secondaryAccent : AppTheme.accent
 
