@@ -639,6 +639,11 @@ struct ContentView: View {
     }
 
     private func patchItem(for packageFilename: String) -> PatchLibraryItem? {
+        let requestedName = (packageFilename as NSString).deletingPathExtension
+        let requestedIsMax = requestedName.uppercased().hasSuffix("M")
+        let requestedKey = requestedIsMax
+            ? String(requestedName.dropLast()).uppercased()
+            : requestedName.uppercased()
         patchStore.items.first { item in
             let storedName = item.packageURL.deletingPathExtension().lastPathComponent
             let canonicalName = storedName
@@ -646,8 +651,19 @@ struct ContentView: View {
                 .replacingOccurrences(of: "xTop1 External File (", with: "", options: .caseInsensitive)
                 .trimmingCharacters(in: CharacterSet(charactersIn: ")"))
             let normalizedStoredName = (canonicalName as NSString).deletingPathExtension
-            let requestedName = (packageFilename as NSString).deletingPathExtension
-            return normalizedStoredName.caseInsensitiveCompare(requestedName) == .orderedSame
+            if normalizedStoredName.caseInsensitiveCompare(requestedName) == .orderedSame {
+                return true
+            }
+
+            // The new Max archives keep the M suffix in the package filename,
+            // but their decoded project names are DRAG, MAGIC, and OBB.
+            let projectName = item.project?.name.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() ?? ""
+            let projectKey = projectName.hasSuffix("M") ? String(projectName.dropLast()) : projectName
+            let storedIsMax = normalizedStoredName.uppercased().hasSuffix("M")
+            let storedKey = storedIsMax
+                ? String(normalizedStoredName.dropLast()).uppercased()
+                : normalizedStoredName.uppercased()
+            return requestedIsMax == storedIsMax && projectKey == requestedKey && storedKey == requestedKey
         }
     }
 
@@ -668,8 +684,9 @@ struct ContentView: View {
     ) {
         guard !patchOperationBusy else { return }
         guard let item = patchItem(for: packageFilename) else {
+            let available = patchStore.items.map { $0.packageURL.lastPathComponent }.sorted().joined(separator: ", ")
             patchMessage = "ERROR — PACKAGE NOT FOUND"
-            log("patch: package not found: \(packageFilename)")
+            log("patch: package not found: \(packageFilename); available=\(available)")
             return
         }
 
