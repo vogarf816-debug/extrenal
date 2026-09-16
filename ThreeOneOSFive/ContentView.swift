@@ -17,14 +17,14 @@ struct ContentView: View {
         "MAGIC.3105": true
     ]
     private let fileNames: [String] = [
-        "OBB.3105", "AIM DRAG.3105", "MAGIC.3105"
+        "OBB.3105", "DRAG.3105", "MAGIC.3105"
     ]
     private let skinFileNames: [String] = [
         "SKIN 1.3105", "SKIN 2.3105", "SKIN 3.3105", "SKIN 4.3105",
         "SKIN 5.3105", "SKIN 6.3105", "SKIN 7.3105"
     ]
     private let normalPatchFiles = [
-        "OBB.3105", "AIM DRAG.3105", "MAGIC.3105"
+        "OBB.3105", "DRAG.3105", "MAGIC.3105"
     ]
     private let maxPatchFiles = [
         "OBBM.3105", "DRAGM.3105", "MAGICM.3105"
@@ -331,7 +331,7 @@ struct ContentView: View {
 
     private func patchDisplayName(for filename: String) -> String {
         if filename == "OBB.3105" { return "AIMBODY" }
-        if filename == "AIM DRAG.3105" { return "AIM DRAG" }
+        if filename == "DRAG.3105" { return "AIM DRAG" }
         if filename == "MAGIC.3105" { return "AIM MAGIC" }
         if filename == "DRAGM.3105" { return "AIM DRAG" }
         if filename == "NECKM.3105" { return "AIM NECK" }
