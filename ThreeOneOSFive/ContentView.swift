@@ -12,26 +12,19 @@ struct ContentView: View {
     @State private var patchMessage = "READY — SELECT A PATCH"
     @State private var patchEnabled: [String: Bool] = [:]
     @State private var fileSafety: [String: Bool] = [
-        "BODY.3105": true,
-        "BODYM.3105": true,
-        "DRAGM.3105": true,
-        "DRAGTH.3105": true,
-        "FFTH AIM NECK.3105": true,
-        "HEADM.3105": true,
-        "MAGICM.3105": true,
-        "NECKM.3105": true,
-        "144-FPS.3105": true
+        "OBB.3105": true,
+        "AIM DRAG.3105": true,
+        "MAGIC.3105": true
     ]
     private let fileNames: [String] = [
-        "BODY.3105", "BODYM.3105", "DRAGM.3105", "DRAGTH.3105",
-        "FFTH AIM NECK.3105", "HEADM.3105", "MAGICM.3105", "NECKM.3105", "144-FPS.3105"
+        "OBB.3105", "AIM DRAG.3105", "MAGIC.3105"
     ]
     private let skinFileNames: [String] = [
         "SKIN 1.3105", "SKIN 2.3105", "SKIN 3.3105", "SKIN 4.3105",
         "SKIN 5.3105", "SKIN 6.3105", "SKIN 7.3105"
     ]
     private let normalPatchFiles = [
-        "FFTH AIM NECK.3105", "BODY.3105", "DRAGTH.3105", "144-FPS.3105"
+        "OBB.3105", "AIM DRAG.3105", "MAGIC.3105"
     ]
     private let maxPatchFiles = [
         "DRAGM.3105", "MAGICM.3105", "NECKM.3105"
@@ -337,6 +330,9 @@ struct ContentView: View {
     }
 
     private func patchDisplayName(for filename: String) -> String {
+        if filename == "OBB.3105" { return "AIMBODY" }
+        if filename == "AIM DRAG.3105" { return "AIM DRAG" }
+        if filename == "MAGIC.3105" { return "AIM MAGIC" }
         if filename == "144-FPS.3105" { return "144 FPS" }
         if filename == "FFTH AIM NECK.3105" { return "AIMH4X" }
         if filename == "BODY.3105" { return "AIMBODY" }
