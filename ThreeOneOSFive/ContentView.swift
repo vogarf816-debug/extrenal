@@ -644,7 +644,7 @@ struct ContentView: View {
         let requestedKey = requestedIsMax
             ? String(requestedName.dropLast()).uppercased()
             : requestedName.uppercased()
-        patchStore.items.first { item in
+        return patchStore.items.first { item in
             let storedName = item.packageURL.deletingPathExtension().lastPathComponent
             let canonicalName = storedName
                 .replacingOccurrences(of: "BundledPatch-", with: "", options: .caseInsensitive)
