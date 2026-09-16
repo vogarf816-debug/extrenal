@@ -45,6 +45,13 @@ final class PatchProjectStore: ObservableObject {
         items = PatchProjectLibrary.load()
     }
 
+    /// Reconcile bundled resources with Application Support after an app
+    /// upgrade, then rebuild the in-memory package list.
+    func refreshBundledPackages() {
+        PatchProjectLibrary.installBundledPackagesIfNeeded()
+        reload()
+    }
+
     func create(project: PatchProject, password: String?) {
         runOperation(successMessageKey: "patch.created_message") {
             let encoded = try PatchPackageCodec.encodeNew(project: project, password: password)

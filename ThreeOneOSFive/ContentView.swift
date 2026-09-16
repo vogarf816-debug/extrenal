@@ -683,6 +683,7 @@ struct ContentView: View {
         targetBundleID: String = "com.dts.freefireth"
     ) {
         guard !patchOperationBusy else { return }
+        patchStore.refreshBundledPackages()
         guard let item = patchItem(for: packageFilename) else {
             let available = patchStore.items.map { $0.packageURL.lastPathComponent }.sorted().joined(separator: ", ")
             patchMessage = "ERROR — PACKAGE NOT FOUND"
