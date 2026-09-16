@@ -142,7 +142,10 @@ enum PatchProjectLibrary {
                 options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
               ) else { return [] }
 
-        var byID: [UUID: PatchLibraryItem] = [:]
+        // Normal and Max archives intentionally share package IDs, but they
+        // are different resources and must both remain selectable. Key the
+        // in-memory catalog by the persisted filename instead of package UUID.
+        var byPackagePath: [String: PatchLibraryItem] = [:]
         for url in urls where url.pathExtension.lowercased() == "3105" {
             do {
                 let data = try readPackage(at: url)
@@ -188,12 +191,12 @@ enum PatchProjectLibrary {
                         log("patch: workspace unavailable for \(project.id.uuidString)")
                     }
                 }
-                byID[summary.packageID] = item
+                byPackagePath[url.standardizedFileURL.path] = item
             } catch {
                 log("patch: skipped invalid local package \(url.lastPathComponent)")
             }
         }
-        return byID.values.sorted {
+        return byPackagePath.values.sorted {
             ($0.project?.updatedAt ?? .distantPast) > ($1.project?.updatedAt ?? .distantPast)
         }
     }
