@@ -320,6 +320,7 @@ struct ContentView: View {
         if filename == "MAGIC.3105" { return "AIM MAGIC" }
         if filename == "DRAGM.3105" { return "AIM DRAG" }
         if filename == "OBBM.3105" { return "AIMBODY" }
+        if filename == "MAGICM.3105" { return "MAGIC BULLET" }
         return filename.replacingOccurrences(of: ".3105", with: "")
             .replacingOccurrences(of: " AIM ", with: " • ")
             .replacingOccurrences(of: "M", with: " M")
