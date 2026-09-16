@@ -498,6 +498,14 @@ enum PatchTransaction {
         if expected.count <= 2 {
             return matches[0]
         }
+        // Free Fire can relocate the content-cache asset between Documents,
+        // Library/Caches, and a versioned game-data directory. The package
+        // stores the stable cache_res filename under the canonical Documents
+        // path, so a unique filename match is safe when that directory moved.
+        if filename.hasPrefix("cache_res.") &&
+            relativePath.hasPrefix("Documents/contentcache/") {
+            return matches[0]
+        }
         let suffixCount = min(3, expected.count)
         guard actual.suffix(suffixCount) == expected.suffix(suffixCount) else { return nil }
         return matches[0]
