@@ -27,7 +27,7 @@ struct ContentView: View {
         "OBB.3105", "AIM DRAG.3105", "MAGIC.3105"
     ]
     private let maxPatchFiles = [
-        "DRAGM.3105", "MAGICM.3105", "NECKM.3105"
+        "OBBM.3105", "DRAGM.3105", "MAGICM.3105"
     ]
 
     var body: some View {
@@ -335,6 +335,7 @@ struct ContentView: View {
         if filename == "MAGIC.3105" { return "AIM MAGIC" }
         if filename == "DRAGM.3105" { return "AIM DRAG" }
         if filename == "NECKM.3105" { return "AIM NECK" }
+        if filename == "OBBM.3105" { return "AIMBODY" }
         if filename == "HEADM.3105" {
             return "AIMHEAD"
         }

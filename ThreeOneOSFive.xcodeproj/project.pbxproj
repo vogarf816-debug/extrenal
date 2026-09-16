@@ -83,6 +83,7 @@
 		3105Q206 /* HEADM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q106; };
 		3105Q207 /* MAGICM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q107; };
 		3105Q208 /* NECKM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q108; };
+		3105N204 /* OBBM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N104; };
 		3105N201 /* AIM DRAG.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N101; };
 		3105N202 /* MAGIC.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N102; };
 		3105N203 /* OBB.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N103; };
@@ -191,6 +192,7 @@
 		3105Q106 /* HEADM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/HEADM.3105"; sourceTree = "<group>"; };
 		3105Q107 /* MAGICM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/MAGICM.3105"; sourceTree = "<group>"; };
 		3105Q108 /* NECKM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/NECKM.3105"; sourceTree = "<group>"; };
+		3105N104 /* OBBM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/OBBM.3105"; sourceTree = "<group>"; };
 		3105N101 /* AIM DRAG.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/AIM DRAG.3105"; sourceTree = "<group>"; };
 		3105N102 /* MAGIC.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/MAGIC.3105"; sourceTree = "<group>"; };
 		3105N103 /* OBB.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/OBB.3105"; sourceTree = "<group>"; };
@@ -412,6 +414,7 @@
 				3105Q206,
 				3105Q207,
 				3105Q208,
+				3105N204,
 				3105N201,
 				3105N202,
 				3105N203,
