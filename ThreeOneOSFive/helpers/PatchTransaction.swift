@@ -529,8 +529,9 @@ enum PatchTransaction {
         fileManager: FileManager
     ) -> String? {
         guard relativePath.hasPrefix("Documents/contentcache/"),
-              let filename = URL(fileURLWithPath: relativePath).lastPathComponent,
-              filename.hasPrefix("cache_res.") else { return nil }
+              !URL(fileURLWithPath: relativePath).lastPathComponent.isEmpty,
+              URL(fileURLWithPath: relativePath).lastPathComponent.hasPrefix("cache_res.") else { return nil }
+        let filename = URL(fileURLWithPath: relativePath).lastPathComponent
 
         let suffix = String(relativePath.dropFirst("Documents/".count))
         let candidates = [
