@@ -452,7 +452,7 @@ struct ContentView: View {
             HStack {
                 Text("BUILD")
                 Spacer()
-                Text("1.1.1")
+                Text("1.2")
             }
             .font(.system(size: 11, weight: .bold, design: .rounded))
             .foregroundStyle(AppTheme.secondaryAccent)
