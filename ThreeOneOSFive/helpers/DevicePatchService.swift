@@ -46,11 +46,24 @@ enum DevicePatchService {
         operation: ([String: URL]) throws -> T
     ) throws -> T {
         var roots: [String: URL] = [:]
+        var accessHandles: [Int64] = []
+        defer {
+            for handle in accessHandles where handle >= 0 {
+                bad_query_release(handle)
+            }
+        }
 
         for bundleID in bundleIDs {
             guard let path = ContainerStore.resolveAppContainerPath(bundleID: bundleID),
                   ContainerStore.isApplicationContainerPath(path) else {
                 throw PatchPackageError.targetAppUnavailable(bundleID)
+            }
+            // On newer iOS versions, resolving a container path does not
+            // grant FileManager traversal. Keep the grant alive for the full
+            // apply/restore operation, including recursive asset discovery.
+            let accessHandle = ContainerStore.grantContainerAccess(path)
+            if accessHandle >= 0 {
+                accessHandles.append(accessHandle)
             }
             roots[bundleID] = PatchPathValidator.canonicalFileURL(URL(fileURLWithPath: path, isDirectory: true))
         }
