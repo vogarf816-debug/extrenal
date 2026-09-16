@@ -18,7 +18,8 @@ struct ContentView: View {
         "OBBM.3105": true,
         "DRAGM.3105": true,
         "MAGICM.3105": true,
-        "WEAPONS.3105": true
+        "WEAPONS.3105": true,
+        "WEAPONSM.3105": true
     ]
     private let fileNames: [String] = [
         "OBB.3105", "DRAG.3105", "MAGIC.3105", "WEAPONS.3105"
@@ -27,7 +28,7 @@ struct ContentView: View {
         "OBB.3105", "DRAG.3105", "MAGIC.3105"
     ]
     private let maxPatchFiles = [
-        "OBBM.3105", "DRAGM.3105", "MAGICM.3105"
+        "OBBM.3105", "DRAGM.3105", "MAGICM.3105", "WEAPONSM.3105"
     ]
 
     var body: some View {
@@ -322,7 +323,7 @@ struct ContentView: View {
         if filename == "DRAGM.3105" { return "AIM DRAG" }
         if filename == "OBBM.3105" { return "AIMBODY" }
         if filename == "MAGICM.3105" { return "MAGIC BULLET" }
-        if filename == "WEAPONS.3105" { return "WEAPONS HOLO" }
+        if filename == "WEAPONS.3105" || filename == "WEAPONSM.3105" { return "WEAPONS HOLO" }
         return filename.replacingOccurrences(of: ".3105", with: "")
             .replacingOccurrences(of: " AIM ", with: " • ")
             .replacingOccurrences(of: "M", with: " M")

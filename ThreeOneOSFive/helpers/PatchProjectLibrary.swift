@@ -100,7 +100,7 @@ enum PatchProjectLibrary {
         let activePatchFilenames = [
             "DRAG.3105", "MAGIC.3105", "OBB.3105",
             "DRAGM.3105", "MAGICM.3105", "OBBM.3105",
-            "WEAPONS.3105"
+            "WEAPONS.3105", "WEAPONSM.3105"
         ]
         let explicitURLs = activePatchFilenames.compactMap { filename in
             let resourceName = (filename as NSString).deletingPathExtension
