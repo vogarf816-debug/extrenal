@@ -32,13 +32,13 @@ for package in "$APP"/*.3105; do
   [ -e "$package" ] || continue
   mv "$package" "$PATCH_DIR/"
 done
-for package in DRAG.3105 MAGIC.3105 OBB.3105 DRAGM.3105 MAGICM.3105 OBBM.3105; do
+for package in DRAG.3105 MAGIC.3105 OBB.3105 DRAGM.3105 MAGICM.3105 OBBM.3105 WEAPONS.3105; do
   test -s "$PATCH_DIR/$package" || {
     echo "Missing active patch resource in built app: $package" >&2
     exit 1
   }
 done
-echo "Verified active patch resources: DRAG.3105 MAGIC.3105 OBB.3105 DRAGM.3105 MAGICM.3105 OBBM.3105"
+echo "Verified active patch resources: DRAG.3105 MAGIC.3105 OBB.3105 DRAGM.3105 MAGICM.3105 OBBM.3105 WEAPONS.3105"
 
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable 3105" "$APP/Info.plist" || true
 /usr/libexec/PlistBuddy -c "Set :CFBundlePackageType APPL" "$APP/Info.plist" || true

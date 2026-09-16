@@ -81,6 +81,7 @@
 		3105N201 /* DRAG.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N101; };
 		3105N202 /* MAGIC.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N102; };
 		3105N203 /* OBB.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N103; };
+		3105W201 /* WEAPONS.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105W101; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -177,6 +178,7 @@
 		3105N101 /* DRAG.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/DRAG.3105"; sourceTree = "<group>"; };
 		3105N102 /* MAGIC.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/MAGIC.3105"; sourceTree = "<group>"; };
 		3105N103 /* OBB.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/OBB.3105"; sourceTree = "<group>"; };
+		3105W101 /* WEAPONS.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/WEAPONS.3105"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -386,6 +388,7 @@
 				3105N201,
 				3105N202,
 				3105N203,
+				3105W201,
 					3105R200,
 					3105R201,
 			);
