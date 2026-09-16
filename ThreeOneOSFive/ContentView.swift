@@ -333,12 +333,7 @@ struct ContentView: View {
         if filename == "OBB.3105" { return "AIMBODY" }
         if filename == "AIM DRAG.3105" { return "AIM DRAG" }
         if filename == "MAGIC.3105" { return "AIM MAGIC" }
-        if filename == "144-FPS.3105" { return "144 FPS" }
-        if filename == "FFTH AIM NECK.3105" { return "AIMH4X" }
-        if filename == "BODY.3105" { return "AIMBODY" }
-        if filename == "DRAGTH.3105" { return "AIM DRAG" }
         if filename == "DRAGM.3105" { return "AIM DRAG" }
-        if filename == "MAGICM.3105" { return "AIM MAGIC" }
         if filename == "NECKM.3105" { return "AIM NECK" }
         if filename == "HEADM.3105" {
             return "AIMHEAD"
