@@ -31,10 +31,7 @@ struct ThreeOneOSFiveApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if licenseManager.isLoadingScreen {
-                    LaunchLoadingView()
-                        .transition(.opacity)
-                } else if licenseManager.isActive {
+                if licenseManager.isActive {
                     if showWelcome {
                         WelcomeView()
                             .transition(.opacity)
@@ -228,69 +225,5 @@ private struct WelcomeView: View {
             }
         }
         .preferredColorScheme(.dark)
-    }
-}
-
-private struct LaunchLoadingView: View {
-    @State private var animate = false
-
-    var body: some View {
-        ZStack {
-            LoginBackdrop()
-                .ignoresSafeArea()
-
-            VStack(spacing: 22) {
-                ZStack {
-                    Circle()
-                        .stroke(AppTheme.accent.opacity(0.20), lineWidth: 12)
-                        .frame(width: 116, height: 116)
-
-                    Circle()
-                        .trim(from: 0.08, to: 0.78)
-                        .stroke(
-                            AngularGradient(
-                                colors: [AppTheme.accent, AppTheme.secondaryAccent, AppTheme.accent],
-                                center: .center
-                            ),
-                            style: StrokeStyle(lineWidth: 8, lineCap: .round)
-                        )
-                        .frame(width: 116, height: 116)
-                        .rotationEffect(.degrees(animate ? 360 : 0))
-
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 38, weight: .black))
-                        .foregroundStyle(AppTheme.secondaryAccent)
-                        .shadow(color: AppTheme.secondaryAccent.opacity(0.75), radius: animate ? 22 : 8)
-                }
-
-                Text("VESPER EXTERNAL")
-                    .font(.system(size: 22, weight: .black, design: .rounded))
-                    .tracking(2.2)
-                    .foregroundStyle(.white)
-
-                VStack(spacing: 8) {
-                    Text("LOADING…")
-                        .font(.system(size: 13, weight: .black, design: .rounded))
-                        .tracking(2.8)
-                        .foregroundStyle(AppTheme.secondaryAccent)
-
-                    ProgressView()
-                        .tint(.white.opacity(0.86))
-                        .scaleEffect(0.9)
-                }
-            }
-            .padding(.horizontal, 34)
-            .padding(.vertical, 32)
-            .background(.ultraThinMaterial.opacity(0.72), in: RoundedRectangle(cornerRadius: 30, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.36), lineWidth: 1))
-            .shadow(color: AppTheme.accent.opacity(0.22), radius: 30)
-            .padding(24)
-        }
-        .preferredColorScheme(.dark)
-        .onAppear {
-            withAnimation(.linear(duration: 1.15).repeatForever(autoreverses: false)) {
-                animate = true
-            }
-        }
     }
 }

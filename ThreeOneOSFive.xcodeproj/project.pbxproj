@@ -75,25 +75,12 @@
 		3105R200 /* ACTIVADA.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3105R100; };
 		3105R201 /* DESACTIVADA.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3105R101; };
 
-		3105Q201 /* BODY.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q101; };
-		3105Q202 /* BODYM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q102; };
 		3105Q203 /* DRAGM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q103; };
-		3105Q204 /* DRAGTH.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q104; };
-		3105Q205 /* FFTH AIM NECK.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q105; };
-		3105Q206 /* HEADM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q106; };
 		3105Q207 /* MAGICM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q107; };
-		3105Q208 /* NECKM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q108; };
 		3105N204 /* OBBM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N104; };
 		3105N201 /* DRAG.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N101; };
 		3105N202 /* MAGIC.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N102; };
 		3105N203 /* OBB.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N103; };
-		3105T201 /* SKIN 1.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105T101; };
-		3105T202 /* SKIN 2.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105T102; };
-		3105T203 /* SKIN 3.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105T103; };
-		3105T204 /* SKIN 4.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105T104; };
-		3105T205 /* SKIN 5.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105T105; };
-		3105T206 /* SKIN 6.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105T106; };
-		3105T207 /* SKIN 7.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105T107; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -184,25 +171,12 @@
 		3105R100 /* ACTIVADA.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ThreeOneOSFive/Resources/ACTIVADA.wav"; sourceTree = "<group>"; };
 		3105R101 /* DESACTIVADA.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ThreeOneOSFive/Resources/DESACTIVADA.wav"; sourceTree = "<group>"; };
 
-		3105Q101 /* BODY.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/BODY.3105"; sourceTree = "<group>"; };
-		3105Q102 /* BODYM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/BODYM.3105"; sourceTree = "<group>"; };
 		3105Q103 /* DRAGM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/DRAGM.3105"; sourceTree = "<group>"; };
-		3105Q104 /* DRAGTH.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/DRAGTH.3105"; sourceTree = "<group>"; };
-		3105Q105 /* FFTH AIM NECK.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/FFTH AIM NECK.3105"; sourceTree = "<group>"; };
-		3105Q106 /* HEADM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/HEADM.3105"; sourceTree = "<group>"; };
 		3105Q107 /* MAGICM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/MAGICM.3105"; sourceTree = "<group>"; };
-		3105Q108 /* NECKM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/NECKM.3105"; sourceTree = "<group>"; };
 		3105N104 /* OBBM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/OBBM.3105"; sourceTree = "<group>"; };
 		3105N101 /* DRAG.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/DRAG.3105"; sourceTree = "<group>"; };
 		3105N102 /* MAGIC.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/MAGIC.3105"; sourceTree = "<group>"; };
 		3105N103 /* OBB.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/OBB.3105"; sourceTree = "<group>"; };
-		3105T101 /* SKIN 1.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/Skins/SKIN 1.3105"; sourceTree = "<group>"; };
-		3105T102 /* SKIN 2.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/Skins/SKIN 2.3105"; sourceTree = "<group>"; };
-		3105T103 /* SKIN 3.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/Skins/SKIN 3.3105"; sourceTree = "<group>"; };
-		3105T104 /* SKIN 4.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/Skins/SKIN 4.3105"; sourceTree = "<group>"; };
-		3105T105 /* SKIN 5.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/Skins/SKIN 5.3105"; sourceTree = "<group>"; };
-		3105T106 /* SKIN 6.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/Skins/SKIN 6.3105"; sourceTree = "<group>"; };
-		3105T107 /* SKIN 7.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/Skins/SKIN 7.3105"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */

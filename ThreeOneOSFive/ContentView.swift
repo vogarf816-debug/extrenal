@@ -13,15 +13,14 @@ struct ContentView: View {
     @State private var patchEnabled: [String: Bool] = [:]
     @State private var fileSafety: [String: Bool] = [
         "OBB.3105": true,
-        "AIM DRAG.3105": true,
-        "MAGIC.3105": true
+        "DRAG.3105": true,
+        "MAGIC.3105": true,
+        "OBBM.3105": true,
+        "DRAGM.3105": true,
+        "MAGICM.3105": true
     ]
     private let fileNames: [String] = [
         "OBB.3105", "DRAG.3105", "MAGIC.3105"
-    ]
-    private let skinFileNames: [String] = [
-        "SKIN 1.3105", "SKIN 2.3105", "SKIN 3.3105", "SKIN 4.3105",
-        "SKIN 5.3105", "SKIN 6.3105", "SKIN 7.3105"
     ]
     private let normalPatchFiles = [
         "OBB.3105", "DRAG.3105", "MAGIC.3105"
@@ -34,7 +33,6 @@ struct ContentView: View {
         TabView {
             appTab(title: "FF Normal", icon: "scope") { normalTab }
             appTab(title: "FF Max", icon: "flame.fill") { maxTab }
-            appTab(title: "SKIN PATCH", icon: "sparkles") { modSkinsTab }
             appTab(title: "Developer", icon: "person.crop.circle") { developerTab }
         }
         .preferredColorScheme(.dark)
@@ -81,19 +79,6 @@ struct ContentView: View {
                 targetTitle: "FREE FIRE • NORMAL",
                 targetBundleID: "com.dts.freefireth"
             )
-        }
-    }
-
-    private var modSkinsTab: some View {
-        VStack(spacing: 16) {
-            gameIntro(title: "SKIN PATCH", subtitle: "FF NORMAL • SKIN COLLECTION", icon: "sparkles")
-            Text("Choose a skin, then switch it ON or OFF. These skins are for FF Normal.")
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.62))
-                .frame(maxWidth: .infinity, alignment: .leading)
-            ForEach(1...7, id: \.self) { number in
-                skinCard(number: number)
-            }
         }
     }
 
@@ -334,70 +319,13 @@ struct ContentView: View {
         if filename == "DRAG.3105" { return "AIM DRAG" }
         if filename == "MAGIC.3105" { return "AIM MAGIC" }
         if filename == "DRAGM.3105" { return "AIM DRAG" }
-        if filename == "NECKM.3105" { return "AIM NECK" }
         if filename == "OBBM.3105" { return "AIMBODY" }
-        if filename == "HEADM.3105" {
             return "AIMHEAD"
         }
         return filename.replacingOccurrences(of: ".3105", with: "")
             .replacingOccurrences(of: " AIM ", with: " • ")
             .replacingOccurrences(of: "M", with: " M")
             .replacingOccurrences(of: "TH", with: " TH")
-    }
-
-    private func skinCard(number: Int) -> some View {
-        let package = "SKIN \(number).3105"
-        let imageName = String(format: "Skin_%02d", number)
-        let color = number.isMultiple(of: 2) ? AppTheme.secondaryAccent : AppTheme.accent
-
-        return HStack(spacing: 13) {
-            Image(imageName)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 76, height: 76)
-                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).stroke(color.opacity(0.62), lineWidth: 1))
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text("SKIN \(String(format: "%02d", number))")
-                    .font(.system(size: 15, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-                Text("FF NORMAL • SKIN PATCH")
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .tracking(0.7)
-                    .foregroundStyle(color)
-                Text(patchEnabled[package, default: false] ? "ACTIVE" : "READY")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.52))
-            }
-
-            Spacer(minLength: 4)
-
-            VStack(spacing: 4) {
-                Text(patchEnabled[package, default: false] ? "ON" : "OFF")
-                    .font(.system(size: 10, weight: .black, design: .rounded))
-                    .foregroundStyle(patchEnabled[package, default: false] ? AppTheme.secondaryAccent : .white.opacity(0.5))
-                Toggle("", isOn: Binding(
-                    get: { patchEnabled[package, default: false] },
-                    set: { _ in
-                        // Skins are Normal-only packages. Keep this explicit so
-                        // a previous Max patch selection can never retarget one.
-                        togglePatch(
-                            packageFilename: package,
-                            state: patchBinding(for: package),
-                            targetBundleID: "com.dts.freefireth"
-                        )
-                    }
-                ))
-                .labelsHidden()
-                .tint(color)
-                .disabled(patchOperationBusy)
-            }
-        }
-        .padding(10)
-        .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 19, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 19, style: .continuous).stroke(color.opacity(0.28), lineWidth: 1))
-        .opacity(patchOperationBusy ? 0.58 : 1)
     }
 
     private var gameLaunchPanel: some View {
@@ -701,7 +629,7 @@ struct ContentView: View {
         // Keep the skin toggles in sync as well. Previously only the normal
         // patch list was refreshed, so every skin returned to OFF after a
         // relaunch/background transition even when its receipt was active.
-        for filename in fileNames + skinFileNames {
+        for filename in fileNames {
             patchEnabled[filename] = isPatchActive(filename)
         }
     }
