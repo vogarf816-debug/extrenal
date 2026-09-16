@@ -94,8 +94,23 @@ enum PatchProjectLibrary {
         }
         let allBundleURLs = bundle.paths(forResourcesOfType: "3105", inDirectory: nil)
             .map(URL.init(fileURLWithPath:))
+        // Keep the six active resources explicit. Xcode can flatten folder
+        // resources or omit directory enumeration in some build modes, while
+        // direct lookup remains stable for both FF Normal and FF Max.
+        let activePatchFilenames = [
+            "DRAG.3105", "MAGIC.3105", "OBB.3105",
+            "DRAGM.3105", "MAGICM.3105", "OBBM.3105"
+        ]
+        let explicitURLs = activePatchFilenames.compactMap { filename in
+            let resourceName = (filename as NSString).deletingPathExtension
+            return bundle.url(
+                forResource: resourceName,
+                withExtension: "3105",
+                subdirectory: "Patches"
+            ) ?? bundle.url(forResource: resourceName, withExtension: "3105")
+        }
         var seen = Set<String>()
-        let bundledURLs = (nestedURLs + skinURLs + flattenedURLs + recursiveURLs + allBundleURLs)
+        let bundledURLs = (explicitURLs + nestedURLs + skinURLs + flattenedURLs + recursiveURLs + allBundleURLs)
             .filter { seen.insert($0.standardizedFileURL.path).inserted }
 
         for sourceURL in bundledURLs {
