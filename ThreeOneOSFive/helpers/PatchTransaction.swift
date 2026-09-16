@@ -144,6 +144,18 @@ enum PatchTransaction {
                     containerRoot: root
                 )
                 log("patch: remapped missing asset \(rule.relativePath) -> \(discoveredPath)")
+            } else if !fileManager.fileExists(atPath: target.path),
+                      let discoveredPath = discoverKnownCacheAssetPath(
+                          relativePath: rule.relativePath,
+                          containerRoot: root,
+                          fileManager: fileManager
+                      ) {
+                effectiveRule.relativePath = discoveredPath
+                target = try PatchPathValidator.resolveContainedTargetURL(
+                    relativePath: discoveredPath,
+                    containerRoot: root
+                )
+                log("patch: remapped known cache layout \(rule.relativePath) -> \(discoveredPath)")
             }
             let targetKey = target.path
             guard targetKeys.insert(targetKey).inserted else {
@@ -509,6 +521,36 @@ enum PatchTransaction {
         let suffixCount = min(3, expected.count)
         guard actual.suffix(suffixCount) == expected.suffix(suffixCount) else { return nil }
         return matches[0]
+    }
+
+    private static func discoverKnownCacheAssetPath(
+        relativePath: String,
+        containerRoot: URL,
+        fileManager: FileManager
+    ) -> String? {
+        guard relativePath.hasPrefix("Documents/contentcache/"),
+              let filename = URL(fileURLWithPath: relativePath).lastPathComponent,
+              filename.hasPrefix("cache_res.") else { return nil }
+
+        let suffix = String(relativePath.dropFirst("Documents/".count))
+        let candidates = [
+            suffix,
+            "Library/Caches/\(suffix)",
+            "Library/Application Support/\(suffix)",
+            "Library/Caches/\(filename)",
+            "Library/Application Support/\(filename)"
+        ]
+        for candidate in candidates {
+            let url = try? PatchPathValidator.resolveContainedTargetURL(
+                relativePath: candidate,
+                containerRoot: containerRoot
+            )
+            if let url, fileManager.fileExists(atPath: url.path) {
+                log("patch: known cache candidate exists \(candidate)")
+                return candidate
+            }
+        }
+        return nil
     }
 
     private static func validateDirectoryTarget(
