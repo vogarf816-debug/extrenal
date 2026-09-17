@@ -34,7 +34,7 @@ enum VesperDashRemoteSync {
     }
 
     static func validDownloadURL(for patch: RemotePatch) -> URL? {
-        guard let url = URL(string: patch.download_url),
+        guard let url = URL(string: patch.download_url, relativeTo: manifestURL)?.absoluteURL,
               url.scheme?.lowercased() == "https",
               url.host?.lowercased() == "api.vesperdash.com",
               url.user == nil, url.password == nil,
