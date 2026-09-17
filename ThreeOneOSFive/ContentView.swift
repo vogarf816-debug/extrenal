@@ -39,6 +39,11 @@ struct ContentView: View {
         }
         .preferredColorScheme(.dark)
         .tint(AppTheme.accent)
+        .overlay {
+            if patchStore.isRemoteDisabled {
+                RemotePauseView()
+            }
+        }
         .sheet(isPresented: $showCleaner) {
             CleanerView()
         }
@@ -53,6 +58,27 @@ struct ContentView: View {
             guard phase == .active, !patchOperationBusy else { return }
             syncPatchStates()
             patchMessage = "READY — SELECT A PATCH"
+        }
+    }
+
+    private struct RemotePauseView: View {
+        var body: some View {
+            ZStack {
+                Color.black.opacity(0.94).ignoresSafeArea()
+                VStack(spacing: 18) {
+                    Image(systemName: "pause.circle.fill")
+                        .font(.system(size: 64))
+                        .foregroundStyle(.orange)
+                    Text("SERVICE PAUSED")
+                        .font(.system(size: 26, weight: .black, design: .rounded))
+                    Text("This IPA has been paused by the administrator. Try again later.")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white.opacity(0.72))
+                        .padding(.horizontal, 28)
+                }
+                .foregroundStyle(.white)
+            }
+            .allowsHitTesting(true)
         }
     }
 

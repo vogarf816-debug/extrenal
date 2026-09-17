@@ -2,6 +2,7 @@ import Foundation
 
 struct VesperDashManifest: Decodable {
     let version: Int
+    let global_paused: Bool
     let patches: [RemotePatch]
 }
 

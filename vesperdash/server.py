@@ -35,6 +35,10 @@ def db():
         enabled INTEGER NOT NULL DEFAULT 1, paused INTEGER NOT NULL DEFAULT 0,
         version TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
     )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY, value TEXT NOT NULL
+    )""")
+    conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES('global_paused', '0')")
     conn.commit()
     return conn
 
@@ -55,6 +59,11 @@ def public_row(row):
     return {**dict(row), "enabled": bool(row["enabled"]), "paused": bool(row["paused"]), "download_url": f"/api/patches/{row['id']}/download"}
 
 
+def global_paused(conn):
+    row = conn.execute("SELECT value FROM settings WHERE key='global_paused'").fetchone()
+    return bool(row and row["value"] == "1")
+
+
 @app.errorhandler(413)
 def too_large(_):
     return jsonify(error="file too large"), 413
@@ -67,14 +76,14 @@ def health():
 
 @app.get("/api/patches")
 def list_patches():
-    conn = db(); rows = conn.execute("SELECT * FROM patches ORDER BY game, name, version DESC").fetchall(); conn.close()
-    return jsonify(version=1, patches=[public_row(r) for r in rows if r["enabled"] and not r["paused"]])
+    conn = db(); paused = global_paused(conn); rows = conn.execute("SELECT * FROM patches ORDER BY game, name, version DESC").fetchall(); conn.close()
+    return jsonify(version=2, global_paused=paused, patches=[] if paused else [public_row(r) for r in rows if r["enabled"] and not r["paused"]])
 
 
 @app.get("/api/patches/<patch_id>/download")
 def download_patch(patch_id):
-    conn = db(); row = conn.execute("SELECT * FROM patches WHERE id=?", (patch_id,)).fetchone(); conn.close()
-    if not row or not row["enabled"] or row["paused"]:
+    conn = db(); paused = global_paused(conn); row = conn.execute("SELECT * FROM patches WHERE id=?", (patch_id,)).fetchone(); conn.close()
+    if paused or not row or not row["enabled"] or row["paused"]:
         abort(404)
     path = PATCH_DIR / row["stored_filename"]
     if not path.is_file(): abort(404)
@@ -84,8 +93,25 @@ def download_patch(patch_id):
 @app.get("/api/admin/patches")
 @auth_required
 def admin_patches():
-    conn = db(); rows = conn.execute("SELECT * FROM patches ORDER BY updated_at DESC").fetchall(); conn.close()
-    return jsonify(patches=[public_row(r) for r in rows])
+    conn = db(); paused = global_paused(conn); rows = conn.execute("SELECT * FROM patches ORDER BY updated_at DESC").fetchall(); conn.close()
+    return jsonify(global_paused=paused, patches=[public_row(r) for r in rows])
+
+
+@app.get("/api/admin/state")
+@auth_required
+def admin_state():
+    conn = db(); paused = global_paused(conn); conn.close()
+    return jsonify(global_paused=paused)
+
+
+@app.post("/api/admin/state")
+@auth_required
+def set_admin_state():
+    body = request.get_json(silent=True) or {}
+    if "global_paused" not in body:
+        return jsonify(error="send global_paused"), 400
+    conn = db(); conn.execute("UPDATE settings SET value=? WHERE key='global_paused'", ("1" if bool(body["global_paused"]) else "0",)); conn.commit(); paused = global_paused(conn); conn.close()
+    return jsonify(global_paused=paused)
 
 
 @app.post("/api/admin/patches")

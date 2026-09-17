@@ -31,6 +31,7 @@ struct PatchStoreAlert: Identifiable {
 final class PatchProjectStore: ObservableObject {
     @Published private(set) var items: [PatchLibraryItem] = []
     @Published private(set) var isBusy = false
+    @Published private(set) var isRemoteDisabled = false
     @Published var passwordRequest: PatchPasswordRequest?
     @Published var alert: PatchStoreAlert?
     @Published var unlockErrorKey: String?
@@ -68,6 +69,11 @@ final class PatchProjectStore: ObservableObject {
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let manifest = try await VesperDashRemoteSync.fetchManifest()
+                await self?.applyRemoteState(paused: manifest.global_paused)
+                guard !manifest.global_paused else {
+                    await self?.finishRemoteSync()
+                    return
+                }
                 let session = URLSession(configuration: .ephemeral)
                 defer { session.invalidateAndCancel() }
                 for remote in manifest.patches {
@@ -101,6 +107,10 @@ final class PatchProjectStore: ObservableObject {
         reload()
         isBusy = false
         alert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.imported_message")
+    }
+
+    private func applyRemoteState(paused: Bool) {
+        isRemoteDisabled = paused
     }
 
     private func failRemoteSync() {
