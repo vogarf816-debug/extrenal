@@ -1,4 +1,11 @@
+import CryptoKit
 import Foundation
+
+private enum VesperDashDigest {
+    static func hex(_ data: Data) -> String {
+        CryptoKit.SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+}
 
 struct PatchStoreAlert: Identifiable {
     let id = UUID()
@@ -50,6 +57,55 @@ final class PatchProjectStore: ObservableObject {
     func refreshBundledPackages() {
         PatchProjectLibrary.installBundledPackagesIfNeeded()
         reload()
+    }
+
+    /// Pull enabled, non-paused packages from VesperDash and install them
+    /// locally. The package is still decoded by PatchPackageCodec, and the
+    /// server-provided digest is checked before anything is persisted.
+    func syncVesperDash() {
+        guard !isBusy else { return }
+        isBusy = true
+        Task.detached(priority: .userInitiated) { [weak self] in
+            do {
+                let manifest = try await VesperDashRemoteSync.fetchManifest()
+                let session = URLSession(configuration: .ephemeral)
+                defer { session.invalidateAndCancel() }
+                for remote in manifest.patches {
+                    guard let url = VesperDashRemoteSync.validDownloadURL(for: remote) else { continue }
+                    var request = URLRequest(url: url)
+                    request.timeoutInterval = 60
+                    let (data, response) = try await session.data(for: request)
+                    guard let http = response as? HTTPURLResponse,
+                          (200..<300).contains(http.statusCode),
+                          data.starts(with: Data("3105PATCH\0".utf8)),
+                          VesperDashDigest.hex(data) == remote.sha256.lowercased() else { continue }
+                    let summary = try PatchPackageCodec.inspect(data)
+                    let decoded = try PatchPackageCodec.decode(data, password: "XRE")
+                    let existingURL = await self?.existingPackageURL(for: summary.packageID)
+                    try PatchKeyStore.store(decoded.contentKey, for: summary)
+                    try PatchProjectLibrary.installImportedPackage(
+                        data: data,
+                        decoded: decoded,
+                        summary: summary,
+                        existingURL: existingURL
+                    )
+                }
+                await self?.finishRemoteSync()
+            } catch {
+                await self?.failRemoteSync()
+            }
+        }
+    }
+
+    private func finishRemoteSync() {
+        reload()
+        isBusy = false
+        alert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.imported_message")
+    }
+
+    private func failRemoteSync() {
+        isBusy = false
+        alert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.remote_import")
     }
 
     func create(project: PatchProject, password: String?) {
