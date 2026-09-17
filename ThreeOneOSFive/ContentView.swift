@@ -6,6 +6,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var appState: AppState
     @State private var showCleaner = false
+    @State private var remoteSyncTask: Task<Void, Never>?
     @State private var developerDesign = 0
     @StateObject private var patchStore = PatchProjectStore()
     @State private var patchOperationBusy = false
@@ -53,11 +54,27 @@ struct ContentView: View {
         .onAppear {
             syncPatchStates()
             patchStore.syncVesperDash()
+            startRemoteStateChecks()
+        }
+        .onDisappear {
+            remoteSyncTask?.cancel()
+            remoteSyncTask = nil
         }
         .onChange(of: scenePhase) { phase in
             guard phase == .active, !patchOperationBusy else { return }
             syncPatchStates()
             patchMessage = "READY — SELECT A PATCH"
+        }
+    }
+
+    private func startRemoteStateChecks() {
+        guard remoteSyncTask == nil else { return }
+        remoteSyncTask = Task { @MainActor in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled else { return }
+                patchStore.syncVesperDash(showCompletionAlert: false)
+            }
         }
     }
 

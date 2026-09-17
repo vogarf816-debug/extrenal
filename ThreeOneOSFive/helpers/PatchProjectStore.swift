@@ -63,7 +63,7 @@ final class PatchProjectStore: ObservableObject {
     /// Pull enabled, non-paused packages from VesperDash and install them
     /// locally. The package is still decoded by PatchPackageCodec, and the
     /// server-provided digest is checked before anything is persisted.
-    func syncVesperDash() {
+    func syncVesperDash(showCompletionAlert: Bool = true) {
         guard !isBusy else { return }
         isBusy = true
         Task.detached(priority: .userInitiated) { [weak self] in
@@ -71,7 +71,7 @@ final class PatchProjectStore: ObservableObject {
                 let manifest = try await VesperDashRemoteSync.fetchManifest()
                 await self?.applyRemoteState(paused: manifest.global_paused)
                 guard !manifest.global_paused else {
-                    await self?.finishRemoteSync()
+                    await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert)
                     return
                 }
                 let session = URLSession(configuration: .ephemeral)
@@ -96,17 +96,19 @@ final class PatchProjectStore: ObservableObject {
                         existingURL: existingURL
                     )
                 }
-                await self?.finishRemoteSync()
+                await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert)
             } catch {
                 await self?.failRemoteSync()
             }
         }
     }
 
-    private func finishRemoteSync() {
+    private func finishRemoteSync(showCompletionAlert: Bool = true) {
         reload()
         isBusy = false
-        alert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.imported_message")
+        if showCompletionAlert {
+            alert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.imported_message")
+        }
     }
 
     private func applyRemoteState(paused: Bool) {
