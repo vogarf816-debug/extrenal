@@ -700,10 +700,27 @@ struct ContentView: View {
                 .replacingOccurrences(of: "xTop1 External File (", with: "", options: .caseInsensitive)
                 .trimmingCharacters(in: CharacterSet(charactersIn: ")"))
             let normalizedStoredName = (canonicalName as NSString).deletingPathExtension
+            let storedKey = normalizedStoredName.uppercased()
+            let aliasedStoredKey: String
+            let gameSuffix = wantsMax ? "M" : ""
+            if storedKey.hasPrefix("BODY") {
+                aliasedStoredKey = "OBB" + gameSuffix
+            } else if storedKey.hasPrefix("DRAG") {
+                aliasedStoredKey = "DRAG" + gameSuffix
+            } else if storedKey.hasPrefix("MAGIC") {
+                aliasedStoredKey = "MAGIC" + gameSuffix
+            } else if storedKey.hasPrefix("WEAPON") {
+                aliasedStoredKey = "WEAPONS" + gameSuffix
+            } else {
+                aliasedStoredKey = storedKey
+            }
             // The package filename is the authoritative UI-to-resource link.
             // This is required for descriptive project names such as
             // "3D WEAPONS" whose bundled resource is named WEAPONS.3105.
             if normalizedStoredName.caseInsensitiveCompare(requestedName) == .orderedSame {
+                return true
+            }
+            if aliasedStoredKey == requestedName.uppercased() {
                 return true
             }
             let projectName = item.project?.name.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() ?? ""
