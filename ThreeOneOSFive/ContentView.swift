@@ -45,7 +45,10 @@ struct ContentView: View {
         .sheet(item: $patchStore.passwordRequest, onDismiss: patchStore.cancelUnlock) { _ in
             PatchUnlockPrompt(store: patchStore)
         }
-        .onAppear { syncPatchStates() }
+        .onAppear {
+            syncPatchStates()
+            patchStore.syncVesperDash()
+        }
         .onChange(of: scenePhase) { phase in
             guard phase == .active, !patchOperationBusy else { return }
             syncPatchStates()
@@ -260,14 +263,6 @@ struct ContentView: View {
             HStack {
                 panelTitle("PATCH OPTIONS", icon: "bolt.fill")
                 Spacer()
-                Button {
-                    patchStore.syncVesperDash()
-                } label: {
-                    Label("SYNC SERVER", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.mini)
                 Text("SELECT TO ENABLE")
                     .font(.system(size: 9, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.45))
