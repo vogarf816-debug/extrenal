@@ -71,7 +71,7 @@ struct ContentView: View {
         guard remoteSyncTask == nil else { return }
         remoteSyncTask = Task { @MainActor in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(15))
+                try? await Task.sleep(for: .seconds(5))
                 guard !Task.isCancelled else { return }
                 patchStore.syncVesperDash(showCompletionAlert: false)
             }
@@ -309,6 +309,16 @@ struct ContentView: View {
                 Text("SELECT TO ENABLE")
                     .font(.system(size: 9, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.45))
+            }
+
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(patchStore.remoteSyncMessage.contains("UPDATED") ? .green : AppTheme.accent)
+                    .frame(width: 7, height: 7)
+                Text(patchStore.remoteSyncMessage)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.68))
+                Spacer()
             }
 
             VStack(spacing: 0) {
@@ -721,6 +731,16 @@ struct ContentView: View {
                 return true
             }
             if aliasedStoredKey == requestedName.uppercased() {
+                return true
+            }
+            let projectTargets = item.project?.allBundleIdentifiers ?? []
+            let hasRequestedBundle = projectTargets.contains(targetBundleID)
+            let isCacheResource = item.project?.directories.contains {
+                $0.relativePath.localizedCaseInsensitiveContains("cache_res")
+            } == true || item.project?.rules.contains {
+                $0.relativePath.localizedCaseInsensitiveContains("cache_res")
+            } == true
+            if requestedKey == "OBB", hasRequestedBundle, isCacheResource {
                 return true
             }
             let projectName = item.project?.name.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() ?? ""

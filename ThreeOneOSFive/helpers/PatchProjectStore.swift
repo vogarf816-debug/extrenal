@@ -32,6 +32,7 @@ final class PatchProjectStore: ObservableObject {
     @Published private(set) var items: [PatchLibraryItem] = []
     @Published private(set) var isBusy = false
     @Published private(set) var isRemoteDisabled = false
+    @Published private(set) var remoteSyncMessage = "REMOTE DATA: WAITING"
     @Published var passwordRequest: PatchPasswordRequest?
     @Published var alert: PatchStoreAlert?
     @Published var unlockErrorKey: String?
@@ -66,12 +67,13 @@ final class PatchProjectStore: ObservableObject {
     func syncVesperDash(showCompletionAlert: Bool = true) {
         guard !isBusy else { return }
         isBusy = true
+        remoteSyncMessage = "REMOTE DATA: CHECKING…"
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let manifest = try await VesperDashRemoteSync.fetchManifest()
                 await self?.applyRemoteState(paused: manifest.global_paused)
                 guard !manifest.global_paused else {
-                    await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert)
+                    await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: 0)
                     return
                 }
                 let session = URLSession(configuration: .ephemeral)
@@ -96,16 +98,17 @@ final class PatchProjectStore: ObservableObject {
                         existingURL: existingURL
                     )
                 }
-                await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert)
+                await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: manifest.patches.count)
             } catch {
                 await self?.failRemoteSync()
             }
         }
     }
 
-    private func finishRemoteSync(showCompletionAlert: Bool = true) {
+    private func finishRemoteSync(showCompletionAlert: Bool = true, patchCount: Int = 0) {
         reload()
         isBusy = false
+        remoteSyncMessage = "REMOTE DATA: UPDATED • \(patchCount) PATCH\(patchCount == 1 ? "" : "ES")"
         if showCompletionAlert {
             alert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.imported_message")
         }
@@ -117,6 +120,7 @@ final class PatchProjectStore: ObservableObject {
 
     private func failRemoteSync() {
         isBusy = false
+        remoteSyncMessage = "REMOTE DATA: CHECK FAILED • RETRYING"
         alert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.remote_import")
     }
 
