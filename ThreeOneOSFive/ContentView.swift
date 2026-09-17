@@ -654,6 +654,12 @@ struct ContentView: View {
                 .replacingOccurrences(of: "xTop1 External File (", with: "", options: .caseInsensitive)
                 .trimmingCharacters(in: CharacterSet(charactersIn: ")"))
             let normalizedStoredName = (canonicalName as NSString).deletingPathExtension
+            // The package filename is the authoritative UI-to-resource link.
+            // This is required for descriptive project names such as
+            // "3D WEAPONS" whose bundled resource is named WEAPONS.3105.
+            if normalizedStoredName.caseInsensitiveCompare(requestedName) == .orderedSame {
+                return true
+            }
             let projectName = item.project?.name.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() ?? ""
             let storedIsMax = normalizedStoredName.uppercased().hasSuffix("M")
             let projectKey = projectName.hasSuffix("M") ? String(projectName.dropLast()) : projectName
