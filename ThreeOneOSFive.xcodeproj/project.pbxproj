@@ -76,14 +76,6 @@
 		3105R200 /* ACTIVADA.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3105R100; };
 		3105R201 /* DESACTIVADA.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3105R101; };
 
-		3105Q203 /* DRAGM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q103; };
-		3105Q207 /* MAGICM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105Q107; };
-		3105N204 /* OBBM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N104; };
-		3105N201 /* DRAG.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N101; };
-		3105N202 /* MAGIC.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N102; };
-		3105N203 /* OBB.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105N103; };
-		3105W201 /* WEAPONS.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105W101; };
-		3105W202 /* WEAPONSM.3105 in Resources */ = {isa = PBXBuildFile; fileRef = 3105W102; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -175,14 +167,6 @@
 		3105R100 /* ACTIVADA.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ThreeOneOSFive/Resources/ACTIVADA.wav"; sourceTree = "<group>"; };
 		3105R101 /* DESACTIVADA.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ThreeOneOSFive/Resources/DESACTIVADA.wav"; sourceTree = "<group>"; };
 
-		3105Q103 /* DRAGM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/DRAGM.3105"; sourceTree = "<group>"; };
-		3105Q107 /* MAGICM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/MAGICM.3105"; sourceTree = "<group>"; };
-		3105N104 /* OBBM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/OBBM.3105"; sourceTree = "<group>"; };
-		3105N101 /* DRAG.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/DRAG.3105"; sourceTree = "<group>"; };
-		3105N102 /* MAGIC.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/MAGIC.3105"; sourceTree = "<group>"; };
-		3105N103 /* OBB.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/OBB.3105"; sourceTree = "<group>"; };
-		3105W101 /* WEAPONS.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/WEAPONS.3105"; sourceTree = "<group>"; };
-		3105W102 /* WEAPONSM.3105 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Patches/WEAPONSM.3105"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */

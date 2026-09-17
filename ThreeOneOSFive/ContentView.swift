@@ -7,30 +7,15 @@ struct ContentView: View {
     @EnvironmentObject private var appState: AppState
     @State private var showCleaner = false
     @State private var remoteSyncTask: Task<Void, Never>?
+    @State private var fileSafety: [String: Bool] = [:]
     @State private var developerDesign = 0
     @StateObject private var patchStore = PatchProjectStore()
     @State private var patchOperationBusy = false
     @State private var patchMessage = "READY — SELECT A PATCH"
     @State private var patchEnabled: [String: Bool] = [:]
-    @State private var fileSafety: [String: Bool] = [
-        "OBB.3105": true,
-        "DRAG.3105": true,
-        "MAGIC.3105": true,
-        "OBBM.3105": true,
-        "DRAGM.3105": true,
-        "MAGICM.3105": true,
-        "WEAPONS.3105": true,
-        "WEAPONSM.3105": true
-    ]
-    private let fileNames: [String] = [
-        "OBB.3105", "DRAG.3105", "MAGIC.3105", "WEAPONS.3105"
-    ]
-    private let normalPatchFiles = [
-        "OBB.3105", "DRAG.3105", "MAGIC.3105", "WEAPONS.3105"
-    ]
-    private let maxPatchFiles = [
-        "OBBM.3105", "DRAGM.3105", "MAGICM.3105", "WEAPONSM.3105"
-    ]
+    private let fileNames: [String] = []
+    private let normalPatchFiles: [String] = []
+    private let maxPatchFiles: [String] = []
 
     var body: some View {
         TabView {
@@ -357,6 +342,11 @@ struct ContentView: View {
                     }
                 }
                 .padding(.top, 8)
+            } else {
+                Text("NO REMOTE PATCHES — ADD FILES FROM VESPERDASH")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .padding(.vertical, 10)
             }
 
             HStack(spacing: 8) {
