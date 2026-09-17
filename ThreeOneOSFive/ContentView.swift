@@ -334,6 +334,31 @@ struct ContentView: View {
                 }
             }
 
+            let extraRemoteItems = patchStore.items.filter { item in
+                guard item.project?.allBundleIdentifiers.contains(targetBundleID) == true else { return false }
+                let filename = item.packageURL.lastPathComponent
+                return !files.contains { $0.caseInsensitiveCompare(filename) == .orderedSame }
+            }
+            if !extraRemoteItems.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("REMOTE PATCHES")
+                        .font(.system(size: 9, weight: .black, design: .rounded))
+                        .tracking(1.2)
+                        .foregroundStyle(AppTheme.secondaryAccent)
+                    ForEach(extraRemoteItems, id: \.id) { item in
+                        patchCard(
+                            name: item.project?.name.isEmpty == false ? item.project!.name : item.displayName,
+                            target: targetTitle,
+                            package: item.packageURL.lastPathComponent,
+                            color: AppTheme.secondaryAccent,
+                            state: patchBinding(for: item.packageURL.lastPathComponent),
+                            targetBundleID: targetBundleID
+                        )
+                    }
+                }
+                .padding(.top, 8)
+            }
+
             HStack(spacing: 8) {
                 Circle().fill(patchMessage.localizedCaseInsensitiveContains("successful") ? .green : AppTheme.accent).frame(width: 7, height: 7)
                 Text(patchOperationBusy ? "PROCESSING PATCH…" : patchMessage)
