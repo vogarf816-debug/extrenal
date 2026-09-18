@@ -29,7 +29,7 @@ struct PatchStoreAlert: Identifiable {
 
 @MainActor
 final class PatchProjectStore: ObservableObject {
-    private static let initialSyncCompletedKey = "vesperdash.initialSyncCompleted.v3"
+    private static let initialSyncCompletedKey = "vesperdash.initialSyncCompleted.v4"
     private static let remoteEntriesKey = "vesperdash.remoteEntries.v1"
     private static let remoteCategoriesKey = "vesperdash.remoteCategories.v1"
     private static let remoteImagesKey = "vesperdash.remoteImages.v1"
@@ -119,27 +119,31 @@ final class PatchProjectStore: ObservableObject {
                 let session = URLSession(configuration: .ephemeral)
                 defer { session.invalidateAndCancel() }
                 for remote in manifest.patches {
-                    guard let url = VesperDashRemoteSync.validDownloadURL(for: remote) else { continue }
-                    var request = URLRequest(url: url)
-                    request.timeoutInterval = 60
-                    let (data, response) = try await session.data(for: request)
-                    guard let http = response as? HTTPURLResponse,
-                          (200..<300).contains(http.statusCode),
-                          data.starts(with: Data("3105PATCH\0".utf8)),
-                          VesperDashDigest.hex(data) == remote.sha256.lowercased() else { continue }
-                    let summary = try PatchPackageCodec.inspect(data)
-                    let decoded = try PatchPackageCodec.decode(data, password: "XRE")
-                    let existingURL = await self?.existingPackageURL(for: summary.packageID)
-                    try PatchKeyStore.store(decoded.contentKey, for: summary)
-                    try PatchProjectLibrary.installImportedPackage(
-                        data: data,
-                        decoded: decoded,
-                        summary: summary,
-                        existingURL: existingURL
-                    )
-                    let localFilename = existingURL?.lastPathComponent
-                        ?? PatchProjectLibrary.sanitizedPackageFilename(decoded.project.name)
-                    await self?.recordRemoteBundleID(remoteBundleID: remote.bundle_id, filename: localFilename)
+                    do {
+                        guard let url = VesperDashRemoteSync.validDownloadURL(for: remote) else { continue }
+                        var request = URLRequest(url: url)
+                        request.timeoutInterval = 60
+                        let (data, response) = try await session.data(for: request)
+                        guard let http = response as? HTTPURLResponse,
+                              (200..<300).contains(http.statusCode),
+                              data.starts(with: Data("3105PATCH\0".utf8)),
+                              VesperDashDigest.hex(data) == remote.sha256.lowercased() else { continue }
+                        let summary = try PatchPackageCodec.inspect(data)
+                        let decoded = try PatchPackageCodec.decode(data, password: "XRE")
+                        let existingURL = await self?.existingPackageURL(for: summary.packageID)
+                        try PatchKeyStore.store(decoded.contentKey, for: summary)
+                        try PatchProjectLibrary.installImportedPackage(
+                            data: data,
+                            decoded: decoded,
+                            summary: summary,
+                            existingURL: existingURL
+                        )
+                        let localFilename = existingURL?.lastPathComponent
+                            ?? PatchProjectLibrary.sanitizedPackageFilename(decoded.project.name)
+                        await self?.recordRemoteBundleID(remoteBundleID: remote.bundle_id, filename: localFilename)
+                    } catch {
+                        continue
+                    }
                 }
                 await self?.reconcileRemotePackages(metadataByDigest: metadataByDigest)
                 await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: manifest.patches.count)
