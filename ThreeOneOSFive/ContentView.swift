@@ -116,13 +116,6 @@ struct ContentView: View {
                 targetTitle: "FREE FIRE • NORMAL",
                 targetBundleID: "com.dts.freefireth"
             )
-            patchOptions(
-                files: maxPatchFiles,
-                category: "aim",
-                sectionTitle: "FF MAX",
-                targetTitle: "FREE FIRE • MAX",
-                targetBundleID: "com.dts.freefiremax"
-            )
         }
     }
 
@@ -130,7 +123,6 @@ struct ContentView: View {
         VStack(spacing: 16) {
             gameIntro(title: "ESP", subtitle: "REMOTE ESP PATCHES", icon: "eye.fill")
             patchOptions(files: [], category: "esp", sectionTitle: "FF NORMAL", targetTitle: "FREE FIRE • NORMAL", targetBundleID: "com.dts.freefireth")
-            patchOptions(files: [], category: "esp", sectionTitle: "FF MAX", targetTitle: "FREE FIRE • MAX", targetBundleID: "com.dts.freefiremax")
         }
     }
 
@@ -138,7 +130,6 @@ struct ContentView: View {
         VStack(spacing: 16) {
             gameIntro(title: "HOLOGRAM", subtitle: "REMOTE HOLOGRAM PATCHES", icon: "cube.transparent")
             patchOptions(files: [], category: "hologram", sectionTitle: "FF NORMAL", targetTitle: "FREE FIRE • NORMAL", targetBundleID: "com.dts.freefireth")
-            patchOptions(files: [], category: "hologram", sectionTitle: "FF MAX", targetTitle: "FREE FIRE • MAX", targetBundleID: "com.dts.freefiremax")
         }
     }
 
@@ -146,7 +137,6 @@ struct ContentView: View {
         VStack(spacing: 16) {
             gameIntro(title: "SKIN MOD", subtitle: "REMOTE SKIN PATCHES", icon: "sparkles")
             patchOptions(files: [], category: "skin", sectionTitle: "FF NORMAL", targetTitle: "FREE FIRE • NORMAL", targetBundleID: "com.dts.freefireth")
-            patchOptions(files: [], category: "skin", sectionTitle: "FF MAX", targetTitle: "FREE FIRE • MAX", targetBundleID: "com.dts.freefiremax")
         }
     }
 
@@ -173,7 +163,7 @@ struct ContentView: View {
                     .foregroundStyle(AppTheme.paper.opacity(0.5))
                     .padding(.vertical, 14)
             } else {
-                ForEach(patchStore.remoteEntries.sorted { first, second in
+                ForEach(patchStore.remoteEntries.filter { $0.bundle_id == "com.dts.freefireth" }.sorted { first, second in
                     if first.normalizedCategory != second.normalizedCategory { return first.normalizedCategory < second.normalizedCategory }
                     if first.game != second.game { return first.game < second.game }
                     if first.normalizedOrder != second.normalizedOrder { return first.normalizedOrder < second.normalizedOrder }
@@ -447,10 +437,7 @@ struct ContentView: View {
     private var gameLaunchPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             panelTitle("LAUNCH GAME", icon: "arrow.up.forward.app.fill")
-            HStack(spacing: 12) {
-                launchButton(title: "FF NORMAL", subtitle: "Free Fire Normal", color: AppTheme.accent, scheme: "freefireth")
-                lockedLaunchButton(title: "FF MAX", subtitle: "Locked • Coming Soon", color: AppTheme.secondaryAccent)
-            }
+            launchButton(title: "FF NORMAL", subtitle: "Free Fire Normal", color: AppTheme.accent, scheme: "freefireth")
             Button {
                 showCleaner = true
             } label: {
