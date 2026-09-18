@@ -342,16 +342,6 @@ struct ContentView: View {
                     .foregroundStyle(.white.opacity(0.45))
             }
 
-            HStack(spacing: 7) {
-                Circle()
-                    .fill(patchStore.remoteSyncMessage.contains("UPDATED") ? .green : AppTheme.accent)
-                    .frame(width: 7, height: 7)
-                Text(patchStore.remoteSyncMessage)
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.68))
-                Spacer()
-            }
-
             VStack(spacing: 0) {
                 ForEach(Array(files.enumerated()), id: \.element) { index, filename in
                     patchCard(
