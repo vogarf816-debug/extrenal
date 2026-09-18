@@ -84,9 +84,7 @@ struct ContentView: View {
     private struct RemoteLoadingView: View {
         var body: some View {
             ZStack {
-                VideoBackgroundView()
-                    .ignoresSafeArea()
-                    .blur(radius: 3)
+                Color.black.opacity(0.82).ignoresSafeArea()
                 VStack(spacing: 18) {
                     VStack(spacing: 7) {
                         Text("FILES DOWNLOADING NOW FROM SERVER")
@@ -101,53 +99,6 @@ struct ContentView: View {
                 .padding(28)
             }
             .allowsHitTesting(true)
-        }
-    }
-
-    private struct VideoBackgroundView: UIViewRepresentable {
-        func makeCoordinator() -> Coordinator { Coordinator() }
-
-        func makeUIView(context: Context) -> UIView {
-            let view = PlayerContainerView()
-            view.backgroundColor = .black
-            guard let url = Bundle.main.url(forResource: "sync-background", withExtension: "mp4") else {
-                return view
-            }
-            let item = AVPlayerItem(url: url)
-            let player = AVQueuePlayer(playerItem: item)
-            player.isMuted = true
-            player.playImmediately(atRate: 1)
-            context.coordinator.player = player
-            context.coordinator.looper = AVPlayerLooper(player: player, templateItem: item)
-            let layer = AVPlayerLayer(player: player)
-            layer.videoGravity = .resizeAspectFill
-            view.layer.addSublayer(layer)
-            view.playerLayer = layer
-            context.coordinator.layer = layer
-            return view
-        }
-
-        func updateUIView(_ view: UIView, context: Context) {
-            if let playerView = view as? PlayerContainerView {
-                playerView.playerLayer?.frame = playerView.bounds
-            } else {
-                context.coordinator.layer?.frame = view.bounds
-            }
-        }
-
-        final class PlayerContainerView: UIView {
-            var playerLayer: AVPlayerLayer?
-
-            override func layoutSubviews() {
-                super.layoutSubviews()
-                playerLayer?.frame = bounds
-            }
-        }
-
-        final class Coordinator {
-            var player: AVQueuePlayer?
-            var looper: AVPlayerLooper?
-            var layer: AVPlayerLayer?
         }
     }
 
