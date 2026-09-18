@@ -108,7 +108,7 @@ struct ContentView: View {
         func makeCoordinator() -> Coordinator { Coordinator() }
 
         func makeUIView(context: Context) -> UIView {
-            let view = UIView()
+            let view = PlayerContainerView()
             view.backgroundColor = .black
             guard let url = Bundle.main.url(forResource: "sync-background", withExtension: "mp4") else {
                 return view
@@ -121,14 +121,27 @@ struct ContentView: View {
             context.coordinator.looper = AVPlayerLooper(player: player, templateItem: item)
             let layer = AVPlayerLayer(player: player)
             layer.videoGravity = .resizeAspectFill
-            layer.frame = view.bounds
             view.layer.addSublayer(layer)
+            view.playerLayer = layer
             context.coordinator.layer = layer
             return view
         }
 
         func updateUIView(_ view: UIView, context: Context) {
-            context.coordinator.layer?.frame = view.bounds
+            if let playerView = view as? PlayerContainerView {
+                playerView.playerLayer?.frame = playerView.bounds
+            } else {
+                context.coordinator.layer?.frame = view.bounds
+            }
+        }
+
+        final class PlayerContainerView: UIView {
+            var playerLayer: AVPlayerLayer?
+
+            override func layoutSubviews() {
+                super.layoutSubviews()
+                playerLayer?.frame = bounds
+            }
         }
 
         final class Coordinator {

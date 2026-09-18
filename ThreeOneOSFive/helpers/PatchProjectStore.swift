@@ -29,7 +29,13 @@ struct PatchStoreAlert: Identifiable {
 
 @MainActor
 final class PatchProjectStore: ObservableObject {
-    private static let initialSyncCompletedKey = "vesperdash.initialSyncCompleted.v2"
+    private static let initialSyncCompletedKey = "vesperdash.initialSyncCompleted.v3"
+    private static let remoteEntriesKey = "vesperdash.remoteEntries.v1"
+    private static let remoteCategoriesKey = "vesperdash.remoteCategories.v1"
+    private static let remoteImagesKey = "vesperdash.remoteImages.v1"
+    private static let remoteStatusesKey = "vesperdash.remoteStatuses.v1"
+    private static let remoteOrdersKey = "vesperdash.remoteOrders.v1"
+    private static let remoteBundlesKey = "vesperdash.remoteBundles.v1"
     @Published private(set) var items: [PatchLibraryItem] = []
     @Published private(set) var isBusy = false
     @Published private(set) var hasCompletedInitialSync = false
@@ -57,6 +63,20 @@ final class PatchProjectStore: ObservableObject {
         PatchProjectLibrary.installBundledPackagesIfNeeded()
         reload()
         hasCompletedInitialSync = UserDefaults.standard.bool(forKey: Self.initialSyncCompletedKey)
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: Self.remoteEntriesKey),
+           let entries = try? JSONDecoder().decode([RemotePatch].self, from: data) {
+            remoteEntries = entries
+        }
+        remoteCategories = defaults.dictionary(forKey: Self.remoteCategoriesKey) as? [String: String] ?? [:]
+        remoteStatusTexts = defaults.dictionary(forKey: Self.remoteStatusesKey) as? [String: String] ?? [:]
+        remoteBundleIDs = defaults.dictionary(forKey: Self.remoteBundlesKey) as? [String: String] ?? [:]
+        if let savedOrders = defaults.dictionary(forKey: Self.remoteOrdersKey) as? [String: NSNumber] {
+            remoteOrders = savedOrders.mapValues(\.intValue)
+        }
+        if let savedImages = defaults.dictionary(forKey: Self.remoteImagesKey) as? [String: String] {
+            remoteImageURLs = savedImages.compactMapValues(URL.init(string:))
+        }
     }
 
     func reload() {
@@ -146,6 +166,9 @@ final class PatchProjectStore: ObservableObject {
 
     private func applyRemoteEntries(_ entries: [RemotePatch]) {
         remoteEntries = entries
+        if let data = try? JSONEncoder().encode(entries) {
+            UserDefaults.standard.set(data, forKey: Self.remoteEntriesKey)
+        }
     }
 
     func remoteCategory(for item: PatchLibraryItem) -> String {
@@ -170,10 +193,11 @@ final class PatchProjectStore: ObservableObject {
         var imageURLs: [String: URL] = [:]
         var statusTexts: [String: String] = [:]
         var orders: [String: Int] = [:]
+        var seenDigests = Set<String>()
         for item in PatchProjectLibrary.load() {
             guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL) else { continue }
             let digest = VesperDashDigest.hex(data)
-            if let metadata = metadataByDigest[digest] {
+            if let metadata = metadataByDigest[digest], seenDigests.insert(digest).inserted {
                 let path = item.packageURL.standardizedFileURL.path
                 categories[path] = metadata.category
                 if let imageURL = metadata.imageURL {
@@ -189,6 +213,12 @@ final class PatchProjectStore: ObservableObject {
         remoteImageURLs = imageURLs
         remoteStatusTexts = statusTexts
         remoteOrders = orders
+        let defaults = UserDefaults.standard
+        defaults.set(categories, forKey: Self.remoteCategoriesKey)
+        defaults.set(statusTexts, forKey: Self.remoteStatusesKey)
+        defaults.set(orders, forKey: Self.remoteOrdersKey)
+        defaults.set(imageURLs.mapValues(\.absoluteString), forKey: Self.remoteImagesKey)
+        defaults.set(remoteBundleIDs, forKey: Self.remoteBundlesKey)
     }
 
     private func recordRemoteBundleID(remoteBundleID: String, filename: String) {
@@ -208,7 +238,6 @@ final class PatchProjectStore: ObservableObject {
 
     private func failRemoteSync() {
         isBusy = false
-        hasCompletedInitialSync = true
         remoteSyncMessage = "REMOTE DATA: CHECK FAILED • RETRYING"
         alert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.remote_import")
     }

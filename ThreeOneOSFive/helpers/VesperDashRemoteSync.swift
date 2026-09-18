@@ -7,7 +7,7 @@ struct VesperDashManifest: Decodable {
     let all_patches: [RemotePatch]?
 }
 
-struct RemotePatch: Decodable, Identifiable {
+struct RemotePatch: Codable, Identifiable {
     let id: String
     let name: String
     let category: String?
