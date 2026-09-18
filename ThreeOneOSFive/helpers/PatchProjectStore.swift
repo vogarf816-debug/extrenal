@@ -29,6 +29,7 @@ struct PatchStoreAlert: Identifiable {
 
 @MainActor
 final class PatchProjectStore: ObservableObject {
+    private static let initialSyncCompletedKey = "vesperdash.initialSyncCompleted"
     @Published private(set) var items: [PatchLibraryItem] = []
     @Published private(set) var isBusy = false
     @Published private(set) var hasCompletedInitialSync = false
@@ -55,7 +56,7 @@ final class PatchProjectStore: ObservableObject {
     init() {
         PatchProjectLibrary.installBundledPackagesIfNeeded()
         reload()
-        hasCompletedInitialSync = !items.isEmpty
+        hasCompletedInitialSync = UserDefaults.standard.bool(forKey: Self.initialSyncCompletedKey)
     }
 
     func reload() {
@@ -132,6 +133,7 @@ final class PatchProjectStore: ObservableObject {
         reload()
         isBusy = false
         hasCompletedInitialSync = true
+        UserDefaults.standard.set(true, forKey: Self.initialSyncCompletedKey)
         remoteSyncMessage = "REMOTE DATA: UPDATED • \(patchCount) PATCH\(patchCount == 1 ? "" : "ES")"
         if showCompletionAlert {
             alert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.imported_message")

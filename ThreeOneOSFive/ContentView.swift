@@ -32,6 +32,11 @@ struct ContentView: View {
                 RemotePauseView()
             }
         }
+        .overlay {
+            if patchStore.isBusy && !patchStore.hasCompletedInitialSync {
+                RemoteLoadingView()
+            }
+        }
         .sheet(isPresented: $showCleaner) {
             CleanerView()
         }
@@ -40,6 +45,9 @@ struct ContentView: View {
         }
         .onAppear {
             syncPatchStates()
+            if !patchStore.hasCompletedInitialSync {
+                patchStore.syncVesperDash()
+            }
         }
         .onDisappear {
             remoteSyncTask?.cancel()
@@ -70,6 +78,63 @@ struct ContentView: View {
                 .foregroundStyle(.white)
             }
             .allowsHitTesting(true)
+        }
+    }
+
+    private struct RemoteLoadingView: View {
+        var body: some View {
+            ZStack {
+                VideoBackgroundView()
+                    .ignoresSafeArea()
+                    .blur(radius: 3)
+                VStack(spacing: 18) {
+                    VStack(spacing: 7) {
+                        Text("FILES DOWNLOADING NOW FROM SERVER")
+                            .font(.system(size: 14, weight: .black, design: .rounded))
+                            .multilineTextAlignment(.center)
+                        Text("PLEASE WAIT…")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppTheme.accent)
+                    }
+                    .foregroundStyle(.white)
+                }
+                .padding(28)
+            }
+            .allowsHitTesting(true)
+        }
+    }
+
+    private struct VideoBackgroundView: UIViewRepresentable {
+        func makeCoordinator() -> Coordinator { Coordinator() }
+
+        func makeUIView(context: Context) -> UIView {
+            let view = UIView()
+            view.backgroundColor = .black
+            guard let url = Bundle.main.url(forResource: "sync-background", withExtension: "mp4") else {
+                return view
+            }
+            let item = AVPlayerItem(url: url)
+            let player = AVQueuePlayer(playerItem: item)
+            player.isMuted = true
+            player.playImmediately(atRate: 1)
+            context.coordinator.player = player
+            context.coordinator.looper = AVPlayerLooper(player: player, templateItem: item)
+            let layer = AVPlayerLayer(player: player)
+            layer.videoGravity = .resizeAspectFill
+            layer.frame = view.bounds
+            view.layer.addSublayer(layer)
+            context.coordinator.layer = layer
+            return view
+        }
+
+        func updateUIView(_ view: UIView, context: Context) {
+            context.coordinator.layer?.frame = view.bounds
+        }
+
+        final class Coordinator {
+            var player: AVQueuePlayer?
+            var looper: AVPlayerLooper?
+            var layer: AVPlayerLayer?
         }
     }
 
