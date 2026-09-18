@@ -21,7 +21,7 @@ struct RemotePatch: Decodable, Identifiable {
 
     var normalizedCategory: String {
         let value = (category ?? "aim").lowercased()
-        return ["aim", "esp", "skin"].contains(value) ? value : "aim"
+        return ["aim", "esp", "hologram", "skin"].contains(value) ? value : "aim"
     }
 }
 

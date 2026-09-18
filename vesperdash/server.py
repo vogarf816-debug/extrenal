@@ -19,7 +19,7 @@ DB = DATA / "vesperdash.sqlite3"
 ADMIN_TOKEN = os.environ.get("VESPERDASH_ADMIN_TOKEN", "")
 MAX_UPLOAD = int(os.environ.get("VESPERDASH_MAX_UPLOAD", str(80 * 1024 * 1024)))
 ALLOWED_BUNDLES = {"com.dts.freefireth", "com.dts.freefiremax"}
-ALLOWED_CATEGORIES = {"aim", "esp", "skin"}
+ALLOWED_CATEGORIES = {"aim", "esp", "hologram", "skin"}
 
 app = Flask(__name__, static_folder=str(ROOT / "static"), static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD
@@ -47,6 +47,17 @@ def db():
         key TEXT PRIMARY KEY, value TEXT NOT NULL
     )""")
     conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES('global_paused', '0')")
+    reset = conn.execute("SELECT value FROM settings WHERE key='catalog_reset_20260918'").fetchone()
+    if not reset:
+        stale_rows = conn.execute("SELECT stored_filename, image_filename FROM patches").fetchall()
+        conn.execute("DELETE FROM patches")
+        conn.execute("INSERT INTO settings(key, value) VALUES('catalog_reset_20260918', 'done')")
+        for stale in stale_rows:
+            try: (PATCH_DIR / stale["stored_filename"]).unlink()
+            except FileNotFoundError: pass
+            if stale["image_filename"]:
+                try: (IMAGE_DIR / stale["image_filename"]).unlink()
+                except FileNotFoundError: pass
     conn.commit()
     return conn
 
@@ -86,7 +97,7 @@ def health():
 @app.get("/api/patches")
 def list_patches():
     conn = db(); paused = global_paused(conn); rows = conn.execute("SELECT * FROM patches ORDER BY game, name, version DESC").fetchall(); conn.close()
-    return jsonify(version=4, global_paused=paused, patches=[] if paused else [public_row(r) for r in rows if r["enabled"] and not r["paused"]])
+    return jsonify(version=5, global_paused=paused, patches=[] if paused else [public_row(r) for r in rows if r["enabled"] and not r["paused"]])
 
 
 @app.get("/api/patches/<patch_id>/download")

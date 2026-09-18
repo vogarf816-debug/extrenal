@@ -21,6 +21,7 @@ struct ContentView: View {
         TabView {
             appTab(title: "AIM", icon: "scope") { aimTab }
             appTab(title: "ESP", icon: "eye.fill") { espTab }
+            appTab(title: "HOLOGRAM", icon: "cube.transparent") { hologramTab }
             appTab(title: "SKIN MOD", icon: "sparkles") { skinModTab }
             appTab(title: "DEVELOPER", icon: "person.crop.circle") { developerTab }
         }
@@ -130,6 +131,14 @@ struct ContentView: View {
             gameIntro(title: "ESP", subtitle: "REMOTE ESP PATCHES", icon: "eye.fill")
             patchOptions(files: [], category: "esp", sectionTitle: "FF NORMAL", targetTitle: "FREE FIRE • NORMAL", targetBundleID: "com.dts.freefireth")
             patchOptions(files: [], category: "esp", sectionTitle: "FF MAX", targetTitle: "FREE FIRE • MAX", targetBundleID: "com.dts.freefiremax")
+        }
+    }
+
+    private var hologramTab: some View {
+        VStack(spacing: 16) {
+            gameIntro(title: "HOLOGRAM", subtitle: "REMOTE HOLOGRAM PATCHES", icon: "cube.transparent")
+            patchOptions(files: [], category: "hologram", sectionTitle: "FF NORMAL", targetTitle: "FREE FIRE • NORMAL", targetBundleID: "com.dts.freefireth")
+            patchOptions(files: [], category: "hologram", sectionTitle: "FF MAX", targetTitle: "FREE FIRE • MAX", targetBundleID: "com.dts.freefiremax")
         }
     }
 
@@ -306,7 +315,7 @@ struct ContentView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                panelTitle(sectionTitle, icon: category == "skin" ? "sparkles" : (category == "esp" ? "eye.fill" : "bolt.fill"))
+                panelTitle(sectionTitle, icon: category == "skin" ? "sparkles" : (category == "esp" ? "eye.fill" : (category == "hologram" ? "cube.transparent" : "bolt.fill")))
                 Spacer()
                 Text("SELECT TO ENABLE")
                     .font(.system(size: 9, weight: .bold, design: .rounded))
