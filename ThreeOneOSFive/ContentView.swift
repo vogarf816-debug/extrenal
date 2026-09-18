@@ -426,6 +426,7 @@ struct ContentView: View {
         PatchOptionCard(name: name, target: target, color: color, imageURL: imageURL, isEnabled: state, isBusy: patchOperationBusy) {
             togglePatch(
                 packageFilename: package,
+                displayName: name,
                 state: state,
                 targetBundleID: targetBundleID
             )
@@ -847,6 +848,7 @@ struct ContentView: View {
 
     private func togglePatch(
         packageFilename: String,
+        displayName: String,
         state: Binding<Bool>,
         targetBundleID: String = "com.dts.freefireth"
     ) {
@@ -861,7 +863,7 @@ struct ContentView: View {
 
         let wasEnabled = state.wrappedValue
         patchOperationBusy = true
-        patchMessage = "PROCESSING — \(packageFilename)"
+        patchMessage = "PROCESSING — \(displayName)"
         let project = item.project
         let projectID = item.id
 
@@ -903,11 +905,11 @@ struct ContentView: View {
                 switch result {
                 case .applied:
                     self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: true)
-                    self.patchMessage = "Inject Successful — \(packageFilename)"
+                    self.patchMessage = "Inject Successful — \(displayName)"
                     PatchAudioFeedback.bypassActivated()
                 case .restored:
                     self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
-                    self.patchMessage = "Restore Successful — \(packageFilename)"
+                    self.patchMessage = "Restore Successful — \(displayName)"
                     PatchAudioFeedback.originalRestored()
                 case .unavailable(let message):
                     self.patchMessage = message
