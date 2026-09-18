@@ -140,7 +140,12 @@ final class PatchProjectStore: ObservableObject {
                               VesperDashDigest.hex(data) == remote.sha256.lowercased() else { continue }
                         let summary = try PatchPackageCodec.inspect(data)
                         let decoded = try PatchPackageCodec.decode(data, password: "XRE")
-                        let existingURL = await self?.existingPackageURL(for: summary.packageID)
+                        // Remote entries can reuse a package UUID while their
+                        // bytes change. Reusing by UUID would overwrite the
+                        // previous patch and make the older/newer manifest
+                        // entry impossible to resolve. The digest is the
+                        // stable identity for a downloaded remote package.
+                        let existingURL = await self?.existingPackageURL(matchingDigest: remote.sha256)
                         try PatchKeyStore.store(decoded.contentKey, for: summary)
                         try PatchProjectLibrary.installImportedPackage(
                             data: data,
