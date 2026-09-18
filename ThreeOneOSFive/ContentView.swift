@@ -745,9 +745,11 @@ struct ContentView: View {
         }
         for item in patchStore.items {
             guard let bundleID = patchStore.remoteBundleID(for: item) else { continue }
+            guard DevicePatchService.latestReceipt(projectID: item.id, targetBundleID: bundleID) != nil else {
+                continue
+            }
             let filename = item.packageURL.lastPathComponent
-            patchEnabled[patchStateKey(filename, targetBundleID: bundleID)] =
-                DevicePatchService.latestReceipt(projectID: item.id, targetBundleID: bundleID) != nil
+            patchEnabled[patchStateKey(filename, targetBundleID: bundleID)] = true
         }
     }
 
@@ -871,7 +873,10 @@ struct ContentView: View {
             let result: PatchActionResult
             do {
                 if wasEnabled {
-                    guard let receipt = DevicePatchService.latestReceipt(projectID: projectID) else {
+                    guard let receipt = DevicePatchService.latestReceipt(
+                        projectID: projectID,
+                        targetBundleID: targetBundleID
+                    ) else {
                         result = .unavailable("NO ACTIVE RECEIPT — NOTHING TO RESTORE")
                         DispatchQueue.main.async {
                             self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
