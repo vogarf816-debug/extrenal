@@ -9,6 +9,7 @@ struct VesperDashManifest: Decodable {
 struct RemotePatch: Decodable, Identifiable {
     let id: String
     let name: String
+    let category: String?
     let game: String
     let bundle_id: String
     let target_path: String
@@ -16,6 +17,12 @@ struct RemotePatch: Decodable, Identifiable {
     let sha256: String
     let version: String
     let download_url: String
+    let image_url: String?
+
+    var normalizedCategory: String {
+        let value = (category ?? "aim").lowercased()
+        return ["aim", "esp", "skin"].contains(value) ? value : "aim"
+    }
 }
 
 enum VesperDashRemoteSync {
@@ -41,6 +48,15 @@ enum VesperDashRemoteSync {
               url.user == nil, url.password == nil,
               patch.bundle_id == "com.dts.freefireth" || patch.bundle_id == "com.dts.freefiremax",
               patch.filename.lowercased().hasSuffix(".3105") else { return nil }
+        return url
+    }
+
+    static func validImageURL(for patch: RemotePatch) -> URL? {
+        guard let value = patch.image_url,
+              let url = URL(string: value, relativeTo: manifestURL)?.absoluteURL,
+              url.scheme?.lowercased() == "https",
+              url.host?.lowercased() == "api.vesperdash.com",
+              url.user == nil, url.password == nil else { return nil }
         return url
     }
 }

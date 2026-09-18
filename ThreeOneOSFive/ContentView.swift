@@ -13,15 +13,19 @@ struct ContentView: View {
     @State private var patchOperationBusy = false
     @State private var patchMessage = "READY — SELECT A PATCH"
     @State private var patchEnabled: [String: Bool] = [:]
+    @State private var filesTabSession = FilesTabSession()
     private let fileNames: [String] = []
     private let normalPatchFiles: [String] = []
     private let maxPatchFiles: [String] = []
 
     var body: some View {
         TabView {
-            appTab(title: "FF Normal", icon: "scope") { normalTab }
-            appTab(title: "FF Max", icon: "flame.fill") { maxTab }
-            appTab(title: "Developer", icon: "person.crop.circle") { developerTab }
+            AppDataBrowserView(tabSession: $filesTabSession)
+                .tabItem { Label("FILES", systemImage: "folder.fill") }
+            appTab(title: "AIM", icon: "scope") { aimTab }
+            appTab(title: "ESP", icon: "eye.fill") { espTab }
+            appTab(title: "SKIN MOD", icon: "sparkles") { skinModTab }
+            appTab(title: "DEVELOPER", icon: "person.crop.circle") { developerTab }
         }
         .preferredColorScheme(.dark)
         .tint(AppTheme.accent)
@@ -56,7 +60,7 @@ struct ContentView: View {
         guard remoteSyncTask == nil else { return }
         remoteSyncTask = Task { @MainActor in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(5))
+                try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { return }
                 patchStore.syncVesperDash(showCompletionAlert: false)
             }
@@ -104,25 +108,39 @@ struct ContentView: View {
         .tabItem { Label(title, systemImage: icon) }
     }
 
-    private var normalTab: some View {
+    private var aimTab: some View {
         VStack(spacing: 16) {
-            gameIntro(title: "FF NORMAL", subtitle: "AIM CONTROL", icon: "scope")
+            gameIntro(title: "AIM", subtitle: "REMOTE AIM PATCHES", icon: "scope")
             patchOptions(
                 files: normalPatchFiles,
+                category: "aim",
+                sectionTitle: "FF NORMAL",
                 targetTitle: "FREE FIRE • NORMAL",
                 targetBundleID: "com.dts.freefireth"
+            )
+            patchOptions(
+                files: maxPatchFiles,
+                category: "aim",
+                sectionTitle: "FF MAX",
+                targetTitle: "FREE FIRE • MAX",
+                targetBundleID: "com.dts.freefiremax"
             )
         }
     }
 
-    private var maxTab: some View {
+    private var espTab: some View {
         VStack(spacing: 16) {
-            gameIntro(title: "FF MAX", subtitle: "AIM CONTROL", icon: "flame.fill")
-            patchOptions(
-                files: maxPatchFiles,
-                targetTitle: "FREE FIRE • MAX",
-                targetBundleID: "com.dts.freefiremax"
-            )
+            gameIntro(title: "ESP", subtitle: "REMOTE ESP PATCHES", icon: "eye.fill")
+            patchOptions(files: [], category: "esp", sectionTitle: "FF NORMAL", targetTitle: "FREE FIRE • NORMAL", targetBundleID: "com.dts.freefireth")
+            patchOptions(files: [], category: "esp", sectionTitle: "FF MAX", targetTitle: "FREE FIRE • MAX", targetBundleID: "com.dts.freefiremax")
+        }
+    }
+
+    private var skinModTab: some View {
+        VStack(spacing: 16) {
+            gameIntro(title: "SKIN MOD", subtitle: "REMOTE SKIN PATCHES", icon: "sparkles")
+            patchOptions(files: [], category: "skin", sectionTitle: "FF NORMAL", targetTitle: "FREE FIRE • NORMAL", targetBundleID: "com.dts.freefireth")
+            patchOptions(files: [], category: "skin", sectionTitle: "FF MAX", targetTitle: "FREE FIRE • MAX", targetBundleID: "com.dts.freefiremax")
         }
     }
 
@@ -284,12 +302,14 @@ struct ContentView: View {
 
     private func patchOptions(
         files: [String],
+        category: String,
+        sectionTitle: String,
         targetTitle: String,
         targetBundleID: String
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                panelTitle("PATCH OPTIONS", icon: "bolt.fill")
+                panelTitle(sectionTitle, icon: category == "skin" ? "sparkles" : (category == "esp" ? "eye.fill" : "bolt.fill"))
                 Spacer()
                 Text("SELECT TO ENABLE")
                     .font(.system(size: 9, weight: .bold, design: .rounded))
@@ -320,7 +340,8 @@ struct ContentView: View {
             }
 
             let extraRemoteItems = patchStore.items.filter { item in
-                guard item.project?.allBundleIdentifiers.contains(targetBundleID) == true else { return false }
+                guard item.project?.allBundleIdentifiers.contains(targetBundleID) == true,
+                      patchStore.remoteCategory(for: item) == category else { return false }
                 let filename = item.packageURL.lastPathComponent
                 return !files.contains { $0.caseInsensitiveCompare(filename) == .orderedSame }
             }
@@ -336,6 +357,7 @@ struct ContentView: View {
                             target: targetTitle,
                             package: item.packageURL.lastPathComponent,
                             color: AppTheme.secondaryAccent,
+                            imageURL: patchStore.remoteImageURL(for: item),
                             state: patchBinding(for: item.packageURL.lastPathComponent),
                             targetBundleID: targetBundleID
                         )
@@ -343,7 +365,7 @@ struct ContentView: View {
                 }
                 .padding(.top, 8)
             } else {
-                Text("NO REMOTE PATCHES — ADD FILES FROM VESPERDASH")
+                Text("NO \(category.uppercased()) PATCHES — ADD FILES FROM VESPERDASH")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.5))
                     .padding(.vertical, 10)
@@ -368,10 +390,11 @@ struct ContentView: View {
         target: String,
         package: String,
         color: Color,
+        imageURL: URL? = nil,
         state: Binding<Bool>,
         targetBundleID: String
     ) -> some View {
-        PatchOptionCard(name: name, target: target, color: color, isEnabled: state, isBusy: patchOperationBusy) {
+        PatchOptionCard(name: name, target: target, color: color, imageURL: imageURL, isEnabled: state, isBusy: patchOperationBusy) {
             togglePatch(
                 packageFilename: package,
                 state: state,
@@ -859,16 +882,32 @@ private struct PatchOptionCard: View {
     let name: String
     let target: String
     let color: Color
+    let imageURL: URL?
     @Binding var isEnabled: Bool
     let isBusy: Bool
     let action: () -> Void
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: "bolt.fill")
-                .font(.system(size: 15, weight: .black))
-                .foregroundStyle(color)
-                .frame(width: 24)
+            if let imageURL {
+                AsyncImage(url: imageURL) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFill()
+                    } else if phase.error != nil {
+                        Image(systemName: "photo").foregroundStyle(color)
+                    } else {
+                        ProgressView().tint(color)
+                    }
+                }
+                .frame(width: 48, height: 48)
+                .background(Color.black.opacity(0.28))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            } else {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 15, weight: .black))
+                    .foregroundStyle(color)
+                    .frame(width: 24)
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(name)
