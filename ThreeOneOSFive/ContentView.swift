@@ -742,6 +742,21 @@ struct ContentView: View {
             ? String(requestedName.dropLast()).uppercased()
             : requestedName.uppercased()
         return patchStore.items.first { item in
+            let localFilename = item.packageURL.lastPathComponent
+            if localFilename.caseInsensitiveCompare(packageFilename) == .orderedSame {
+                if let remoteBundleID = patchStore.remoteBundleID(for: item) {
+                    return remoteBundleID == targetBundleID
+                }
+                return item.project?.allBundleIdentifiers.contains(targetBundleID) == true || item.project == nil
+            }
+            if let data = try? PatchProjectLibrary.readPackage(at: item.packageURL),
+               patchStore.remoteEntries.contains(where: {
+                   $0.filename.caseInsensitiveCompare(packageFilename) == .orderedSame &&
+                   $0.bundle_id == targetBundleID &&
+                   VesperDashDigest.hex(data).caseInsensitiveCompare($0.sha256) == .orderedSame
+               }) {
+                return true
+            }
             guard matchesTargetBundle(item, targetBundleID: targetBundleID) else { return false }
             let storedName = item.packageURL.deletingPathExtension().lastPathComponent
             let canonicalName = storedName

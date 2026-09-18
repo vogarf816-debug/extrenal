@@ -160,6 +160,17 @@ enum PatchProjectLibrary {
                     // key; imported packages remain locked for the user.
                     guard url.deletingPathExtension().lastPathComponent.hasPrefix(bundledFilenamePrefix) else {
                         decoded = nil
+                        // Keep imported locked packages in the catalog so the UI can
+                        // show them and route the user to the unlock flow.
+                        // Dropping them here made Inject report "PACKAGE NOT FOUND"
+                        // even though the .3105 file was present on disk.
+                        let item = PatchLibraryItem(
+                            summary: summary,
+                            project: nil,
+                            contentKey: nil,
+                            packageURL: url
+                        )
+                        byPackagePath[url.standardizedFileURL.path] = item
                         continue
                     }
                     do {
