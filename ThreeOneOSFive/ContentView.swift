@@ -420,7 +420,7 @@ struct ContentView: View {
 
     private func patchBinding(for filename: String, targetBundleID: String) -> Binding<Bool> {
         let key = patchStateKey(filename, targetBundleID: targetBundleID)
-        Binding(
+        return Binding(
             get: { patchEnabled[key, default: false] },
             set: { patchEnabled[key] = $0 }
         )
