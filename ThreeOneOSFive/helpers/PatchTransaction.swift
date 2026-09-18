@@ -385,13 +385,31 @@ enum PatchTransaction {
                   containerFingerprint(root) == record.containerFingerprint else {
                 throw PatchPackageError.restoreFailed
             }
-            let target = try PatchPathValidator.resolveContainedTargetURL(
+            var effectiveRelativePath = record.relativePath
+            var target = try PatchPathValidator.resolveContainedTargetURL(
                 relativePath: record.relativePath,
                 containerRoot: root
             )
+            if !fileManager.fileExists(atPath: target.path),
+               let discoveredPath = discoverExistingAssetPath(
+                   relativePath: record.relativePath,
+                   containerRoot: root,
+                   fileManager: fileManager
+               ) ?? discoverKnownCacheAssetPath(
+                   relativePath: record.relativePath,
+                   containerRoot: root,
+                   fileManager: fileManager
+               ) {
+                target = try PatchPathValidator.resolveContainedTargetURL(
+                    relativePath: discoveredPath,
+                    containerRoot: root
+                )
+                effectiveRelativePath = discoveredPath
+                log("patch: remapped restore target \(record.relativePath) -> \(discoveredPath)")
+            }
             try validateFileTarget(
                 target,
-                relativePath: record.relativePath,
+                relativePath: effectiveRelativePath,
                 containerRoot: root,
                 bundleID: record.bundleID,
                 allowMissingParents: !requirePatchedDigest,
