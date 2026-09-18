@@ -523,7 +523,10 @@ enum PatchTransaction {
             includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
             options: [.skipsHiddenFiles]
         )?.compactMap { item -> String? in
-            guard let url = item as? URL, url.lastPathComponent == filename,
+            guard let url = item as? URL,
+                  (url.lastPathComponent == filename ||
+                   (filename.hasPrefix("cache_res.") && url.lastPathComponent.hasPrefix("cache_res.")) ||
+                   (filename.hasPrefix("shaders.") && url.lastPathComponent.hasPrefix("shaders."))),
                   let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
                   values.isRegularFile == true, values.isSymbolicLink != true,
                   url.path.hasPrefix(rootPath) else { return nil }
@@ -538,7 +541,7 @@ enum PatchTransaction {
         // Library/Caches, and a versioned game-data directory. The package
         // stores the stable cache_res filename under the canonical Documents
         // path, so a unique filename match is safe when that directory moved.
-        if filename.hasPrefix("cache_res.") &&
+        if (filename.hasPrefix("cache_res.") || filename.hasPrefix("shaders.")) &&
             relativePath.hasPrefix("Documents/contentcache/") {
             return matches[0]
         }
