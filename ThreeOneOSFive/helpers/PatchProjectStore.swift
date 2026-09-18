@@ -55,6 +55,7 @@ final class PatchProjectStore: ObservableObject {
     init() {
         PatchProjectLibrary.installBundledPackagesIfNeeded()
         reload()
+        hasCompletedInitialSync = !items.isEmpty
     }
 
     func reload() {
