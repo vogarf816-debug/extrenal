@@ -474,26 +474,6 @@ struct ContentView: View {
         .buttonStyle(.plain)
     }
 
-    private func lockedLaunchButton(title: String, subtitle: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(color.opacity(0.72))
-            Text(title)
-                .font(.system(size: 13, weight: .black, design: .rounded))
-                .foregroundStyle(.white.opacity(0.72))
-            Text(subtitle)
-                .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundStyle(color.opacity(0.72))
-        }
-        .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
-        .padding(.horizontal, 14)
-        .background(AppTheme.ink.opacity(0.45), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(color.opacity(0.24), lineWidth: 1))
-        .opacity(0.72)
-        .accessibilityLabel("FF MAX locked, coming soon")
-    }
-
     private var footerStatus: some View {
         HStack(spacing: 10) {
             Circle().fill(AppTheme.secondaryAccent).frame(width: 9, height: 9).shadow(color: AppTheme.accent, radius: 6)
