@@ -163,7 +163,7 @@ enum PatchTransaction {
             }
             try validateFileTarget(
                 target,
-                relativePath: rule.relativePath,
+                relativePath: effectiveRule.relativePath,
                 containerRoot: root,
                 bundleID: bundleID,
                 allowMissingParents: true,
