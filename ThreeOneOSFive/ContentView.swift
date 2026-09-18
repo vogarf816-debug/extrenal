@@ -368,53 +368,22 @@ struct ContentView: View {
                     .foregroundStyle(.white.opacity(0.45))
             }
 
-            VStack(spacing: 0) {
-                ForEach(Array(files.enumerated()), id: \.element) { index, filename in
-                    patchCard(
-                        name: patchDisplayName(for: filename),
-                        target: targetTitle,
-                        package: filename,
-                        color: index.isMultiple(of: 2) ? AppTheme.accent : AppTheme.secondaryAccent,
-                        state: patchBinding(for: filename, targetBundleID: targetBundleID),
-                        targetBundleID: targetBundleID
-                    )
-                }
-            }
-
-            let extraRemoteItems = patchStore.items.filter { item in
-                guard patchStore.hasRemoteMetadata(for: item),
-                      matchesTargetBundle(item, targetBundleID: targetBundleID),
-                      patchStore.remoteCategory(for: item) == category else { return false }
-                let filename = item.packageURL.lastPathComponent
-                return !files.contains { $0.caseInsensitiveCompare(filename) == .orderedSame }
-            }.reduce(into: [String: PatchLibraryItem]()) { unique, item in
-                let key = item.packageURL.lastPathComponent.lowercased()
-                if unique[key] == nil { unique[key] = item }
-            }.values.sorted { first, second in
-                let firstOrder = patchStore.remoteOrder(for: first)
-                let secondOrder = patchStore.remoteOrder(for: second)
-                if firstOrder != secondOrder { return firstOrder < secondOrder }
-                return first.displayName.localizedCaseInsensitiveCompare(second.displayName) == .orderedAscending
-            }
-            if !extraRemoteItems.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("REMOTE PATCHES")
-                        .font(.system(size: 9, weight: .black, design: .rounded))
-                        .tracking(1.2)
-                        .foregroundStyle(AppTheme.secondaryAccent)
-                    ForEach(extraRemoteItems, id: \.id) { item in
+            let remotePatches = patchStore.remoteEntries(category: category, bundleID: targetBundleID)
+            if !remotePatches.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(Array(remotePatches.enumerated()), id: \.element.id) { index, remote in
+                        let package = patchStore.localFilename(for: remote) ?? remote.filename
                         patchCard(
-                            name: item.project?.name.isEmpty == false ? item.project!.name : item.displayName,
+                            name: remote.name,
                             target: targetTitle,
-                            package: item.packageURL.lastPathComponent,
-                            color: AppTheme.secondaryAccent,
-                            imageURL: patchStore.remoteImageURL(for: item),
-                            state: patchBinding(for: item.packageURL.lastPathComponent, targetBundleID: targetBundleID),
+                            package: package,
+                            color: index.isMultiple(of: 2) ? AppTheme.accent : AppTheme.secondaryAccent,
+                            imageURL: VesperDashRemoteSync.validImageURL(for: remote),
+                            state: patchBinding(for: package, targetBundleID: targetBundleID),
                             targetBundleID: targetBundleID
                         )
                     }
                 }
-                .padding(.top, 8)
             } else {
                 Text("NO \(category.uppercased()) PATCHES — ADD FILES FROM VESPERDASH")
                     .font(.system(size: 10, weight: .bold, design: .rounded))

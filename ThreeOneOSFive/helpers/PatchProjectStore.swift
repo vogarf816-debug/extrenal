@@ -179,10 +179,29 @@ final class PatchProjectStore: ObservableObject {
     }
 
     private func applyRemoteEntries(_ entries: [RemotePatch]) {
-        remoteEntries = entries
-        if let data = try? JSONEncoder().encode(entries) {
+        var seenDigests = Set<String>()
+        remoteEntries = entries.filter { entry in
+            seenDigests.insert(entry.sha256.lowercased()).inserted
+        }
+        if let data = try? JSONEncoder().encode(remoteEntries) {
             UserDefaults.standard.set(data, forKey: Self.remoteEntriesKey)
         }
+    }
+
+    func remoteEntries(category: String, bundleID: String) -> [RemotePatch] {
+        remoteEntries
+            .filter { $0.enabled && !$0.paused && $0.normalizedCategory == category && $0.bundle_id == bundleID }
+            .sorted {
+                if $0.normalizedOrder != $1.normalizedOrder { return $0.normalizedOrder < $1.normalizedOrder }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+    }
+
+    func localFilename(for remote: RemotePatch) -> String? {
+        items.first { item in
+            guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL) else { return false }
+            return VesperDashDigest.hex(data).caseInsensitiveCompare(remote.sha256) == .orderedSame
+        }?.packageURL.lastPathComponent
     }
 
     func remoteCategory(for item: PatchLibraryItem) -> String {
