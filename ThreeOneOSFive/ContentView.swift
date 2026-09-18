@@ -84,10 +84,15 @@ struct ContentView: View {
     private struct RemoteLoadingView: View {
         var body: some View {
             ZStack {
-                Color.black.opacity(0.82).ignoresSafeArea()
+                LinearGradient(
+                    colors: [Color.purple.opacity(0.96), Color(red: 0.08, green: 0.01, blue: 0.16)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
                 VStack(spacing: 18) {
                     VStack(spacing: 7) {
-                        Text("FILES DOWNLOADING NOW FROM SERVER")
+                        Text("RESOURCES DOWNLOADED")
                             .font(.system(size: 14, weight: .black, design: .rounded))
                             .multilineTextAlignment(.center)
                         Text("PLEASE WAIT…")
@@ -367,7 +372,8 @@ struct ContentView: View {
             }
 
             let extraRemoteItems = patchStore.items.filter { item in
-                guard matchesTargetBundle(item, targetBundleID: targetBundleID),
+                guard patchStore.hasRemoteMetadata(for: item),
+                      matchesTargetBundle(item, targetBundleID: targetBundleID),
                       patchStore.remoteCategory(for: item) == category else { return false }
                 let filename = item.packageURL.lastPathComponent
                 return !files.contains { $0.caseInsensitiveCompare(filename) == .orderedSame }

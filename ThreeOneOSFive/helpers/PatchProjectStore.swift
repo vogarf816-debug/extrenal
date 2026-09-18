@@ -175,6 +175,10 @@ final class PatchProjectStore: ObservableObject {
         remoteCategories[item.packageURL.standardizedFileURL.path] ?? "aim"
     }
 
+    func hasRemoteMetadata(for item: PatchLibraryItem) -> Bool {
+        remoteCategories[item.packageURL.standardizedFileURL.path] != nil
+    }
+
     func remoteImageURL(for item: PatchLibraryItem) -> URL? {
         remoteImageURLs[item.packageURL.standardizedFileURL.path]
     }
