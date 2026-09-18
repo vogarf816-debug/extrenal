@@ -109,12 +109,15 @@ final class PatchProjectStore: ObservableObject {
                 }
                 var metadataByDigest: [String: (category: String, imageURL: URL?, statusText: String, sortOrder: Int)] = [:]
                 for remote in manifest.patches {
-                    metadataByDigest[remote.sha256.lowercased()] = (
-                        remote.normalizedCategory,
-                        VesperDashRemoteSync.validImageURL(for: remote),
-                        remote.status_text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
-                        remote.normalizedOrder
-                    )
+                    let digest = remote.sha256.lowercased()
+                    if metadataByDigest[digest] == nil {
+                        metadataByDigest[digest] = (
+                            remote.normalizedCategory,
+                            VesperDashRemoteSync.validImageURL(for: remote),
+                            remote.status_text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+                            remote.normalizedOrder
+                        )
+                    }
                 }
                 let session = URLSession(configuration: .ephemeral)
                 defer { session.invalidateAndCancel() }
