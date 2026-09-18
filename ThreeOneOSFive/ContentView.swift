@@ -45,9 +45,8 @@ struct ContentView: View {
         }
         .onAppear {
             syncPatchStates()
-            if !patchStore.hasCompletedInitialSync {
-                patchStore.syncVesperDash()
-            }
+            patchStore.syncVesperDash(showCompletionAlert: !patchStore.hasCompletedInitialSync)
+            startRemoteStateChecks()
         }
         .onDisappear {
             remoteSyncTask?.cancel()
@@ -57,6 +56,17 @@ struct ContentView: View {
             guard phase == .active, !patchOperationBusy else { return }
             syncPatchStates()
             patchMessage = "READY — SELECT A PATCH"
+        }
+    }
+
+    private func startRemoteStateChecks() {
+        guard remoteSyncTask == nil else { return }
+        remoteSyncTask = Task { @MainActor in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                patchStore.syncVesperDash(showCompletionAlert: false)
+            }
         }
     }
 

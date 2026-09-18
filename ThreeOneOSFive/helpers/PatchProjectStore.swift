@@ -120,6 +120,13 @@ final class PatchProjectStore: ObservableObject {
                 defer { session.invalidateAndCancel() }
                 for remote in manifest.patches {
                     do {
+                        if let localURL = await self?.existingPackageURL(matchingDigest: remote.sha256) {
+                            await self?.recordRemoteBundleID(
+                                remoteBundleID: remote.bundle_id,
+                                filename: localURL.lastPathComponent
+                            )
+                            continue
+                        }
                         guard let url = VesperDashRemoteSync.validDownloadURL(for: remote) else { continue }
                         var request = URLRequest(url: url)
                         request.timeoutInterval = 60
@@ -487,6 +494,13 @@ final class PatchProjectStore: ObservableObject {
 
     private func existingPackageURL(for packageID: UUID) -> URL? {
         items.first(where: { $0.id == packageID })?.packageURL
+    }
+
+    private func existingPackageURL(matchingDigest digest: String) -> URL? {
+        items.first { item in
+            guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL) else { return false }
+            return VesperDashDigest.hex(data).caseInsensitiveCompare(digest) == .orderedSame
+        }?.packageURL
     }
 
     private nonisolated static func persistImportedPackage(
