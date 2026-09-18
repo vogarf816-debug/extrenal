@@ -32,11 +32,6 @@ struct ContentView: View {
                 RemotePauseView()
             }
         }
-        .overlay {
-            if patchStore.isBusy && !patchStore.hasCompletedInitialSync {
-                RemoteLoadingView()
-            }
-        }
         .sheet(isPresented: $showCleaner) {
             CleanerView()
         }
@@ -45,8 +40,6 @@ struct ContentView: View {
         }
         .onAppear {
             syncPatchStates()
-            patchStore.syncVesperDash()
-            startRemoteStateChecks()
         }
         .onDisappear {
             remoteSyncTask?.cancel()
@@ -56,17 +49,6 @@ struct ContentView: View {
             guard phase == .active, !patchOperationBusy else { return }
             syncPatchStates()
             patchMessage = "READY — SELECT A PATCH"
-        }
-    }
-
-    private func startRemoteStateChecks() {
-        guard remoteSyncTask == nil else { return }
-        remoteSyncTask = Task { @MainActor in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled else { return }
-                patchStore.syncVesperDash(showCompletionAlert: false)
-            }
         }
     }
 
@@ -86,45 +68,6 @@ struct ContentView: View {
                         .padding(.horizontal, 28)
                 }
                 .foregroundStyle(.white)
-            }
-            .allowsHitTesting(true)
-        }
-    }
-
-    private struct RemoteLoadingView: View {
-        @State private var rotation: Double = 0
-
-        var body: some View {
-            ZStack {
-                Color.black.opacity(0.82).ignoresSafeArea()
-                VStack(spacing: 18) {
-                    ZStack {
-                        Circle()
-                            .stroke(Color.white.opacity(0.14), lineWidth: 5)
-                            .frame(width: 70, height: 70)
-                        Circle()
-                            .trim(from: 0.08, to: 0.78)
-                            .stroke(AppTheme.accent, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                            .frame(width: 70, height: 70)
-                            .rotationEffect(.degrees(rotation))
-                    }
-                    VStack(spacing: 7) {
-                        Text("FILES DOWNLOADING NOW FROM SERVER")
-                            .font(.system(size: 14, weight: .black, design: .rounded))
-                            .multilineTextAlignment(.center)
-                        Text("PLEASE WAIT…")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppTheme.accent)
-                    }
-                    .foregroundStyle(.white)
-                }
-                .padding(28)
-            }
-            .transition(.opacity)
-            .onAppear {
-                withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
-                    rotation = 360
-                }
             }
             .allowsHitTesting(true)
         }
