@@ -31,6 +31,7 @@ struct PatchStoreAlert: Identifiable {
 final class PatchProjectStore: ObservableObject {
     @Published private(set) var items: [PatchLibraryItem] = []
     @Published private(set) var isBusy = false
+    @Published private(set) var hasCompletedInitialSync = false
     @Published private(set) var isRemoteDisabled = false
     @Published private(set) var remoteSyncMessage = "REMOTE DATA: WAITING"
     @Published private(set) var remoteCategories: [String: String] = [:]
@@ -129,6 +130,7 @@ final class PatchProjectStore: ObservableObject {
     private func finishRemoteSync(showCompletionAlert: Bool = true, patchCount: Int = 0) {
         reload()
         isBusy = false
+        hasCompletedInitialSync = true
         remoteSyncMessage = "REMOTE DATA: UPDATED • \(patchCount) PATCH\(patchCount == 1 ? "" : "ES")"
         if showCompletionAlert {
             alert = PatchStoreAlert(titleKey: "common.done", messageKey: "patch.imported_message")
@@ -203,6 +205,7 @@ final class PatchProjectStore: ObservableObject {
 
     private func failRemoteSync() {
         isBusy = false
+        hasCompletedInitialSync = true
         remoteSyncMessage = "REMOTE DATA: CHECK FAILED • RETRYING"
         alert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.remote_import")
     }
