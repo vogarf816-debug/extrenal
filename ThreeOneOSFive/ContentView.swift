@@ -407,7 +407,10 @@ struct ContentView: View {
                       patchStore.remoteCategory(for: item) == category else { return false }
                 let filename = item.packageURL.lastPathComponent
                 return !files.contains { $0.caseInsensitiveCompare(filename) == .orderedSame }
-            }.sorted { first, second in
+            }.reduce(into: [String: PatchLibraryItem]()) { unique, item in
+                let key = item.packageURL.lastPathComponent.lowercased()
+                if unique[key] == nil { unique[key] = item }
+            }.values.sorted { first, second in
                 let firstOrder = patchStore.remoteOrder(for: first)
                 let secondOrder = patchStore.remoteOrder(for: second)
                 if firstOrder != secondOrder { return firstOrder < secondOrder }

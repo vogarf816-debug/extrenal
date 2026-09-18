@@ -29,7 +29,7 @@ struct PatchStoreAlert: Identifiable {
 
 @MainActor
 final class PatchProjectStore: ObservableObject {
-    private static let initialSyncCompletedKey = "vesperdash.initialSyncCompleted"
+    private static let initialSyncCompletedKey = "vesperdash.initialSyncCompleted.v2"
     @Published private(set) var items: [PatchLibraryItem] = []
     @Published private(set) var isBusy = false
     @Published private(set) var hasCompletedInitialSync = false
