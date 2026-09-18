@@ -191,7 +191,14 @@ final class PatchProjectStore: ObservableObject {
     }
 
     func remoteBundleID(for item: PatchLibraryItem) -> String? {
-        remoteBundleIDs[item.packageURL.lastPathComponent]
+        if let bundleID = remoteBundleIDs[item.packageURL.lastPathComponent] {
+            return bundleID
+        }
+        guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL) else {
+            return nil
+        }
+        let digest = VesperDashDigest.hex(data)
+        return remoteEntries.first { $0.sha256.caseInsensitiveCompare(digest) == .orderedSame }?.bundle_id
     }
 
     private func failRemoteSync() {
