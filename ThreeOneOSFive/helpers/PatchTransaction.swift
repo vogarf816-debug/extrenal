@@ -325,6 +325,7 @@ enum PatchTransaction {
     static func latestReceipt(
         projectID: UUID,
         backupRoot: URL,
+        targetBundleID: String? = nil,
         fileManager: FileManager = .default
     ) -> PatchTransactionReceipt? {
         let projectDirectory = backupRoot.appendingPathComponent(projectID.uuidString, isDirectory: true)
@@ -338,6 +339,11 @@ enum PatchTransaction {
             let url = directory.appendingPathComponent(journalFilename)
             guard let journal = try? readJournal(url),
                   journal.status == .applied else { return nil }
+            if let targetBundleID {
+                let bundleIDs = journal.records.map(\.bundleID)
+                    + (journal.createdDirectories ?? []).map(\.bundleID)
+                guard bundleIDs.contains(targetBundleID) else { return nil }
+            }
             return (journal, url)
         }
         .sorted { $0.0.createdAt > $1.0.createdAt }

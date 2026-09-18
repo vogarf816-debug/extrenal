@@ -32,9 +32,13 @@ enum DevicePatchService {
         }
     }
 
-    static func latestReceipt(projectID: UUID) -> PatchTransactionReceipt? {
+    static func latestReceipt(projectID: UUID, targetBundleID: String? = nil) -> PatchTransactionReceipt? {
         guard let backupRoot = try? PatchProjectLibrary.backupRootURL() else { return nil }
-        return PatchTransaction.latestReceipt(projectID: projectID, backupRoot: backupRoot)
+        return PatchTransaction.latestReceipt(
+            projectID: projectID,
+            backupRoot: backupRoot,
+            targetBundleID: targetBundleID
+        )
     }
 
     private static func orderedBundleIdentifiers(in project: PatchProject) -> [String] {

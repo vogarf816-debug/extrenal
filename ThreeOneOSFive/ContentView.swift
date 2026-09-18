@@ -354,7 +354,7 @@ struct ContentView: View {
                         target: targetTitle,
                         package: filename,
                         color: index.isMultiple(of: 2) ? AppTheme.accent : AppTheme.secondaryAccent,
-                        state: patchBinding(for: filename),
+                        state: patchBinding(for: filename, targetBundleID: targetBundleID),
                         targetBundleID: targetBundleID
                     )
                 }
@@ -384,7 +384,7 @@ struct ContentView: View {
                             package: item.packageURL.lastPathComponent,
                             color: AppTheme.secondaryAccent,
                             imageURL: patchStore.remoteImageURL(for: item),
-                            state: patchBinding(for: item.packageURL.lastPathComponent),
+                            state: patchBinding(for: item.packageURL.lastPathComponent, targetBundleID: targetBundleID),
                             targetBundleID: targetBundleID
                         )
                     }
@@ -429,11 +429,16 @@ struct ContentView: View {
         }
     }
 
-    private func patchBinding(for filename: String) -> Binding<Bool> {
+    private func patchBinding(for filename: String, targetBundleID: String) -> Binding<Bool> {
+        let key = patchStateKey(filename, targetBundleID: targetBundleID)
         Binding(
-            get: { patchEnabled[filename, default: false] },
-            set: { patchEnabled[filename] = $0 }
+            get: { patchEnabled[key, default: false] },
+            set: { patchEnabled[key] = $0 }
         )
+    }
+
+    private func patchStateKey(_ filename: String, targetBundleID: String) -> String {
+        "\(targetBundleID)::\(filename)"
     }
 
     private func patchDisplayName(for filename: String) -> String {
@@ -751,14 +756,23 @@ struct ContentView: View {
         // Keep the skin toggles in sync as well. Previously only the normal
         // patch list was refreshed, so every skin returned to OFF after a
         // relaunch/background transition even when its receipt was active.
-        for filename in fileNames {
-            patchEnabled[filename] = isPatchActive(filename)
+        for filename in normalPatchFiles {
+            patchEnabled[patchStateKey(filename, targetBundleID: "com.dts.freefireth")] = isPatchActive(filename, targetBundleID: "com.dts.freefireth")
+        }
+        for filename in maxPatchFiles {
+            patchEnabled[patchStateKey(filename, targetBundleID: "com.dts.freefiremax")] = isPatchActive(filename, targetBundleID: "com.dts.freefiremax")
+        }
+        for item in patchStore.items {
+            guard let bundleID = patchStore.remoteBundleID(for: item) else { continue }
+            let filename = item.packageURL.lastPathComponent
+            patchEnabled[patchStateKey(filename, targetBundleID: bundleID)] =
+                DevicePatchService.latestReceipt(projectID: item.id, targetBundleID: bundleID) != nil
         }
     }
 
-    private func isPatchActive(_ packageFilename: String) -> Bool {
-        patchItem(for: packageFilename)
-            .flatMap { DevicePatchService.latestReceipt(projectID: $0.id) } != nil
+    private func isPatchActive(_ packageFilename: String, targetBundleID: String) -> Bool {
+        patchItem(for: packageFilename, targetBundleID: targetBundleID)
+            .flatMap { DevicePatchService.latestReceipt(projectID: $0.id, targetBundleID: targetBundleID) } != nil
     }
 
     private func patchItem(for packageFilename: String, targetBundleID: String = "com.dts.freefireth") -> PatchLibraryItem? {
@@ -828,8 +842,8 @@ struct ContentView: View {
         case unavailable(String)
     }
 
-    private func setPatchState(for packageFilename: String, enabled: Bool) {
-        patchEnabled[packageFilename] = enabled
+    private func setPatchState(for packageFilename: String, targetBundleID: String, enabled: Bool) {
+        patchEnabled[patchStateKey(packageFilename, targetBundleID: targetBundleID)] = enabled
     }
 
     private func togglePatch(
@@ -859,7 +873,7 @@ struct ContentView: View {
                     guard let receipt = DevicePatchService.latestReceipt(projectID: projectID) else {
                         result = .unavailable("NO ACTIVE RECEIPT — NOTHING TO RESTORE")
                         DispatchQueue.main.async {
-                            self.setPatchState(for: packageFilename, enabled: false)
+                            self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
                             self.patchMessage = "OFF — NO ACTIVE PATCH FOUND"
                             self.patchOperationBusy = false
                         }
@@ -889,11 +903,11 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 switch result {
                 case .applied:
-                    self.setPatchState(for: packageFilename, enabled: true)
+                    self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: true)
                     self.patchMessage = "Inject Successful — \(packageFilename)"
                     PatchAudioFeedback.bypassActivated()
                 case .restored:
-                    self.setPatchState(for: packageFilename, enabled: false)
+                    self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
                     self.patchMessage = "Restore Successful — \(packageFilename)"
                     PatchAudioFeedback.originalRestored()
                 case .unavailable(let message):
