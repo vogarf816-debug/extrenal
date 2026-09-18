@@ -173,7 +173,12 @@ struct ContentView: View {
                     .foregroundStyle(AppTheme.paper.opacity(0.5))
                     .padding(.vertical, 14)
             } else {
-                ForEach(patchStore.remoteEntries) { remote in
+                ForEach(patchStore.remoteEntries.sorted { first, second in
+                    if first.normalizedCategory != second.normalizedCategory { return first.normalizedCategory < second.normalizedCategory }
+                    if first.game != second.game { return first.game < second.game }
+                    if first.normalizedOrder != second.normalizedOrder { return first.normalizedOrder < second.normalizedOrder }
+                    return first.name.localizedCaseInsensitiveCompare(second.name) == .orderedAscending
+                }) { remote in
                     HStack(spacing: 12) {
                         if let imageURL = VesperDashRemoteSync.validImageURL(for: remote) {
                             AsyncImage(url: imageURL) { phase in
@@ -192,7 +197,7 @@ struct ContentView: View {
                             Text(remote.name)
                                 .font(.system(size: 14, weight: .bold, design: .rounded))
                                 .foregroundStyle(AppTheme.paper)
-                            Text("\(remote.normalizedCategory.uppercased()) • \(remote.game.uppercased())")
+                            Text("#\(remote.normalizedOrder) • \(remote.normalizedCategory.uppercased()) • \(remote.game.uppercased())")
                                 .font(.system(size: 9, weight: .bold, design: .rounded))
                                 .foregroundStyle(AppTheme.secondaryAccent)
                         }
@@ -360,6 +365,11 @@ struct ContentView: View {
                       patchStore.remoteCategory(for: item) == category else { return false }
                 let filename = item.packageURL.lastPathComponent
                 return !files.contains { $0.caseInsensitiveCompare(filename) == .orderedSame }
+            }.sorted { first, second in
+                let firstOrder = patchStore.remoteOrder(for: first)
+                let secondOrder = patchStore.remoteOrder(for: second)
+                if firstOrder != secondOrder { return firstOrder < secondOrder }
+                return first.displayName.localizedCaseInsensitiveCompare(second.displayName) == .orderedAscending
             }
             if !extraRemoteItems.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {

@@ -20,6 +20,7 @@ struct RemotePatch: Decodable, Identifiable {
     let download_url: String
     let image_url: String?
     let status_text: String?
+    let sort_order: Int?
     let enabled: Bool
     let paused: Bool
 
@@ -31,6 +32,10 @@ struct RemotePatch: Decodable, Identifiable {
     var normalizedStatus: String {
         let value = status_text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return value.isEmpty ? "NO STATUS" : value
+    }
+
+    var normalizedOrder: Int {
+        sort_order ?? 1000
     }
 }
 

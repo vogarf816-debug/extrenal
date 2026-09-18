@@ -36,6 +36,7 @@ final class PatchProjectStore: ObservableObject {
     @Published private(set) var remoteCategories: [String: String] = [:]
     @Published private(set) var remoteImageURLs: [String: URL] = [:]
     @Published private(set) var remoteStatusTexts: [String: String] = [:]
+    @Published private(set) var remoteOrders: [String: Int] = [:]
     @Published private(set) var remoteEntries: [RemotePatch] = []
     @Published var passwordRequest: PatchPasswordRequest?
     @Published var alert: PatchStoreAlert?
@@ -81,12 +82,13 @@ final class PatchProjectStore: ObservableObject {
                     await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: 0)
                     return
                 }
-                var metadataByDigest: [String: (category: String, imageURL: URL?, statusText: String)] = [:]
+                var metadataByDigest: [String: (category: String, imageURL: URL?, statusText: String, sortOrder: Int)] = [:]
                 for remote in manifest.patches {
                     metadataByDigest[remote.sha256.lowercased()] = (
                         remote.normalizedCategory,
                         VesperDashRemoteSync.validImageURL(for: remote),
-                        remote.status_text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                        remote.status_text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+                        remote.normalizedOrder
                     )
                 }
                 let session = URLSession(configuration: .ephemeral)
@@ -149,10 +151,15 @@ final class PatchProjectStore: ObservableObject {
         return value.isEmpty ? "NO STATUS" : value
     }
 
-    private func reconcileRemotePackages(metadataByDigest: [String: (category: String, imageURL: URL?, statusText: String)]) {
+    func remoteOrder(for item: PatchLibraryItem) -> Int {
+        remoteOrders[item.packageURL.standardizedFileURL.path] ?? 1000
+    }
+
+    private func reconcileRemotePackages(metadataByDigest: [String: (category: String, imageURL: URL?, statusText: String, sortOrder: Int)]) {
         var categories: [String: String] = [:]
         var imageURLs: [String: URL] = [:]
         var statusTexts: [String: String] = [:]
+        var orders: [String: Int] = [:]
         for item in PatchProjectLibrary.load() {
             guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL) else { continue }
             let digest = VesperDashDigest.hex(data)
@@ -163,6 +170,7 @@ final class PatchProjectStore: ObservableObject {
                     imageURLs[path] = imageURL
                 }
                 statusTexts[path] = metadata.statusText
+                orders[path] = metadata.sortOrder
             } else {
                 try? PatchProjectLibrary.delete(item)
             }
@@ -170,6 +178,7 @@ final class PatchProjectStore: ObservableObject {
         remoteCategories = categories
         remoteImageURLs = imageURLs
         remoteStatusTexts = statusTexts
+        remoteOrders = orders
     }
 
     private func failRemoteSync() {
