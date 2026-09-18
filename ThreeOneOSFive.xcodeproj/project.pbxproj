@@ -75,7 +75,6 @@
 
 		3105R200 /* ACTIVADA.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3105R100; };
 		3105R201 /* DESACTIVADA.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3105R101; };
-		3105R202 /* sync-background.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 3105R102; };
 
 /* End PBXBuildFile section */
 
@@ -167,7 +166,6 @@
 
 		3105R100 /* ACTIVADA.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ThreeOneOSFive/Resources/ACTIVADA.wav"; sourceTree = "<group>"; };
 		3105R101 /* DESACTIVADA.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ThreeOneOSFive/Resources/DESACTIVADA.wav"; sourceTree = "<group>"; };
-		3105R102 /* sync-background.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Resources/sync-background.mp4"; sourceTree = "<group>"; };
 
 /* End PBXFileReference section */
 
@@ -203,7 +201,6 @@
 				3105A406 /* kexploit */,
 				3105A120 /* Localizable.strings */,
 					3105A031 /* Assets.xcassets */,
-					3105R102 /* sync-background.mp4 */,
 			);
 			path = ThreeOneOSFive;
 			sourceTree = "<group>";
@@ -384,7 +381,6 @@
 				3105W202,
 					3105R200,
 					3105R201,
-					3105R202,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
