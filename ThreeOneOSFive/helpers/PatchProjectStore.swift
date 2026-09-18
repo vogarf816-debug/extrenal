@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-private enum VesperDashDigest {
+enum VesperDashDigest {
     static func hex(_ data: Data) -> String {
         CryptoKit.SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
