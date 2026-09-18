@@ -97,7 +97,6 @@ struct ContentView: View {
                 VideoBackgroundView()
                     .ignoresSafeArea()
                     .blur(radius: 3)
-                    .overlay(Color.black.opacity(0.48).ignoresSafeArea())
                 VStack(spacing: 18) {
                     VStack(spacing: 7) {
                         Text("FILES DOWNLOADING NOW FROM SERVER")

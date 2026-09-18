@@ -167,7 +167,7 @@
 
 		3105R100 /* ACTIVADA.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ThreeOneOSFive/Resources/ACTIVADA.wav"; sourceTree = "<group>"; };
 		3105R101 /* DESACTIVADA.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "ThreeOneOSFive/Resources/DESACTIVADA.wav"; sourceTree = "<group>"; };
-		3105R102 /* sync-background.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ThreeOneOSFive/Resources/sync-background.mp4"; sourceTree = "<group>"; };
+		3105R102 /* sync-background.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Resources/sync-background.mp4"; sourceTree = "<group>"; };
 
 /* End PBXFileReference section */
 
