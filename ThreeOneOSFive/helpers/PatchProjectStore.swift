@@ -51,6 +51,7 @@ final class PatchProjectStore: ObservableObject {
     @Published var passwordRequest: PatchPasswordRequest?
     @Published var alert: PatchStoreAlert?
     @Published var unlockErrorKey: String?
+    private var digestCache: [String: String] = [:]
 
     private struct PendingUnlock {
         let data: Data
@@ -240,8 +241,7 @@ final class PatchProjectStore: ObservableObject {
 
     func localFilename(for remote: RemotePatch) -> String? {
         items.first { item in
-            guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL) else { return false }
-            return VesperDashDigest.hex(data).caseInsensitiveCompare(remote.sha256) == .orderedSame
+            digest(for: item).caseInsensitiveCompare(remote.sha256) == .orderedSame
         }?.packageURL.lastPathComponent
     }
 
@@ -253,8 +253,7 @@ final class PatchProjectStore: ObservableObject {
 
         if let remote {
             if let digestMatch = items.first(where: { item in
-                guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL) else { return false }
-                return VesperDashDigest.hex(data).caseInsensitiveCompare(remote.sha256) == .orderedSame
+                digest(for: item).caseInsensitiveCompare(remote.sha256) == .orderedSame
             }) {
                 return digestMatch
             }
@@ -268,6 +267,15 @@ final class PatchProjectStore: ObservableObject {
             }
             return item.project?.allBundleIdentifiers.contains(targetBundleID) == true
         }
+    }
+
+    private func digest(for item: PatchLibraryItem) -> String {
+        let key = item.packageURL.standardizedFileURL.path
+        if let cached = digestCache[key] { return cached }
+        guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL) else { return "" }
+        let value = VesperDashDigest.hex(data)
+        digestCache[key] = value
+        return value
     }
 
     func remoteCategory(for item: PatchLibraryItem) -> String {
@@ -298,8 +306,8 @@ final class PatchProjectStore: ObservableObject {
         var orders: [String: Int] = [:]
         var seenDigests = Set<String>()
         for item in PatchProjectLibrary.load() {
-            guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL) else { continue }
-            let digest = VesperDashDigest.hex(data)
+            let digest = self.digest(for: item)
+            guard !digest.isEmpty else { continue }
             if let metadata = metadataByDigest[digest], seenDigests.insert(digest).inserted {
                 let path = item.packageURL.standardizedFileURL.path
                 categories[path] = metadata.category
@@ -332,10 +340,7 @@ final class PatchProjectStore: ObservableObject {
         if let bundleID = remoteBundleIDs[item.packageURL.lastPathComponent] {
             return bundleID
         }
-        guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL) else {
-            return nil
-        }
-        let digest = VesperDashDigest.hex(data)
+        let digest = self.digest(for: item)
         return remoteEntries.first { $0.sha256.caseInsensitiveCompare(digest) == .orderedSame }?.bundle_id
     }
 
@@ -586,8 +591,7 @@ final class PatchProjectStore: ObservableObject {
 
     private func existingPackageURL(matchingDigest digest: String) -> URL? {
         items.first { item in
-            guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL) else { return false }
-            return VesperDashDigest.hex(data).caseInsensitiveCompare(digest) == .orderedSame
+            self.digest(for: item).caseInsensitiveCompare(digest) == .orderedSame
         }?.packageURL
     }
 

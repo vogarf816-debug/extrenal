@@ -1078,7 +1078,6 @@ struct AnimatedHyperBackdrop: View {
             RadialGradient(colors: [AppTheme.secondaryAccent.opacity(0.12), .clear], center: .bottomLeading, startRadius: 10, endRadius: 320)
             RadialGradient(colors: [Color.blue.opacity(0.055), .clear], center: .center, startRadius: 10, endRadius: 360)
             RadialGradient(colors: [Color.purple.opacity(0.035), .clear], center: .bottomTrailing, startRadius: 10, endRadius: 260)
-            EmberField()
             GridOverlay()
         }
     }
