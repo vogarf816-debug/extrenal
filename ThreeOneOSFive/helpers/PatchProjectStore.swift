@@ -30,6 +30,7 @@ struct PatchStoreAlert: Identifiable {
 @MainActor
 final class PatchProjectStore: ObservableObject {
     private static let initialSyncCompletedKey = "vesperdash.initialSyncCompleted.v4"
+    private static let authoritativeResetKey = "vesperdash.authoritativeReset.v1"
     private static let remoteEntriesKey = "vesperdash.remoteEntries.v1"
     private static let remoteCategoriesKey = "vesperdash.remoteCategories.v1"
     private static let remoteImagesKey = "vesperdash.remoteImages.v1"
@@ -96,6 +97,7 @@ final class PatchProjectStore: ObservableObject {
     func syncVesperDash(showCompletionAlert: Bool = true) {
         guard !isBusy else { return }
         isBusy = true
+        performAuthoritativeResetIfNeeded()
         remoteBundleIDs = [:]
         remoteSyncMessage = "REMOTE DATA: CHECKING…"
         Task.detached(priority: .userInitiated) { [weak self] in
@@ -166,6 +168,40 @@ final class PatchProjectStore: ObservableObject {
                 await self?.failRemoteSync()
             }
         }
+    }
+
+    /// The remote catalog is authoritative. This one-time migration removes
+    /// packages/workspaces from older builds before the current manifest is
+    /// downloaded, so stale UUIDs and metadata cannot win lookup.
+    private func performAuthoritativeResetIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: Self.authoritativeResetKey) else { return }
+        let fileManager = FileManager.default
+        if let root = try? PatchProjectLibrary.packageRootURL(fileManager: fileManager) {
+            for url in (try? fileManager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [] {
+                try? fileManager.removeItem(at: url)
+            }
+        }
+        if let root = try? PatchWorkspaceService.patchesRootURL(fileManager: fileManager) {
+            for url in (try? fileManager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [] {
+                try? fileManager.removeItem(at: url)
+            }
+        }
+        remoteCategories = [:]
+        remoteImageURLs = [:]
+        remoteStatusTexts = [:]
+        remoteOrders = [:]
+        remoteBundleIDs = [:]
+        remoteEntries = []
+        defaults.removeObject(forKey: Self.remoteEntriesKey)
+        defaults.removeObject(forKey: Self.remoteCategoriesKey)
+        defaults.removeObject(forKey: Self.remoteImagesKey)
+        defaults.removeObject(forKey: Self.remoteStatusesKey)
+        defaults.removeObject(forKey: Self.remoteOrdersKey)
+        defaults.removeObject(forKey: Self.remoteBundlesKey)
+        defaults.set(false, forKey: Self.initialSyncCompletedKey)
+        reload()
+        defaults.set(true, forKey: Self.authoritativeResetKey)
     }
 
     private func finishRemoteSync(showCompletionAlert: Bool = true, patchCount: Int = 0) {
