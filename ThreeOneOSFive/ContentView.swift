@@ -13,15 +13,12 @@ struct ContentView: View {
     @State private var patchOperationBusy = false
     @State private var patchMessage = "READY — SELECT A PATCH"
     @State private var patchEnabled: [String: Bool] = [:]
-    @State private var filesTabSession = FilesTabSession()
     private let fileNames: [String] = []
     private let normalPatchFiles: [String] = []
     private let maxPatchFiles: [String] = []
 
     var body: some View {
         TabView {
-            AppDataBrowserView(tabSession: $filesTabSession)
-                .tabItem { Label("FILES", systemImage: "folder.fill") }
             appTab(title: "AIM", icon: "scope") { aimTab }
             appTab(title: "ESP", icon: "eye.fill") { espTab }
             appTab(title: "SKIN MOD", icon: "sparkles") { skinModTab }
