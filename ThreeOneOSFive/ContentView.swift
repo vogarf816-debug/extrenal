@@ -736,6 +736,9 @@ struct ContentView: View {
     }
 
     private func patchItem(for packageFilename: String, targetBundleID: String = "com.dts.freefireth") -> PatchLibraryItem? {
+        if let resolved = patchStore.localItem(for: packageFilename, targetBundleID: targetBundleID) {
+            return resolved
+        }
         let requestedName = (packageFilename as NSString).deletingPathExtension
         let wantsMax = targetBundleID == "com.dts.freefiremax"
         let requestedKey = requestedName.uppercased().hasSuffix("M")
@@ -756,7 +759,7 @@ struct ContentView: View {
                 if let remoteBundleID = patchStore.remoteBundleID(for: item) {
                     return remoteBundleID == targetBundleID
                 }
-                return item.project?.allBundleIdentifiers.contains(targetBundleID) == true || item.project == nil
+                return item.project?.allBundleIdentifiers.contains(targetBundleID) == true
             }
             guard matchesTargetBundle(item, targetBundleID: targetBundleID) else { return false }
             let storedName = item.packageURL.deletingPathExtension().lastPathComponent

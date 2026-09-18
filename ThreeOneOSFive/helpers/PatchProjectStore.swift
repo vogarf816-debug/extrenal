@@ -204,6 +204,31 @@ final class PatchProjectStore: ObservableObject {
         }?.packageURL.lastPathComponent
     }
 
+    func localItem(for packageFilename: String, targetBundleID: String) -> PatchLibraryItem? {
+        let remote = remoteEntries.first(where: {
+            $0.filename.caseInsensitiveCompare(packageFilename) == .orderedSame &&
+            $0.bundle_id == targetBundleID
+        })
+
+        if let remote {
+            if let digestMatch = items.first(where: { item in
+                guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL) else { return false }
+                return VesperDashDigest.hex(data).caseInsensitiveCompare(remote.sha256) == .orderedSame
+            }) {
+                return digestMatch
+            }
+        }
+
+        // A filename is only safe when the decoded project explicitly targets
+        // this bundle. Normal and Max can legitimately share a filename.
+        return items.first { item in
+            guard item.packageURL.lastPathComponent.caseInsensitiveCompare(packageFilename) == .orderedSame else {
+                return false
+            }
+            return item.project?.allBundleIdentifiers.contains(targetBundleID) == true
+        }
+    }
+
     func remoteCategory(for item: PatchLibraryItem) -> String {
         remoteCategories[item.packageURL.standardizedFileURL.path] ?? "aim"
     }
