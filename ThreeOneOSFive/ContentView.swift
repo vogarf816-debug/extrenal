@@ -350,7 +350,7 @@ struct ContentView: View {
                 }
             }
 
-            let extraRemoteItems = patchStore.items.filter { item in
+            let extraRemoteItems = patchStore.isBusy ? [] : patchStore.items.filter { item in
                 guard matchesTargetBundle(item, targetBundleID: targetBundleID),
                       patchStore.remoteCategory(for: item) == category else { return false }
                 let filename = item.packageURL.lastPathComponent
