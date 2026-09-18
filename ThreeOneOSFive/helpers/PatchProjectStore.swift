@@ -38,6 +38,7 @@ final class PatchProjectStore: ObservableObject {
     @Published private(set) var remoteStatusTexts: [String: String] = [:]
     @Published private(set) var remoteOrders: [String: Int] = [:]
     @Published private(set) var remoteEntries: [RemotePatch] = []
+    @Published private(set) var remoteBundleIDs: [String: String] = [:]
     @Published var passwordRequest: PatchPasswordRequest?
     @Published var alert: PatchStoreAlert?
     @Published var unlockErrorKey: String?
@@ -72,6 +73,7 @@ final class PatchProjectStore: ObservableObject {
     func syncVesperDash(showCompletionAlert: Bool = true) {
         guard !isBusy else { return }
         isBusy = true
+        remoteBundleIDs = [:]
         remoteSyncMessage = "REMOTE DATA: CHECKING…"
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
@@ -112,6 +114,9 @@ final class PatchProjectStore: ObservableObject {
                         summary: summary,
                         existingURL: existingURL
                     )
+                    let localFilename = existingURL?.lastPathComponent
+                        ?? PatchProjectLibrary.sanitizedPackageFilename(decoded.project.name)
+                    await self?.recordRemoteBundleID(remoteBundleID: remote.bundle_id, filename: localFilename)
                 }
                 await self?.reconcileRemotePackages(metadataByDigest: metadataByDigest)
                 await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: manifest.patches.count)
@@ -179,6 +184,14 @@ final class PatchProjectStore: ObservableObject {
         remoteImageURLs = imageURLs
         remoteStatusTexts = statusTexts
         remoteOrders = orders
+    }
+
+    private func recordRemoteBundleID(remoteBundleID: String, filename: String) {
+        remoteBundleIDs[filename] = remoteBundleID
+    }
+
+    func remoteBundleID(for item: PatchLibraryItem) -> String? {
+        remoteBundleIDs[item.packageURL.lastPathComponent]
     }
 
     private func failRemoteSync() {

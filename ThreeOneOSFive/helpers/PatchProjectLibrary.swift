@@ -326,4 +326,8 @@ enum PatchProjectLibrary {
             .prefix(80)
         return result.isEmpty ? "Patch" : String(result)
     }
+
+    static func sanitizedPackageFilename(_ projectName: String) -> String {
+        sanitizedFilename(projectName) + ".3105"
+    }
 }

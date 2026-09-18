@@ -361,7 +361,7 @@ struct ContentView: View {
             }
 
             let extraRemoteItems = patchStore.items.filter { item in
-                guard item.project?.allBundleIdentifiers.contains(targetBundleID) == true,
+                guard matchesTargetBundle(item, targetBundleID: targetBundleID),
                       patchStore.remoteCategory(for: item) == category else { return false }
                 let filename = item.packageURL.lastPathComponent
                 return !files.contains { $0.caseInsensitiveCompare(filename) == .orderedSame }
@@ -768,6 +768,7 @@ struct ContentView: View {
             ? String(requestedName.dropLast()).uppercased()
             : requestedName.uppercased()
         return patchStore.items.first { item in
+            guard matchesTargetBundle(item, targetBundleID: targetBundleID) else { return false }
             let storedName = item.packageURL.deletingPathExtension().lastPathComponent
             let canonicalName = storedName
                 .replacingOccurrences(of: "BundledPatch-", with: "", options: .caseInsensitive)
@@ -812,6 +813,13 @@ struct ContentView: View {
             let projectKey = projectName.hasSuffix("M") ? String(projectName.dropLast()) : projectName
             return projectKey == requestedKey && storedIsMax == wantsMax
         }
+    }
+
+    private func matchesTargetBundle(_ item: PatchLibraryItem, targetBundleID: String) -> Bool {
+        if let remoteBundleID = patchStore.remoteBundleID(for: item) {
+            return remoteBundleID == targetBundleID
+        }
+        return item.project?.allBundleIdentifiers.contains(targetBundleID) == true
     }
 
     private enum PatchActionResult {
