@@ -76,6 +76,7 @@ final class PatchProjectStore: ObservableObject {
                     await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: 0)
                     return
                 }
+                let expectedDigests = Set(manifest.patches.map { $0.sha256.lowercased() })
                 let session = URLSession(configuration: .ephemeral)
                 defer { session.invalidateAndCancel() }
                 for remote in manifest.patches {
@@ -98,6 +99,7 @@ final class PatchProjectStore: ObservableObject {
                         existingURL: existingURL
                     )
                 }
+                await self?.reconcileRemotePackages(expectedDigests: expectedDigests)
                 await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: manifest.patches.count)
             } catch {
                 await self?.failRemoteSync()
@@ -116,6 +118,14 @@ final class PatchProjectStore: ObservableObject {
 
     private func applyRemoteState(paused: Bool) {
         isRemoteDisabled = paused
+    }
+
+    private func reconcileRemotePackages(expectedDigests: Set<String>) {
+        for item in PatchProjectLibrary.load() {
+            guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL),
+                  !expectedDigests.contains(VesperDashDigest.hex(data)) else { continue }
+            try? PatchProjectLibrary.delete(item)
+        }
     }
 
     private func failRemoteSync() {
