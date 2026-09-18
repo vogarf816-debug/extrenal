@@ -35,6 +35,8 @@ final class PatchProjectStore: ObservableObject {
     @Published private(set) var remoteSyncMessage = "REMOTE DATA: WAITING"
     @Published private(set) var remoteCategories: [String: String] = [:]
     @Published private(set) var remoteImageURLs: [String: URL] = [:]
+    @Published private(set) var remoteStatusTexts: [String: String] = [:]
+    @Published private(set) var remoteEntries: [RemotePatch] = []
     @Published var passwordRequest: PatchPasswordRequest?
     @Published var alert: PatchStoreAlert?
     @Published var unlockErrorKey: String?
@@ -74,15 +76,17 @@ final class PatchProjectStore: ObservableObject {
             do {
                 let manifest = try await VesperDashRemoteSync.fetchManifest()
                 await self?.applyRemoteState(paused: manifest.global_paused)
+                await self?.applyRemoteEntries(manifest.all_patches ?? manifest.patches)
                 guard !manifest.global_paused else {
                     await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: 0)
                     return
                 }
-                var metadataByDigest: [String: (category: String, imageURL: URL?)] = [:]
+                var metadataByDigest: [String: (category: String, imageURL: URL?, statusText: String)] = [:]
                 for remote in manifest.patches {
                     metadataByDigest[remote.sha256.lowercased()] = (
                         remote.normalizedCategory,
-                        VesperDashRemoteSync.validImageURL(for: remote)
+                        VesperDashRemoteSync.validImageURL(for: remote),
+                        remote.status_text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                     )
                 }
                 let session = URLSession(configuration: .ephemeral)
@@ -128,6 +132,10 @@ final class PatchProjectStore: ObservableObject {
         isRemoteDisabled = paused
     }
 
+    private func applyRemoteEntries(_ entries: [RemotePatch]) {
+        remoteEntries = entries
+    }
+
     func remoteCategory(for item: PatchLibraryItem) -> String {
         remoteCategories[item.packageURL.standardizedFileURL.path] ?? "aim"
     }
@@ -136,9 +144,15 @@ final class PatchProjectStore: ObservableObject {
         remoteImageURLs[item.packageURL.standardizedFileURL.path]
     }
 
-    private func reconcileRemotePackages(metadataByDigest: [String: (category: String, imageURL: URL?)]) {
+    func remoteStatusText(for item: PatchLibraryItem) -> String {
+        let value = remoteStatusTexts[item.packageURL.standardizedFileURL.path] ?? ""
+        return value.isEmpty ? "NO STATUS" : value
+    }
+
+    private func reconcileRemotePackages(metadataByDigest: [String: (category: String, imageURL: URL?, statusText: String)]) {
         var categories: [String: String] = [:]
         var imageURLs: [String: URL] = [:]
+        var statusTexts: [String: String] = [:]
         for item in PatchProjectLibrary.load() {
             guard let data = try? PatchProjectLibrary.readPackage(at: item.packageURL) else { continue }
             let digest = VesperDashDigest.hex(data)
@@ -148,12 +162,14 @@ final class PatchProjectStore: ObservableObject {
                 if let imageURL = metadata.imageURL {
                     imageURLs[path] = imageURL
                 }
+                statusTexts[path] = metadata.statusText
             } else {
                 try? PatchProjectLibrary.delete(item)
             }
         }
         remoteCategories = categories
         remoteImageURLs = imageURLs
+        remoteStatusTexts = statusTexts
     }
 
     private func failRemoteSync() {

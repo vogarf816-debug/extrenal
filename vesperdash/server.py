@@ -36,13 +36,15 @@ def db():
         bundle_id TEXT NOT NULL, target_path TEXT NOT NULL, filename TEXT NOT NULL,
         stored_filename TEXT NOT NULL, sha256 TEXT NOT NULL, size INTEGER NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1, paused INTEGER NOT NULL DEFAULT 0,
-        version TEXT NOT NULL, image_filename TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+        version TEXT NOT NULL, image_filename TEXT NOT NULL DEFAULT '', status_text TEXT NOT NULL DEFAULT 'NO STATUS', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
     )""")
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(patches)")}
     if "category" not in columns:
         conn.execute("ALTER TABLE patches ADD COLUMN category TEXT NOT NULL DEFAULT 'aim'")
     if "image_filename" not in columns:
         conn.execute("ALTER TABLE patches ADD COLUMN image_filename TEXT NOT NULL DEFAULT ''")
+    if "status_text" not in columns:
+        conn.execute("ALTER TABLE patches ADD COLUMN status_text TEXT NOT NULL DEFAULT 'NO STATUS'")
     conn.execute("""CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY, value TEXT NOT NULL
     )""")
@@ -97,7 +99,9 @@ def health():
 @app.get("/api/patches")
 def list_patches():
     conn = db(); paused = global_paused(conn); rows = conn.execute("SELECT * FROM patches ORDER BY game, name, version DESC").fetchall(); conn.close()
-    return jsonify(version=5, global_paused=paused, patches=[] if paused else [public_row(r) for r in rows if r["enabled"] and not r["paused"]])
+    all_patches = [public_row(r) for r in rows]
+    active_patches = [] if paused else [p for p in all_patches if p["enabled"] and not p["paused"]]
+    return jsonify(version=7, global_paused=paused, patches=active_patches, all_patches=all_patches)
 
 
 @app.get("/api/patches/<patch_id>/download")
@@ -153,6 +157,8 @@ def upload_patch():
     if bundle not in ALLOWED_BUNDLES: return jsonify(error="unsupported bundle_id"), 400
     category = request.form.get("category", "aim").lower()
     if category not in ALLOWED_CATEGORIES: return jsonify(error="unsupported category"), 400
+    status_text = request.form.get("status_text", "NO STATUS").strip() or "NO STATUS"
+    if len(status_text) > 120: return jsonify(error="status text is limited to 120 characters"), 400
     uploaded = request.files.get("file")
     if not uploaded or not uploaded.filename: return jsonify(error="missing file"), 400
     filename = secure_filename(uploaded.filename)
@@ -180,9 +186,9 @@ def upload_patch():
         image_filename = f"{patch_id}-cover-{image_digest[:12]}.{extension}"
         IMAGE_DIR.mkdir(parents=True, exist_ok=True); (IMAGE_DIR / image_filename).write_bytes(image_raw)
     now = int(time.time()); conn = db()
-    conn.execute("""INSERT INTO patches(id,name,category,game,bundle_id,target_path,filename,stored_filename,sha256,size,version,image_filename,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,category=excluded.category,game=excluded.game,bundle_id=excluded.bundle_id,target_path=excluded.target_path,filename=excluded.filename,stored_filename=excluded.stored_filename,sha256=excluded.sha256,size=excluded.size,version=excluded.version,image_filename=CASE WHEN excluded.image_filename != '' THEN excluded.image_filename ELSE patches.image_filename END,updated_at=excluded.updated_at""",
-        (patch_id, request.form["name"], category, request.form["game"], bundle, request.form["target_path"], filename, stored, digest, len(raw), request.form["version"], image_filename, now, now))
+    conn.execute("""INSERT INTO patches(id,name,category,game,bundle_id,target_path,filename,stored_filename,sha256,size,version,image_filename,status_text,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,category=excluded.category,game=excluded.game,bundle_id=excluded.bundle_id,target_path=excluded.target_path,filename=excluded.filename,stored_filename=excluded.stored_filename,sha256=excluded.sha256,size=excluded.size,version=excluded.version,image_filename=CASE WHEN excluded.image_filename != '' THEN excluded.image_filename ELSE patches.image_filename END,status_text=excluded.status_text,updated_at=excluded.updated_at""",
+        (patch_id, request.form["name"], category, request.form["game"], bundle, request.form["target_path"], filename, stored, digest, len(raw), request.form["version"], image_filename, status_text, now, now))
     conn.commit(); row = conn.execute("SELECT * FROM patches WHERE id=?", (patch_id,)).fetchone(); conn.close()
     return jsonify(patch=public_row(row)), 201
 
@@ -192,7 +198,11 @@ def upload_patch():
 def patch_state(patch_id):
     body = request.get_json(silent=True) or {}
     fields = {k: int(bool(body[k])) for k in ("enabled", "paused") if k in body}
-    if not fields: return jsonify(error="send enabled and/or paused"), 400
+    if "status_text" in body:
+        status_text = str(body["status_text"]).strip() or "NO STATUS"
+        if len(status_text) > 120: return jsonify(error="status text is limited to 120 characters"), 400
+        fields["status_text"] = status_text
+    if not fields: return jsonify(error="send enabled, paused, and/or status_text"), 400
     conn = db(); row = conn.execute("SELECT * FROM patches WHERE id=?", (patch_id,)).fetchone()
     if not row: conn.close(); abort(404)
     conn.execute("UPDATE patches SET " + ", ".join(f"{k}=?" for k in fields) + ", updated_at=? WHERE id=?", (*fields.values(), int(time.time()), patch_id)); conn.commit()

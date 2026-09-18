@@ -4,6 +4,7 @@ struct VesperDashManifest: Decodable {
     let version: Int
     let global_paused: Bool
     let patches: [RemotePatch]
+    let all_patches: [RemotePatch]?
 }
 
 struct RemotePatch: Decodable, Identifiable {
@@ -18,10 +19,18 @@ struct RemotePatch: Decodable, Identifiable {
     let version: String
     let download_url: String
     let image_url: String?
+    let status_text: String?
+    let enabled: Bool
+    let paused: Bool
 
     var normalizedCategory: String {
         let value = (category ?? "aim").lowercased()
         return ["aim", "esp", "hologram", "skin"].contains(value) ? value : "aim"
+    }
+
+    var normalizedStatus: String {
+        let value = status_text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty ? "NO STATUS" : value
     }
 }
 

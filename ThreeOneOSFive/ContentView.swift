@@ -23,7 +23,7 @@ struct ContentView: View {
             appTab(title: "ESP", icon: "eye.fill") { espTab }
             appTab(title: "HOLOGRAM", icon: "cube.transparent") { hologramTab }
             appTab(title: "SKIN MOD", icon: "sparkles") { skinModTab }
-            appTab(title: "DEVELOPER", icon: "person.crop.circle") { developerTab }
+            appTab(title: "FILE STATUS", icon: "doc.badge.gearshape") { fileStatusTab }
         }
         .preferredColorScheme(.dark)
         .tint(AppTheme.accent)
@@ -152,7 +152,7 @@ struct ContentView: View {
 
     private var fileStatusTab: some View {
         VStack(spacing: 16) {
-            gameIntro(title: "FILE STATUS", subtitle: "LOCAL SAFETY CHECK", icon: "doc.badge.gearshape")
+            gameIntro(title: "FILE STATUS", subtitle: "REMOTE STATUS CENTER", icon: "doc.badge.gearshape")
             fileStatusPanel
         }
     }
@@ -162,36 +162,56 @@ struct ContentView: View {
             HStack {
                 panelTitle("PATCH FILES", icon: "checkmark.shield.fill")
                 Spacer()
-                Text("LOCAL")
+                Text("VESPERDASH")
                     .font(.system(size: 9, weight: .black, design: .rounded))
                     .foregroundStyle(AppTheme.secondaryAccent)
             }
 
-            ForEach(fileNames, id: \.self) { filename in
-                HStack(spacing: 12) {
-                    Image(systemName: fileSafety[filename, default: true] ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                        .foregroundStyle(fileSafety[filename, default: true] ? AppTheme.secondaryAccent : AppTheme.accent)
-                    Text(patchDisplayName(for: filename))
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AppTheme.paper)
-                    Spacer()
-                    Button(fileSafety[filename, default: true] ? "SAFE" : "UNSAFE") {
-                        fileSafety[filename, default: true].toggle()
+            if patchStore.remoteEntries.isEmpty {
+                Text("NO FILES ON VESPERDASH")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.paper.opacity(0.5))
+                    .padding(.vertical, 14)
+            } else {
+                ForEach(patchStore.remoteEntries) { remote in
+                    HStack(spacing: 12) {
+                        if let imageURL = VesperDashRemoteSync.validImageURL(for: remote) {
+                            AsyncImage(url: imageURL) { phase in
+                                if let image = phase.image { image.resizable().scaledToFill() }
+                                else if phase.error != nil { Image(systemName: "doc.fill").foregroundStyle(AppTheme.accent) }
+                                else { ProgressView().tint(AppTheme.secondaryAccent) }
+                            }
+                            .frame(width: 44, height: 44)
+                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        } else {
+                            Image(systemName: "doc.fill")
+                                .foregroundStyle(AppTheme.secondaryAccent)
+                                .frame(width: 44, height: 44)
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(remote.name)
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .foregroundStyle(AppTheme.paper)
+                            Text("\(remote.normalizedCategory.uppercased()) • \(remote.game.uppercased())")
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                                .foregroundStyle(AppTheme.secondaryAccent)
+                        }
+                        Spacer()
+                        Text(remote.normalizedStatus)
+                            .font(.system(size: 10, weight: .black, design: .rounded))
+                            .foregroundStyle(AppTheme.paper)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(3)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(AppTheme.ink.opacity(0.7), in: Capsule())
                     }
-                    .font(.system(size: 10, weight: .black, design: .rounded))
-                    .foregroundStyle(fileSafety[filename, default: true] ? AppTheme.secondaryAccent : AppTheme.accent)
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(AppTheme.ink.opacity(0.7), in: Capsule())
+                    .padding(.vertical, 8)
+                    Divider().overlay(AppTheme.paper.opacity(0.1))
                 }
-                .padding(.vertical, 8)
-                Divider().overlay(AppTheme.paper.opacity(0.1))
             }
 
-            launchButton(title: "OPEN FF MAX", subtitle: "Free Fire MAX", color: AppTheme.accent, scheme: "freefiremax")
-
-            Text("OFFLINE STATUS • Stored locally. No online control.")
+            Text("STATUS IS CONTROLLED ONLY FROM VESPERDASH")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.paper.opacity(0.52))
                 .padding(.top, 5)
