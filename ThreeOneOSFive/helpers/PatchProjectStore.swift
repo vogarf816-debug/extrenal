@@ -396,10 +396,9 @@ final class PatchProjectStore: ObservableObject {
             return "Documents/contentcache/Optional/ios/gameassetbundles/shaders.P0K3UG2TfecMBhWMMV~2Fu8ReudIk~3D"
         }
 
-        // AIM/cache patches use this exact compulsory asset. Keep the path
-        // canonical here so stale dashboard metadata cannot redirect them to
-        // a previous cache_res filename.
-        return "Documents/contentcache/Compulsory/ios/gameassetbundles/cache_res.GkLIYqzsX4AtTdE55sDMRh9s-JOl~3D"
+        // AIM/cache patches use the exact target currently published by the
+        // server. Do not hardcode a case-sensitive cache_res filename here.
+        return remote.target_path
     }
 
     private func failRemoteSync() {
