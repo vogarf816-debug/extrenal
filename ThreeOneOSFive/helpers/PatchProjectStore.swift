@@ -109,7 +109,7 @@ final class PatchProjectStore: ObservableObject {
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let manifest = try await VesperDashRemoteSync.fetchManifest()
-                let fingerprint = manifestFingerprint(for: manifest)
+                let fingerprint = await self?.manifestFingerprint(for: manifest) ?? ""
                 guard await self?.shouldProcessManifest(fingerprint) == true else {
                     return
                 }
