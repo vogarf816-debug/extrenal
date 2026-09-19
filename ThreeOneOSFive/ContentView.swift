@@ -124,6 +124,7 @@ struct ContentView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
                         brandHeader
+                        patchStatusBanner
                         content()
                     }
                     .padding(.horizontal, 16)
@@ -135,6 +136,25 @@ struct ContentView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .tabItem { Label(title, systemImage: icon) }
+    }
+
+    private var patchStatusBanner: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("INJECT STATUS")
+                .font(.system(size: 10, weight: .black, design: .rounded))
+                .tracking(1.2)
+                .foregroundStyle(AppTheme.accent)
+            Text(patchMessage)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(AppTheme.accent.opacity(0.42), lineWidth: 1))
     }
 
     private var aimTab: some View {
@@ -888,8 +908,14 @@ struct ContentView: View {
                     )
                     result = .applied
                 }
+            } catch let error as PatchPackageError {
+                if case .missingTarget(let path) = error {
+                    result = .unavailable("MISSING TARGET — \(path)")
+                } else {
+                    result = .unavailable("FAILED — \(error.localizedDescription)")
+                }
             } catch {
-                result = .unavailable("FAILED — \(String(describing: error))")
+                result = .unavailable("FAILED — \(error.localizedDescription)")
             }
 
             DispatchQueue.main.async {
