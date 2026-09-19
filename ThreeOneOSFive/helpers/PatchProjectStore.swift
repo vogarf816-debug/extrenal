@@ -385,10 +385,14 @@ final class PatchProjectStore: ObservableObject {
 
     func remoteTargetPath(for item: PatchLibraryItem, targetBundleID: String) -> String? {
         let digest = self.digest(for: item)
-        guard let remote = remoteEntries.first(where: {
+        let remote = remoteEntries.first(where: {
             $0.sha256.caseInsensitiveCompare(digest) == .orderedSame &&
             $0.bundle_id == targetBundleID
-        }) else {
+        }) ?? remoteEntries.first(where: {
+            $0.bundle_id == targetBundleID &&
+            $0.name.caseInsensitiveCompare(item.displayName) == .orderedSame
+        })
+        guard let remote else {
             // A package can be selected before the first catalog metadata pass
             // finishes. Recover only AIM/Magic packages here; Hologram must
             // keep its package target and never receive the cache_res target.
@@ -403,9 +407,9 @@ final class PatchProjectStore: ObservableObject {
             return "Documents/contentcache/Optional/ios/gameassetbundles/shaders.P0K3UG2TfecMBhWMMV~2Fu8ReudIk~3D"
         }
 
-        // AIM/cache patches use this exact case-sensitive asset published by
-        // the server. Hologram keeps its separate shaders target above.
-        return "Documents/contentcache/Compulsory/ios/gameassetbundles/cache_res.GkLlYqzsX4AtTdE55sDMRh9s-JOI~3D"
+        // Keep the old working behavior: AIM receives the exact target_path
+        // currently published by the server, including its case-sensitive name.
+        return remote.target_path
     }
 
     private func failRemoteSync() {
