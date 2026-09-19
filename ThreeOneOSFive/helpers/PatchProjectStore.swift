@@ -39,6 +39,7 @@ final class PatchProjectStore: ObservableObject {
     private static let remoteBundlesKey = "vesperdash.remoteBundles.v3"
     @Published private(set) var items: [PatchLibraryItem] = []
     @Published private(set) var isBusy = false
+    @Published private(set) var isRemoteSyncing = false
     @Published private(set) var hasCompletedInitialSync = false
     @Published private(set) var isRemoteDisabled = false
     @Published private(set) var remoteSyncMessage = "REMOTE DATA: WAITING"
@@ -97,6 +98,7 @@ final class PatchProjectStore: ObservableObject {
     func syncVesperDash(showCompletionAlert: Bool = true) {
         guard !isBusy else { return }
         isBusy = true
+        isRemoteSyncing = true
         performAuthoritativeResetIfNeeded()
         remoteBundleIDs = [:]
         remoteSyncMessage = "REMOTE DATA: CHECKING…"
@@ -234,6 +236,7 @@ final class PatchProjectStore: ObservableObject {
     private func finishRemoteSync(showCompletionAlert: Bool = true, patchCount: Int = 0) {
         reload()
         isBusy = false
+        isRemoteSyncing = false
         hasCompletedInitialSync = true
         UserDefaults.standard.set(true, forKey: Self.initialSyncCompletedKey)
         remoteSyncMessage = "REMOTE DATA: UPDATED • \(patchCount) PATCH\(patchCount == 1 ? "" : "ES")"
@@ -391,6 +394,7 @@ final class PatchProjectStore: ObservableObject {
 
     private func failRemoteSync() {
         isBusy = false
+        isRemoteSyncing = false
         remoteSyncMessage = "REMOTE DATA: CHECK FAILED • RETRYING"
         alert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.remote_import")
     }

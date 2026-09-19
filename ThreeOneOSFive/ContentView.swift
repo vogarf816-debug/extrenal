@@ -33,7 +33,7 @@ struct ContentView: View {
             }
         }
         .overlay {
-            if patchStore.isBusy && !patchStore.hasCompletedInitialSync {
+            if patchStore.isRemoteSyncing {
                 RemoteLoadingView(store: patchStore)
             }
         }
