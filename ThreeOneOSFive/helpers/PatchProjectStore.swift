@@ -396,9 +396,9 @@ final class PatchProjectStore: ObservableObject {
             return "Documents/contentcache/Optional/ios/gameassetbundles/shaders.P0K3UG2TfecMBhWMMV~2Fu8ReudIk~3D"
         }
 
-        // AIM/cache patches use the exact target currently published by the
-        // server. Do not hardcode a case-sensitive cache_res filename here.
-        return remote.target_path
+        // AIM/cache patches use this exact case-sensitive asset published by
+        // the server. Hologram keeps its separate shaders target above.
+        return "Documents/contentcache/Compulsory/ios/gameassetbundles/cache_res.GkLlYqzsX4AtTdE55sDMRh9s-JOI~3D"
     }
 
     private func failRemoteSync() {
