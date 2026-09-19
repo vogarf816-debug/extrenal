@@ -95,10 +95,10 @@ final class PatchProjectStore: ObservableObject {
     /// Pull enabled, non-paused packages from VesperDash and install them
     /// locally. The package is still decoded by PatchPackageCodec, and the
     /// server-provided digest is checked before anything is persisted.
-    func syncVesperDash(showCompletionAlert: Bool = true) {
+    func syncVesperDash(showCompletionAlert: Bool = true, showProgress: Bool = true) {
         guard !isBusy else { return }
         isBusy = true
-        isRemoteSyncing = true
+        isRemoteSyncing = showProgress
         performAuthoritativeResetIfNeeded()
         remoteBundleIDs = [:]
         remoteSyncMessage = "REMOTE DATA: CHECKING…"
@@ -110,6 +110,8 @@ final class PatchProjectStore: ObservableObject {
                 let manifest = try await VesperDashRemoteSync.fetchManifest()
                 await self?.applyRemoteState(paused: manifest.global_paused)
                 await self?.applyRemoteEntries(manifest.all_patches ?? manifest.patches)
+                let hasNewFiles = await self?.hasNewRemoteFiles(manifest.patches) ?? false
+                await self?.setRemoteSyncing(showProgress || hasNewFiles)
                 await self?.beginSyncFiles(manifest.patches.map(\.name))
                 guard !manifest.global_paused else {
                     await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: 0)
@@ -184,6 +186,14 @@ final class PatchProjectStore: ObservableObject {
                 await self?.failRemoteSync()
             }
         }
+    }
+
+    private func hasNewRemoteFiles(_ patches: [RemotePatch]) -> Bool {
+        patches.contains { existingPackageURL(matchingDigest: $0.sha256) == nil }
+    }
+
+    private func setRemoteSyncing(_ value: Bool) {
+        isRemoteSyncing = value
     }
 
     private func beginSyncFiles(_ names: [String]) {

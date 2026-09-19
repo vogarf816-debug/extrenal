@@ -45,7 +45,7 @@ struct ContentView: View {
         }
         .onAppear {
             syncPatchStates()
-            patchStore.syncVesperDash(showCompletionAlert: !patchStore.hasCompletedInitialSync)
+            patchStore.syncVesperDash(showCompletionAlert: false, showProgress: true)
             startRemoteStateChecks()
         }
         .onDisappear {
@@ -65,7 +65,7 @@ struct ContentView: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { return }
-                patchStore.syncVesperDash(showCompletionAlert: false)
+                patchStore.syncVesperDash(showCompletionAlert: false, showProgress: false)
             }
         }
     }
@@ -93,6 +93,7 @@ struct ContentView: View {
 
     private struct RemoteLoadingView: View {
         @ObservedObject var store: PatchProjectStore
+        @State private var spinnerRotation = 0.0
 
         var body: some View {
             ZStack {
@@ -104,7 +105,7 @@ struct ContentView: View {
                 .ignoresSafeArea()
                 VStack(spacing: 18) {
                     VStack(spacing: 7) {
-                        Text("DOWNLOADING REMOTE PATCHES")
+                        Text("DOWNLOAD RESOURCE FROM SERVER")
                             .font(.system(size: 14, weight: .black, design: .rounded))
                             .multilineTextAlignment(.center)
                         Text(progressText)
@@ -122,6 +123,7 @@ struct ContentView: View {
                             HStack(spacing: 9) {
                                 Image(systemName: store.syncFinishedFileNames.contains(name) ? "checkmark.circle.fill" : (store.syncCurrentFile == name ? "arrow.down.circle.fill" : "circle"))
                                     .foregroundStyle(store.syncFinishedFileNames.contains(name) ? .green : (store.syncCurrentFile == name ? AppTheme.accent : .white.opacity(0.35)))
+                                    .rotationEffect(.degrees(store.syncCurrentFile == name && !store.syncFinishedFileNames.contains(name) ? spinnerRotation : 0))
                                 Text(name)
                                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                                     .foregroundStyle(.white.opacity(store.syncFinishedFileNames.contains(name) ? 0.55 : 0.95))
@@ -137,6 +139,12 @@ struct ContentView: View {
                 .padding(28)
             }
             .allowsHitTesting(true)
+            .onAppear {
+                spinnerRotation = 0
+                withAnimation(.linear(duration: 0.85).repeatForever(autoreverses: false)) {
+                    spinnerRotation = 360
+                }
+            }
         }
 
         private var progress: Double {
