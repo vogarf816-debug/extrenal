@@ -48,6 +48,9 @@ final class PatchProjectStore: ObservableObject {
     @Published private(set) var remoteOrders: [String: Int] = [:]
     @Published private(set) var remoteEntries: [RemotePatch] = []
     @Published private(set) var remoteBundleIDs: [String: String] = [:]
+    @Published private(set) var syncFileNames: [String] = []
+    @Published private(set) var syncFinishedFileNames: Set<String> = []
+    @Published private(set) var syncCurrentFile = ""
     @Published var passwordRequest: PatchPasswordRequest?
     @Published var alert: PatchStoreAlert?
     @Published var unlockErrorKey: String?
@@ -97,11 +100,15 @@ final class PatchProjectStore: ObservableObject {
         performAuthoritativeResetIfNeeded()
         remoteBundleIDs = [:]
         remoteSyncMessage = "REMOTE DATA: CHECKING…"
+        syncFileNames = []
+        syncFinishedFileNames = []
+        syncCurrentFile = "CONNECTING TO VESPERDASH"
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let manifest = try await VesperDashRemoteSync.fetchManifest()
                 await self?.applyRemoteState(paused: manifest.global_paused)
                 await self?.applyRemoteEntries(manifest.all_patches ?? manifest.patches)
+                await self?.beginSyncFiles(manifest.patches.map(\.name))
                 guard !manifest.global_paused else {
                     await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: 0)
                     return
@@ -121,22 +128,30 @@ final class PatchProjectStore: ObservableObject {
                 let session = URLSession(configuration: .ephemeral)
                 defer { session.invalidateAndCancel() }
                 for remote in manifest.patches {
+                    await self?.beginSyncFile(remote.name)
                     do {
                         if let localURL = await self?.existingPackageURL(matchingDigest: remote.sha256) {
                             await self?.recordRemoteBundleID(
                                 remoteBundleID: remote.bundle_id,
                                 filename: localURL.lastPathComponent
                             )
+                            await self?.finishSyncFile(remote.name)
                             continue
                         }
-                        guard let url = VesperDashRemoteSync.validDownloadURL(for: remote) else { continue }
+                        guard let url = VesperDashRemoteSync.validDownloadURL(for: remote) else {
+                            await self?.finishSyncFile(remote.name)
+                            continue
+                        }
                         var request = URLRequest(url: url)
                         request.timeoutInterval = 60
                         let (data, response) = try await session.data(for: request)
                         guard let http = response as? HTTPURLResponse,
                               (200..<300).contains(http.statusCode),
                               data.starts(with: Data("3105PATCH\0".utf8)),
-                              VesperDashDigest.hex(data) == remote.sha256.lowercased() else { continue }
+                              VesperDashDigest.hex(data) == remote.sha256.lowercased() else {
+                            await self?.finishSyncFile(remote.name)
+                            continue
+                        }
                         let summary = try PatchPackageCodec.inspect(data)
                         let decoded = try PatchPackageCodec.decode(data, password: "XRE")
                         // Remote entries can reuse a package UUID while their
@@ -156,8 +171,10 @@ final class PatchProjectStore: ObservableObject {
                             ?? PatchProjectLibrary.sanitizedPackageFilename(decoded.project.name)
                         await self?.recordRemoteBundleID(remoteBundleID: remote.bundle_id, filename: localFilename)
                     } catch {
-                        continue
+                        // Keep the failed file visible in the loader while the
+                        // authoritative catalog remains available to the UI.
                     }
+                    await self?.finishSyncFile(remote.name)
                 }
                 await self?.reconcileRemotePackages(metadataByDigest: metadataByDigest)
                 await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: manifest.patches.count)
@@ -165,6 +182,19 @@ final class PatchProjectStore: ObservableObject {
                 await self?.failRemoteSync()
             }
         }
+    }
+
+    private func beginSyncFiles(_ names: [String]) {
+        syncFileNames = names
+        syncFinishedFileNames = []
+    }
+
+    private func beginSyncFile(_ name: String) {
+        syncCurrentFile = name
+    }
+
+    private func finishSyncFile(_ name: String) {
+        syncFinishedFileNames.insert(name)
     }
 
     /// The remote catalog is authoritative. This one-time migration removes

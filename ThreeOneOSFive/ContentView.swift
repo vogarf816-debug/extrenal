@@ -34,7 +34,7 @@ struct ContentView: View {
         }
         .overlay {
             if patchStore.isBusy && !patchStore.hasCompletedInitialSync {
-                RemoteLoadingView()
+                RemoteLoadingView(store: patchStore)
             }
         }
         .sheet(isPresented: $showCleaner) {
@@ -92,6 +92,8 @@ struct ContentView: View {
     }
 
     private struct RemoteLoadingView: View {
+        @ObservedObject var store: PatchProjectStore
+
         var body: some View {
             ZStack {
                 LinearGradient(
@@ -102,18 +104,51 @@ struct ContentView: View {
                 .ignoresSafeArea()
                 VStack(spacing: 18) {
                     VStack(spacing: 7) {
-                        Text("RESOURCES DOWNLOADED")
+                        Text("DOWNLOADING REMOTE PATCHES")
                             .font(.system(size: 14, weight: .black, design: .rounded))
                             .multilineTextAlignment(.center)
-                        Text("PLEASE WAIT…")
+                        Text(progressText)
                             .font(.system(size: 12, weight: .bold, design: .rounded))
                             .foregroundStyle(AppTheme.accent)
                     }
                     .foregroundStyle(.white)
+
+                    ProgressView(value: progress)
+                        .tint(AppTheme.accent)
+                        .scaleEffect(x: 1, y: 1.5, anchor: .center)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(store.syncFileNames, id: \.self) { name in
+                            HStack(spacing: 9) {
+                                Image(systemName: store.syncFinishedFileNames.contains(name) ? "checkmark.circle.fill" : (store.syncCurrentFile == name ? "arrow.down.circle.fill" : "circle"))
+                                    .foregroundStyle(store.syncFinishedFileNames.contains(name) ? .green : (store.syncCurrentFile == name ? AppTheme.accent : .white.opacity(0.35)))
+                                Text(name)
+                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.white.opacity(store.syncFinishedFileNames.contains(name) ? 0.55 : 0.95))
+                                    .lineLimit(1)
+                                Spacer()
+                            }
+                        }
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .padding(28)
             }
             .allowsHitTesting(true)
+        }
+
+        private var progress: Double {
+            guard !store.syncFileNames.isEmpty else { return 0 }
+            return Double(store.syncFinishedFileNames.count) / Double(store.syncFileNames.count)
+        }
+
+        private var progressText: String {
+            let total = store.syncFileNames.count
+            let done = store.syncFinishedFileNames.count
+            guard total > 0 else { return store.syncCurrentFile }
+            return "\(done)/\(total) FILES • \(store.syncCurrentFile)"
         }
     }
 
