@@ -344,10 +344,11 @@ final class PatchProjectStore: ObservableObject {
         return remoteEntries.first { $0.sha256.caseInsensitiveCompare(digest) == .orderedSame }?.bundle_id
     }
 
-    func remoteTargetPath(for item: PatchLibraryItem) -> String? {
+    func remoteTargetPath(for item: PatchLibraryItem, targetBundleID: String) -> String? {
         let digest = self.digest(for: item)
         return remoteEntries.first {
-            $0.sha256.caseInsensitiveCompare(digest) == .orderedSame
+            $0.sha256.caseInsensitiveCompare(digest) == .orderedSame &&
+            $0.bundle_id == targetBundleID
         }?.target_path
     }
 
