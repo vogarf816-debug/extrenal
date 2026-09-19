@@ -29,14 +29,14 @@ struct PatchStoreAlert: Identifiable {
 
 @MainActor
 final class PatchProjectStore: ObservableObject {
-    private static let initialSyncCompletedKey = "vesperdash.initialSyncCompleted.v5"
-    private static let authoritativeResetKey = "vesperdash.authoritativeReset.v2"
-    private static let remoteEntriesKey = "vesperdash.remoteEntries.v2"
-    private static let remoteCategoriesKey = "vesperdash.remoteCategories.v2"
-    private static let remoteImagesKey = "vesperdash.remoteImages.v2"
-    private static let remoteStatusesKey = "vesperdash.remoteStatuses.v2"
-    private static let remoteOrdersKey = "vesperdash.remoteOrders.v2"
-    private static let remoteBundlesKey = "vesperdash.remoteBundles.v2"
+    private static let initialSyncCompletedKey = "vesperdash.initialSyncCompleted.v6"
+    private static let authoritativeResetKey = "vesperdash.authoritativeReset.v3"
+    private static let remoteEntriesKey = "vesperdash.remoteEntries.v3"
+    private static let remoteCategoriesKey = "vesperdash.remoteCategories.v3"
+    private static let remoteImagesKey = "vesperdash.remoteImages.v3"
+    private static let remoteStatusesKey = "vesperdash.remoteStatuses.v3"
+    private static let remoteOrdersKey = "vesperdash.remoteOrders.v3"
+    private static let remoteBundlesKey = "vesperdash.remoteBundles.v3"
     @Published private(set) var items: [PatchLibraryItem] = []
     @Published private(set) var isBusy = false
     @Published private(set) var hasCompletedInitialSync = false
@@ -66,19 +66,15 @@ final class PatchProjectStore: ObservableObject {
         reload()
         hasCompletedInitialSync = UserDefaults.standard.bool(forKey: Self.initialSyncCompletedKey)
         let defaults = UserDefaults.standard
-        if let data = defaults.data(forKey: Self.remoteEntriesKey),
-           let entries = try? JSONDecoder().decode([RemotePatch].self, from: data) {
-            remoteEntries = entries
-        }
-        remoteCategories = defaults.dictionary(forKey: Self.remoteCategoriesKey) as? [String: String] ?? [:]
-        remoteStatusTexts = defaults.dictionary(forKey: Self.remoteStatusesKey) as? [String: String] ?? [:]
-        remoteBundleIDs = defaults.dictionary(forKey: Self.remoteBundlesKey) as? [String: String] ?? [:]
-        if let savedOrders = defaults.dictionary(forKey: Self.remoteOrdersKey) as? [String: NSNumber] {
-            remoteOrders = savedOrders.mapValues(\.intValue)
-        }
-        if let savedImages = defaults.dictionary(forKey: Self.remoteImagesKey) as? [String: String] {
-            remoteImageURLs = savedImages.compactMapValues(URL.init(string:))
-        }
+        // Remote catalog data is deliberately not restored from UserDefaults.
+        // Showing cached entries before the online sync completes can inject a
+        // stale target (for example AIM cache_res in the Hologram screen).
+        remoteEntries = []
+        remoteCategories = [:]
+        remoteImageURLs = [:]
+        remoteStatusTexts = [:]
+        remoteOrders = [:]
+        remoteBundleIDs = [:]
     }
 
     func reload() {
@@ -346,10 +342,17 @@ final class PatchProjectStore: ObservableObject {
 
     func remoteTargetPath(for item: PatchLibraryItem, targetBundleID: String) -> String? {
         let digest = self.digest(for: item)
-        return remoteEntries.first {
+        guard let remote = remoteEntries.first(where: {
             $0.sha256.caseInsensitiveCompare(digest) == .orderedSame &&
             $0.bundle_id == targetBundleID
-        }?.target_path
+        }) else { return nil }
+
+        // All Hologram weapon variants use the active Optional shaders asset.
+        // Never inherit an old AIM/cache_res path for this category.
+        if remote.normalizedCategory == "hologram" {
+            return "Documents/contentcache/Optional/ios/gameassetbundles/shaders.P0K3UG2TfecMBhWMMV~2Fu8ReudIk~3D"
+        }
+        return remote.target_path
     }
 
     private func failRemoteSync() {
