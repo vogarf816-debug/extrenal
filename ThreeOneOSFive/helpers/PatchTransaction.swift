@@ -556,6 +556,18 @@ enum PatchTransaction {
                   url.path.hasPrefix(rootPath) else { return nil }
             return String(url.path.dropFirst(rootPath.count))
         }) ?? []
+        guard !matches.isEmpty else { return nil }
+        if matches.count > 1,
+            (filename.hasPrefix("cache_res.") || filename.hasPrefix("shaders.")) {
+            let ranked = matches.sorted { lhs, rhs in
+                let leftAttributes = try? fileManager.attributesOfItem(atPath: rootPath + lhs)
+                let rightAttributes = try? fileManager.attributesOfItem(atPath: rootPath + rhs)
+                let leftSize = (leftAttributes?[.size] as? NSNumber)?.int64Value ?? 0
+                let rightSize = (rightAttributes?[.size] as? NSNumber)?.int64Value ?? 0
+                return leftSize > rightSize
+            }
+            return ranked.first
+        }
         guard matches.count == 1 else { return nil }
         let actual = matches[0].split(separator: "/").map(String.init)
         if expected.count <= 2 {
