@@ -110,12 +110,9 @@ final class PatchProjectStore: ObservableObject {
             do {
                 let manifest = try await VesperDashRemoteSync.fetchManifest()
                 let fingerprint = manifestFingerprint(for: manifest)
-                if await self?.lastManifestFingerprint == fingerprint,
-                   await self?.hasCompletedInitialSync == true {
-                    await self?.skipUnchangedRemoteSync()
+                guard await self?.shouldProcessManifest(fingerprint) == true else {
                     return
                 }
-                await self?.lastManifestFingerprint = fingerprint
                 await self?.applyRemoteState(paused: manifest.global_paused)
                 await self?.applyRemoteEntries(manifest.all_patches ?? manifest.patches)
                 let hasNewFiles = await self?.hasNewRemoteFiles(manifest.patches) ?? false
@@ -212,9 +209,14 @@ final class PatchProjectStore: ObservableObject {
         }.joined(separator: "\n")
     }
 
-    private func skipUnchangedRemoteSync() {
-        isBusy = false
-        isRemoteSyncing = false
+    private func shouldProcessManifest(_ fingerprint: String) -> Bool {
+        if lastManifestFingerprint == fingerprint && hasCompletedInitialSync {
+            isBusy = false
+            isRemoteSyncing = false
+            return false
+        }
+        lastManifestFingerprint = fingerprint
+        return true
     }
 
     private func beginSyncFiles(_ names: [String]) {

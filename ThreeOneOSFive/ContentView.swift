@@ -63,7 +63,7 @@ struct ContentView: View {
         guard remoteSyncTask == nil else { return }
         remoteSyncTask = Task { @MainActor in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: .seconds(4))
                 guard !Task.isCancelled else { return }
                 patchStore.syncVesperDash(showCompletionAlert: false, showProgress: false)
             }
