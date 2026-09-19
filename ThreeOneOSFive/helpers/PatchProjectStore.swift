@@ -344,6 +344,13 @@ final class PatchProjectStore: ObservableObject {
         return remoteEntries.first { $0.sha256.caseInsensitiveCompare(digest) == .orderedSame }?.bundle_id
     }
 
+    func remoteTargetPath(for item: PatchLibraryItem) -> String? {
+        let digest = self.digest(for: item)
+        return remoteEntries.first {
+            $0.sha256.caseInsensitiveCompare(digest) == .orderedSame
+        }?.target_path
+    }
+
     private func failRemoteSync() {
         isBusy = false
         remoteSyncMessage = "REMOTE DATA: CHECK FAILED • RETRYING"

@@ -897,8 +897,14 @@ struct ContentView: View {
                         }
                         return
                     }
+                    let targetedProject: PatchProject
+                    if let targetPath = self.patchStore.remoteTargetPath(for: item) {
+                        targetedProject = project.retargeted(to: targetBundleID, targetPath: targetPath)
+                    } else {
+                        targetedProject = project.retargeted(to: targetBundleID)
+                    }
                     _ = try DevicePatchService.apply(
-                        project: project.retargeted(to: targetBundleID)
+                        project: targetedProject
                     )
                     result = .applied
                 }

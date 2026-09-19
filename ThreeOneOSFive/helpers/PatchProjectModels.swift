@@ -117,6 +117,26 @@ struct PatchProject: Codable, Identifiable, Hashable {
 }
 
 extension PatchProject {
+    func retargeted(to bundleID: String, targetPath: String) -> PatchProject {
+        PatchProject(
+            id: id,
+            name: name,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            bundleIdentifiers: [bundleID],
+            directories: [],
+            rules: rules.map {
+                PatchRule(
+                    id: $0.id,
+                    bundleID: bundleID,
+                    relativePath: targetPath,
+                    replacementFilename: $0.replacementFilename,
+                    replacementData: $0.replacementData
+                )
+            }
+        )
+    }
+
     func retargeted(to bundleID: String) -> PatchProject {
         PatchProject(
             id: id,
