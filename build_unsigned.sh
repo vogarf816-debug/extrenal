@@ -26,13 +26,14 @@ xcodebuild \
 
 APP="$ARCHIVE/Products/Applications/3105.app"
 test -d "$APP"
-PATCH_DIR="$APP/Patches"
-mkdir -p "$PATCH_DIR"
-for package in "$APP"/*.3105; do
-  [ -e "$package" ] || continue
-  mv "$package" "$PATCH_DIR/"
-done
-echo "Verified no bundled local patch resources; patches are loaded from VesperDash."
+# Remote patches must never be embedded in the signed app. Remove packages
+# from every possible Xcode resource layout, not only from the app root.
+find "$APP" -type f -name '*.3105' -print -delete
+if find "$APP" -type f -name '*.3105' -print -quit | grep -q .; then
+  echo "Error: a local .3105 patch remains inside the app bundle." >&2
+  exit 1
+fi
+echo "Verified no bundled local patch resources; patches are loaded only from VesperDash online."
 
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable 3105" "$APP/Info.plist" || true
 /usr/libexec/PlistBuddy -c "Set :CFBundlePackageType APPL" "$APP/Info.plist" || true

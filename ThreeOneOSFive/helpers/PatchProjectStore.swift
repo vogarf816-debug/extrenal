@@ -29,14 +29,14 @@ struct PatchStoreAlert: Identifiable {
 
 @MainActor
 final class PatchProjectStore: ObservableObject {
-    private static let initialSyncCompletedKey = "vesperdash.initialSyncCompleted.v4"
-    private static let authoritativeResetKey = "vesperdash.authoritativeReset.v1"
-    private static let remoteEntriesKey = "vesperdash.remoteEntries.v1"
-    private static let remoteCategoriesKey = "vesperdash.remoteCategories.v1"
-    private static let remoteImagesKey = "vesperdash.remoteImages.v1"
-    private static let remoteStatusesKey = "vesperdash.remoteStatuses.v1"
-    private static let remoteOrdersKey = "vesperdash.remoteOrders.v1"
-    private static let remoteBundlesKey = "vesperdash.remoteBundles.v1"
+    private static let initialSyncCompletedKey = "vesperdash.initialSyncCompleted.v5"
+    private static let authoritativeResetKey = "vesperdash.authoritativeReset.v2"
+    private static let remoteEntriesKey = "vesperdash.remoteEntries.v2"
+    private static let remoteCategoriesKey = "vesperdash.remoteCategories.v2"
+    private static let remoteImagesKey = "vesperdash.remoteImages.v2"
+    private static let remoteStatusesKey = "vesperdash.remoteStatuses.v2"
+    private static let remoteOrdersKey = "vesperdash.remoteOrders.v2"
+    private static let remoteBundlesKey = "vesperdash.remoteBundles.v2"
     @Published private(set) var items: [PatchLibraryItem] = []
     @Published private(set) var isBusy = false
     @Published private(set) var hasCompletedInitialSync = false
