@@ -517,6 +517,30 @@ enum PatchTransaction {
         let filename = URL(fileURLWithPath: relativePath).lastPathComponent
         let expected = relativePath.split(separator: "/").map(String.init)
         guard !filename.isEmpty else { return nil }
+        if filename.hasPrefix("cache_res.") || filename.hasPrefix("shaders.") {
+            let parent = URL(fileURLWithPath: relativePath).deletingLastPathComponent().path
+            if let parentURL = try? PatchPathValidator.resolveContainedTargetURL(
+                relativePath: parent,
+                containerRoot: containerRoot
+            ),
+               let direct = try? fileManager.contentsOfDirectory(
+                at: parentURL,
+                includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+                options: [.skipsHiddenFiles]
+               ) {
+                let prefix = filename.hasPrefix("cache_res.") ? "cache_res." : "shaders."
+                let matches = direct.filter { url in
+                    guard url.lastPathComponent.hasPrefix(prefix),
+                          let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]) else {
+                        return false
+                    }
+                    return values.isRegularFile == true && values.isSymbolicLink != true
+                }
+                if matches.count == 1 {
+                    return String(matches[0].path.dropFirst(PatchPathValidator.canonicalFileURL(containerRoot).path.count + 1))
+                }
+            }
+        }
         let rootPath = PatchPathValidator.canonicalFileURL(containerRoot).path + "/"
         let matches = (fileManager.enumerator(
             at: containerRoot,
