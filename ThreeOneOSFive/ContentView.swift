@@ -950,15 +950,18 @@ struct ContentView: View {
                         for: item,
                         targetBundleID: targetBundleID
                     )
+                    let looksLikeAIM = packageFilename.localizedCaseInsensitiveContains("aim")
+                        || packageFilename.localizedCaseInsensitiveContains("magic")
+                        || item.displayName.localizedCaseInsensitiveContains("aim")
+                        || item.displayName.localizedCaseInsensitiveContains("magic")
                     let targetPath: String?
-                    if containsCacheResource {
-                        // This is the behavior from the known-good project:
-                        // AIM/Magic keeps the cache_res target embedded in the
-                        // downloaded package after rebinding its bundle.
-                        // The manifest target must not overwrite it.
+                    if looksLikeAIM, containsCacheResource {
+                        // AIM packages from the known-working project carry
+                        // their exact cache target. Do not replace it with
+                        // server metadata; the old app applied the package
+                        // project unchanged after rebinding its bundle.
                         targetPath = nil
                     } else {
-                        // Hologram/shaders continue to use the server target.
                         targetPath = serverTargetPath
                     }
                     log("patch: inject package=\(packageFilename) display=\(item.displayName) original=\(project.rules.first?.relativePath ?? "none") target=\(targetPath ?? "package-default")")
