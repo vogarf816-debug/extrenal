@@ -5,9 +5,10 @@ import Security
 
 enum PatchPackageCodec {
     private static let magic = Data("3105PATCH\0".utf8)
-    // Bundled skin packages use schema 3. Keep decoding backwards compatible
-    // with v1/v2 while allowing the current bundled resources to load.
-    static let latestSchemaVersion = 3
+    // VesperDash currently publishes schema 9 packages. The envelope and
+    // payload remain compatible with the existing decoder, so keep decoding
+    // v1-v9 while preserving the same authenticated payload checks.
+    static let latestSchemaVersion = 9
     private static let minimumSchemaVersion = 1
 
     // Built-in resources are encrypted at rest. This value is only used by the
