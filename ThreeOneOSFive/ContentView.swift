@@ -956,13 +956,10 @@ struct ContentView: View {
                         || item.displayName.localizedCaseInsensitiveContains("magic")
                     let targetPath: String?
                     if looksLikeAIM, containsCacheResource {
-                        // AIM packages published by the dashboard can carry
-                        // a malformed cache_res filename (the separator before
-                        // the final hash fragment is missing). Normalize the
-                        // target for every AIM cache package; this also leaves
-                        // the known-good package target at the same canonical
-                        // path. Hologram never enters this branch.
-                        targetPath = "Documents/contentcache/Compulsory/ios/gameassetbundles/cache_res.GkLlYqzsX4AtTdE55sDMRh9s-JOI~3D"
+                        // The server manifest is authoritative per package.
+                        // Do not hardcode one cache_res filename: every newly
+                        // published AIM package can have its own asset hash.
+                        targetPath = serverTargetPath
                     } else {
                         targetPath = serverTargetPath
                     }
