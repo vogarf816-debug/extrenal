@@ -943,7 +943,7 @@ struct ContentView: View {
                     // Same behavior as the known-working project: the
                     // decoded package is the source of truth. Do not rebuild
                     // or retarget its paths from remote metadata.
-                    log("patch: applying package unchanged package=\(packageFilename) target=\(project.rules.first?.relativePath ?? \"none\")")
+                    log("patch: applying package unchanged package=\(packageFilename) target=\(project.rules.first?.relativePath ?? "none")")
                     _ = try DevicePatchService.apply(project: project)
                     result = .applied
                 }
