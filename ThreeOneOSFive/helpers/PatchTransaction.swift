@@ -127,49 +127,22 @@ enum PatchTransaction {
             let bundleID = try PatchPathValidator.canonicalBundleIdentifier(rule.bundleID)
             guard bundleID == rule.bundleID else { throw PatchPackageError.invalidProject }
             let root = try resolvedRoot(for: bundleID)
-            var effectiveRule = rule
-            var target = try PatchPathValidator.resolveContainedTargetURL(
+            let target = try PatchPathValidator.resolveContainedTargetURL(
                 relativePath: rule.relativePath,
                 containerRoot: root
             )
-            if !fileManager.fileExists(atPath: target.path),
-               let discoveredPath = discoverExistingAssetPath(
-                   relativePath: rule.relativePath,
-                   containerRoot: root,
-                   fileManager: fileManager
-               ) {
-                effectiveRule.relativePath = discoveredPath
-                target = try PatchPathValidator.resolveContainedTargetURL(
-                    relativePath: discoveredPath,
-                    containerRoot: root
-                )
-                log("patch: remapped missing asset \(rule.relativePath) -> \(discoveredPath)")
-            } else if !fileManager.fileExists(atPath: target.path),
-                      let discoveredPath = discoverKnownCacheAssetPath(
-                          relativePath: rule.relativePath,
-                          containerRoot: root,
-                          fileManager: fileManager
-                      ) {
-                effectiveRule.relativePath = discoveredPath
-                target = try PatchPathValidator.resolveContainedTargetURL(
-                    relativePath: discoveredPath,
-                    containerRoot: root
-                )
-                log("patch: remapped known cache layout \(rule.relativePath) -> \(discoveredPath)")
-            }
             let targetKey = target.path
             guard targetKeys.insert(targetKey).inserted else {
                 throw PatchPackageError.duplicateTarget
             }
             try validateFileTarget(
                 target,
-                relativePath: effectiveRule.relativePath,
+                relativePath: rule.relativePath,
                 containerRoot: root,
-                bundleID: bundleID,
                 allowMissingParents: true,
                 fileManager: fileManager
             )
-            resolvedRules.append(ResolvedRule(rule: effectiveRule, containerRoot: root, target: target))
+            resolvedRules.append(ResolvedRule(rule: rule, containerRoot: root, target: target))
         }
 
         let transactionID = UUID()
@@ -385,33 +358,14 @@ enum PatchTransaction {
                   containerFingerprint(root) == record.containerFingerprint else {
                 throw PatchPackageError.restoreFailed
             }
-            var effectiveRelativePath = record.relativePath
-            var target = try PatchPathValidator.resolveContainedTargetURL(
+            let target = try PatchPathValidator.resolveContainedTargetURL(
                 relativePath: record.relativePath,
                 containerRoot: root
             )
-            if !fileManager.fileExists(atPath: target.path),
-               let discoveredPath = discoverExistingAssetPath(
-                   relativePath: record.relativePath,
-                   containerRoot: root,
-                   fileManager: fileManager
-               ) ?? discoverKnownCacheAssetPath(
-                   relativePath: record.relativePath,
-                   containerRoot: root,
-                   fileManager: fileManager
-               ) {
-                target = try PatchPathValidator.resolveContainedTargetURL(
-                    relativePath: discoveredPath,
-                    containerRoot: root
-                )
-                effectiveRelativePath = discoveredPath
-                log("patch: remapped restore target \(record.relativePath) -> \(discoveredPath)")
-            }
             try validateFileTarget(
                 target,
-                relativePath: effectiveRelativePath,
+                relativePath: record.relativePath,
                 containerRoot: root,
-                bundleID: record.bundleID,
                 allowMissingParents: !requirePatchedDigest,
                 fileManager: fileManager
             )
@@ -470,16 +424,9 @@ enum PatchTransaction {
         _ target: URL,
         relativePath: String,
         containerRoot: URL,
-        bundleID: String,
         allowMissingParents: Bool,
         fileManager: FileManager
     ) throws {
-        // A patch must replace an existing game asset. Creating a new file at
-        // an outdated path reports "success" but has no effect in-game.
-        guard fileManager.fileExists(atPath: target.path) else {
-            log("patch: target missing bundle=\(bundleID) path=\(relativePath)")
-            throw PatchPackageError.missingTarget("\(bundleID):\(relativePath)")
-        }
         let components = try PatchPathValidator.canonicalRelativePath(relativePath)
             .split(separator: "/")
             .map(String.init)
@@ -507,117 +454,6 @@ enum PatchTransaction {
                 throw PatchPackageError.applyFailed
             }
         }
-    }
-
-    private static func discoverExistingAssetPath(
-        relativePath: String,
-        containerRoot: URL,
-        fileManager: FileManager
-    ) -> String? {
-        let filename = URL(fileURLWithPath: relativePath).lastPathComponent
-        let expected = relativePath.split(separator: "/").map(String.init)
-        guard !filename.isEmpty else { return nil }
-        if filename.hasPrefix("cache_res.") || filename.hasPrefix("shaders.") {
-            let parent = URL(fileURLWithPath: relativePath).deletingLastPathComponent().path
-            if let parentURL = try? PatchPathValidator.resolveContainedTargetURL(
-                relativePath: parent,
-                containerRoot: containerRoot
-            ),
-               let direct = try? fileManager.contentsOfDirectory(
-                at: parentURL,
-                includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
-                options: [.skipsHiddenFiles]
-               ) {
-                let prefix = filename.hasPrefix("cache_res.") ? "cache_res." : "shaders."
-                let matches = direct.filter { url in
-                    guard url.lastPathComponent.hasPrefix(prefix),
-                          let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]) else {
-                        return false
-                    }
-                    return values.isRegularFile == true && values.isSymbolicLink != true
-                }
-                if matches.count == 1 {
-                    return String(matches[0].path.dropFirst(PatchPathValidator.canonicalFileURL(containerRoot).path.count + 1))
-                }
-            }
-        }
-        let canonicalRoot = PatchPathValidator.canonicalFileURL(containerRoot)
-        let rootPath = canonicalRoot.path + "/"
-        let matches = (fileManager.enumerator(
-            at: canonicalRoot,
-            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey],
-            options: []
-        )?.compactMap { item -> String? in
-            guard let url = item as? URL,
-                  (url.lastPathComponent == filename ||
-                   (filename.hasPrefix("cache_res.") && url.lastPathComponent.hasPrefix("cache_res.")) ||
-                   (filename.hasPrefix("shaders.") && url.lastPathComponent.hasPrefix("shaders."))),
-                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey]),
-                  values.isDirectory != true,
-                  values.isRegularFile == true || fileManager.fileExists(atPath: url.path),
-                  values.isSymbolicLink != true,
-                  url.path.hasPrefix(rootPath) else { return nil }
-            return String(url.path.dropFirst(rootPath.count))
-        }) ?? []
-        guard !matches.isEmpty else { return nil }
-        if matches.count > 1,
-            (filename.hasPrefix("cache_res.") || filename.hasPrefix("shaders.")) {
-            let ranked = matches.sorted { lhs, rhs in
-                let leftAttributes = try? fileManager.attributesOfItem(atPath: canonicalRoot.appendingPathComponent(lhs).path)
-                let rightAttributes = try? fileManager.attributesOfItem(atPath: canonicalRoot.appendingPathComponent(rhs).path)
-                let leftSize = (leftAttributes?[.size] as? NSNumber)?.int64Value ?? 0
-                let rightSize = (rightAttributes?[.size] as? NSNumber)?.int64Value ?? 0
-                return leftSize > rightSize
-            }
-            return ranked.first
-        }
-        guard matches.count == 1 else { return nil }
-        let actual = matches[0].split(separator: "/").map(String.init)
-        if expected.count <= 2 {
-            return matches[0]
-        }
-        // Free Fire can relocate the content-cache asset between Documents,
-        // Library/Caches, and a versioned game-data directory. The package
-        // stores the stable cache_res filename under the canonical Documents
-        // path, so a unique filename match is safe when that directory moved.
-        if (filename.hasPrefix("cache_res.") || filename.hasPrefix("shaders.")) &&
-            relativePath.hasPrefix("Documents/contentcache/") {
-            return matches[0]
-        }
-        let suffixCount = min(3, expected.count)
-        guard actual.suffix(suffixCount) == expected.suffix(suffixCount) else { return nil }
-        return matches[0]
-    }
-
-    private static func discoverKnownCacheAssetPath(
-        relativePath: String,
-        containerRoot: URL,
-        fileManager: FileManager
-    ) -> String? {
-        guard relativePath.hasPrefix("Documents/contentcache/"),
-              !URL(fileURLWithPath: relativePath).lastPathComponent.isEmpty,
-              URL(fileURLWithPath: relativePath).lastPathComponent.hasPrefix("cache_res.") else { return nil }
-        let filename = URL(fileURLWithPath: relativePath).lastPathComponent
-
-        let suffix = String(relativePath.dropFirst("Documents/".count))
-        let candidates = [
-            suffix,
-            "Library/Caches/\(suffix)",
-            "Library/Application Support/\(suffix)",
-            "Library/Caches/\(filename)",
-            "Library/Application Support/\(filename)"
-        ]
-        for candidate in candidates {
-            let url = try? PatchPathValidator.resolveContainedTargetURL(
-                relativePath: candidate,
-                containerRoot: containerRoot
-            )
-            if let url, fileManager.fileExists(atPath: url.path) {
-                log("patch: known cache candidate exists \(candidate)")
-                return candidate
-            }
-        }
-        return nil
     }
 
     private static func validateDirectoryTarget(
