@@ -78,7 +78,8 @@ enum PatchTransaction {
         }
         let isHologramProject = projectName.contains("weapon")
             || projectName.contains("hologram")
-        let isAIMProject = !isHologramProject && (
+        let normalFreeFireBundle = project.allBundleIdentifiers.contains("com.dts.freefireth")
+        let isAIMProject = normalFreeFireBundle && !isHologramProject && (
             projectName.contains("aim") || projectName.contains("magic") || hasCacheResource
         )
         let workingProject = isAIMProject
