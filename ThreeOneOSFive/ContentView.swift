@@ -940,7 +940,6 @@ struct ContentView: View {
                         }
                         return
                     }
-                    let targetedProject: PatchProject
                     let containsCacheResource = project.rules.contains {
                         $0.relativePath.localizedCaseInsensitiveContains("cache_res.")
                     } || project.directories.contains {
@@ -950,27 +949,21 @@ struct ContentView: View {
                         for: item,
                         targetBundleID: targetBundleID
                     )
-                    let targetPath: String?
                     if containsCacheResource {
-                        // The decoded package is the source of truth: any
-                        // package containing a cache_res rule is an AIM/Magic
-                        // package, regardless of its server filename or name.
-                        // Keep its exact embedded target and let the transaction
-                        // layer discover a relocated asset when necessary.
-                        targetPath = nil
+                        // Exact behavior of the working offline project:
+                        // apply the decoded package unchanged. Do not retarget
+                        // its bundle or replace its cache_res path.
+                        log("patch: applying AIM package unchanged package=\(packageFilename) target=\(project.rules.first?.relativePath ?? "none")")
+                        _ = try DevicePatchService.apply(project: project)
                     } else {
-                        // Only shader packages use the server-provided target.
-                        targetPath = serverTargetPath
+                        // Hologram/shaders keep the online server target.
+                        let targetedProject = project.retargeted(
+                            to: targetBundleID,
+                            targetPath: serverTargetPath ?? project.rules.first?.relativePath ?? ""
+                        )
+                        log("patch: applying shader package=\(packageFilename) target=\(targetedProject.rules.first?.relativePath ?? "none")")
+                        _ = try DevicePatchService.apply(project: targetedProject)
                     }
-                    log("patch: inject package=\(packageFilename) display=\(item.displayName) original=\(project.rules.first?.relativePath ?? "none") target=\(targetPath ?? "package-default")")
-                    if let targetPath {
-                        targetedProject = project.retargeted(to: targetBundleID, targetPath: targetPath)
-                    } else {
-                        targetedProject = project.retargeted(to: targetBundleID)
-                    }
-                    _ = try DevicePatchService.apply(
-                        project: targetedProject
-                    )
                     result = .applied
                 }
             } catch let error as PatchPackageError {
