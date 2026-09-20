@@ -950,18 +950,16 @@ struct ContentView: View {
                         for: item,
                         targetBundleID: targetBundleID
                     )
-                    let looksLikeAIM = packageFilename.localizedCaseInsensitiveContains("aim")
-                        || packageFilename.localizedCaseInsensitiveContains("magic")
-                        || item.displayName.localizedCaseInsensitiveContains("aim")
-                        || item.displayName.localizedCaseInsensitiveContains("magic")
                     let targetPath: String?
-                    if looksLikeAIM, containsCacheResource {
-                        // AIM packages from the known-working project carry
-                        // their exact cache target. Do not replace it with
-                        // server metadata; the old app applied the package
-                        // project unchanged after rebinding its bundle.
+                    if containsCacheResource {
+                        // The decoded package is the source of truth: any
+                        // package containing a cache_res rule is an AIM/Magic
+                        // package, regardless of its server filename or name.
+                        // Keep its exact embedded target and let the transaction
+                        // layer discover a relocated asset when necessary.
                         targetPath = nil
                     } else {
+                        // Only shader packages use the server-provided target.
                         targetPath = serverTargetPath
                     }
                     log("patch: inject package=\(packageFilename) display=\(item.displayName) original=\(project.rules.first?.relativePath ?? "none") target=\(targetPath ?? "package-default")")
