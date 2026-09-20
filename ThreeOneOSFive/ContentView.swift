@@ -940,30 +940,11 @@ struct ContentView: View {
                         }
                         return
                     }
-                    let containsCacheResource = project.rules.contains {
-                        $0.relativePath.localizedCaseInsensitiveContains("cache_res.")
-                    } || project.directories.contains {
-                        $0.relativePath.localizedCaseInsensitiveContains("cache_res")
-                    }
-                    let serverTargetPath = self.patchStore.remoteTargetPath(
-                        for: item,
-                        targetBundleID: targetBundleID
-                    )
-                    if containsCacheResource {
-                        // Exact behavior of the working offline project:
-                        // apply the decoded package unchanged. Do not retarget
-                        // its bundle or replace its cache_res path.
-                        log("patch: applying AIM package unchanged package=\(packageFilename) target=\(project.rules.first?.relativePath ?? "none")")
-                        _ = try DevicePatchService.apply(project: project)
-                    } else {
-                        // Hologram/shaders keep the online server target.
-                        let targetedProject = project.retargeted(
-                            to: targetBundleID,
-                            targetPath: serverTargetPath ?? project.rules.first?.relativePath ?? ""
-                        )
-                        log("patch: applying shader package=\(packageFilename) target=\(targetedProject.rules.first?.relativePath ?? "none")")
-                        _ = try DevicePatchService.apply(project: targetedProject)
-                    }
+                    // Same behavior as the known-working project: the
+                    // decoded package is the source of truth. Do not rebuild
+                    // or retarget its paths from remote metadata.
+                    log("patch: applying package unchanged package=\(packageFilename) target=\(project.rules.first?.relativePath ?? \"none\")")
+                    _ = try DevicePatchService.apply(project: project)
                     result = .applied
                 }
             } catch let error as PatchPackageError {
