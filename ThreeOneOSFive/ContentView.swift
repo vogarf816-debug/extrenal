@@ -956,11 +956,13 @@ struct ContentView: View {
                         || item.displayName.localizedCaseInsensitiveContains("magic")
                     let targetPath: String?
                     if looksLikeAIM, containsCacheResource {
-                        // AIM packages from the known-working project carry
-                        // their exact cache target. Do not replace it with
-                        // server metadata; the old app applied the package
-                        // project unchanged after rebinding its bundle.
-                        targetPath = nil
+                        // AIM packages published by the dashboard can carry
+                        // a malformed cache_res filename (the separator before
+                        // the final hash fragment is missing). Normalize the
+                        // target for every AIM cache package; this also leaves
+                        // the known-good package target at the same canonical
+                        // path. Hologram never enters this branch.
+                        targetPath = "Documents/contentcache/Compulsory/ios/gameassetbundles/cache_res.GkLlYqzsX4AtTdE55sDMRh9s-JOI~3D"
                     } else {
                         targetPath = serverTargetPath
                     }
