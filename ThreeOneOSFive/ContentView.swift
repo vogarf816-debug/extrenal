@@ -950,17 +950,15 @@ struct ContentView: View {
                         for: item,
                         targetBundleID: targetBundleID
                     )
-                    let looksLikeAIM = packageFilename.localizedCaseInsensitiveContains("aim")
-                        || packageFilename.localizedCaseInsensitiveContains("magic")
-                        || item.displayName.localizedCaseInsensitiveContains("aim")
-                        || item.displayName.localizedCaseInsensitiveContains("magic")
                     let targetPath: String?
-                    if looksLikeAIM, containsCacheResource {
-                        // The server manifest is authoritative per package.
-                        // Do not hardcode one cache_res filename: every newly
-                        // published AIM package can have its own asset hash.
-                        targetPath = serverTargetPath
+                    if containsCacheResource {
+                        // This is the behavior from the known-good project:
+                        // AIM/Magic keeps the cache_res target embedded in the
+                        // downloaded package after rebinding its bundle.
+                        // The manifest target must not overwrite it.
+                        targetPath = nil
                     } else {
+                        // Hologram/shaders continue to use the server target.
                         targetPath = serverTargetPath
                     }
                     log("patch: inject package=\(packageFilename) display=\(item.displayName) original=\(project.rules.first?.relativePath ?? "none") target=\(targetPath ?? "package-default")")
