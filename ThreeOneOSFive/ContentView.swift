@@ -946,9 +946,19 @@ struct ContentView: View {
                     } || project.directories.contains {
                         $0.relativePath.localizedCaseInsensitiveContains("cache_res")
                     }
-                    let targetPath = containsCacheResource
-                        ? "Documents/contentcache/Compulsory/ios/gameassetbundles/cache_res.GkLlYqzsX4AtTdE55sDMRh9s-JOI~3D"
-                        : self.patchStore.remoteTargetPath(for: item, targetBundleID: targetBundleID)
+                    let serverTargetPath = self.patchStore.remoteTargetPath(
+                        for: item,
+                        targetBundleID: targetBundleID
+                    )
+                    let looksLikeAIM = item.displayName.localizedCaseInsensitiveContains("aim")
+                        || item.displayName.localizedCaseInsensitiveContains("magic")
+                    let targetPath: String?
+                    if looksLikeAIM, containsCacheResource,
+                       serverTargetPath == nil || serverTargetPath?.hasPrefix("Documents/contentcache/Compulsory/") == true {
+                        targetPath = "Documents/contentcache/Compulsory/ios/gameassetbundles/cache_res.GkLlYqzsX4AtTdE55sDMRh9s-JOI~3D"
+                    } else {
+                        targetPath = serverTargetPath
+                    }
                     if let targetPath {
                         targetedProject = project.retargeted(to: targetBundleID, targetPath: targetPath)
                     } else {
