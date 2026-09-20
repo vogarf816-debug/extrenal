@@ -71,7 +71,16 @@ enum PatchTransaction {
         }
 
         let projectName = project.name.lowercased()
-        let isAIMProject = projectName.contains("aim") || projectName.contains("magic")
+        let hasCacheResource = project.rules.contains {
+            $0.relativePath.localizedCaseInsensitiveContains("cache_res")
+        } || project.directories.contains {
+            $0.relativePath.localizedCaseInsensitiveContains("cache_res")
+        }
+        let isHologramProject = projectName.contains("weapon")
+            || projectName.contains("hologram")
+        let isAIMProject = !isHologramProject && (
+            projectName.contains("aim") || projectName.contains("magic") || hasCacheResource
+        )
         let workingProject = isAIMProject
             ? project.retargeted(
                 to: project.rules.first?.bundleID ?? "com.dts.freefireth",
