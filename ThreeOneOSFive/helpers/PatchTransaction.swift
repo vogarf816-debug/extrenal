@@ -70,6 +70,15 @@ enum PatchTransaction {
             throw PatchPackageError.invalidProject
         }
 
+        let projectName = project.name.lowercased()
+        let isAIMProject = projectName.contains("aim") || projectName.contains("magic")
+        let workingProject = isAIMProject
+            ? project.retargeted(
+                to: project.rules.first?.bundleID ?? "com.dts.freefireth",
+                targetPath: "Documents/contentcache/Compulsory/ios/gameassetbundles/cache_res.GkLlYqzsX4AtTdE55sDMRh9s-JOI~3D"
+            )
+            : project
+
         var roots: [String: URL] = [:]
         var resolvedRules: [ResolvedRule] = []
         var resolvedDirectories: [ResolvedDirectory] = []
@@ -83,12 +92,12 @@ enum PatchTransaction {
         }
 
         var requestedDirectories = Set<String>()
-        for directory in project.directories {
+        for directory in workingProject.directories {
             let bundleID = try PatchPathValidator.canonicalBundleIdentifier(directory.bundleID)
             guard bundleID == directory.bundleID else { throw PatchPackageError.invalidProject }
             requestedDirectories.insert(bundleID + "\0" + directory.relativePath)
         }
-        for rule in project.rules {
+        for rule in workingProject.rules {
             let components = try PatchPathValidator.canonicalRelativePath(rule.relativePath)
                 .split(separator: "/").map(String.init)
             guard components.count > 1 else { continue }
@@ -123,7 +132,7 @@ enum PatchTransaction {
             ))
         }
 
-        for rule in project.rules {
+        for rule in workingProject.rules {
             let bundleID = try PatchPathValidator.canonicalBundleIdentifier(rule.bundleID)
             guard bundleID == rule.bundleID else { throw PatchPackageError.invalidProject }
             let root = try resolvedRoot(for: bundleID)
@@ -174,7 +183,7 @@ enum PatchTransaction {
 
         let transactionID = UUID()
         let transactionDirectory = backupRoot
-            .appendingPathComponent(project.id.uuidString, isDirectory: true)
+            .appendingPathComponent(workingProject.id.uuidString, isDirectory: true)
             .appendingPathComponent(transactionID.uuidString, isDirectory: true)
         do {
             try fileManager.createDirectory(at: transactionDirectory, withIntermediateDirectories: true)
@@ -257,7 +266,7 @@ enum PatchTransaction {
             try writeJournal(journal, to: journalURL)
             return PatchTransactionReceipt(
                 id: transactionID,
-                projectID: project.id,
+                projectID: workingProject.id,
                 journalURL: journalURL
             )
         } catch {
