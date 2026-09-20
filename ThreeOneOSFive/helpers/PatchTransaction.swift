@@ -541,18 +541,21 @@ enum PatchTransaction {
                 }
             }
         }
-        let rootPath = PatchPathValidator.canonicalFileURL(containerRoot).path + "/"
+        let canonicalRoot = PatchPathValidator.canonicalFileURL(containerRoot)
+        let rootPath = canonicalRoot.path + "/"
         let matches = (fileManager.enumerator(
-            at: containerRoot,
-            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
-            options: [.skipsHiddenFiles]
+            at: canonicalRoot,
+            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey],
+            options: []
         )?.compactMap { item -> String? in
             guard let url = item as? URL,
                   (url.lastPathComponent == filename ||
                    (filename.hasPrefix("cache_res.") && url.lastPathComponent.hasPrefix("cache_res.")) ||
                    (filename.hasPrefix("shaders.") && url.lastPathComponent.hasPrefix("shaders."))),
-                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
-                  values.isRegularFile == true, values.isSymbolicLink != true,
+                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey]),
+                  values.isDirectory != true,
+                  values.isRegularFile == true || fileManager.fileExists(atPath: url.path),
+                  values.isSymbolicLink != true,
                   url.path.hasPrefix(rootPath) else { return nil }
             return String(url.path.dropFirst(rootPath.count))
         }) ?? []
@@ -560,8 +563,8 @@ enum PatchTransaction {
         if matches.count > 1,
             (filename.hasPrefix("cache_res.") || filename.hasPrefix("shaders.")) {
             let ranked = matches.sorted { lhs, rhs in
-                let leftAttributes = try? fileManager.attributesOfItem(atPath: rootPath + lhs)
-                let rightAttributes = try? fileManager.attributesOfItem(atPath: rootPath + rhs)
+                let leftAttributes = try? fileManager.attributesOfItem(atPath: canonicalRoot.appendingPathComponent(lhs).path)
+                let rightAttributes = try? fileManager.attributesOfItem(atPath: canonicalRoot.appendingPathComponent(rhs).path)
                 let leftSize = (leftAttributes?[.size] as? NSNumber)?.int64Value ?? 0
                 let rightSize = (rightAttributes?[.size] as? NSNumber)?.int64Value ?? 0
                 return leftSize > rightSize
