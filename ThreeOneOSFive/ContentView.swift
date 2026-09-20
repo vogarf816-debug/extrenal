@@ -950,7 +950,9 @@ struct ContentView: View {
                         for: item,
                         targetBundleID: targetBundleID
                     )
-                    let looksLikeAIM = item.displayName.localizedCaseInsensitiveContains("aim")
+                    let looksLikeAIM = packageFilename.localizedCaseInsensitiveContains("aim")
+                        || packageFilename.localizedCaseInsensitiveContains("magic")
+                        || item.displayName.localizedCaseInsensitiveContains("aim")
                         || item.displayName.localizedCaseInsensitiveContains("magic")
                     let targetPath: String?
                     if looksLikeAIM, containsCacheResource,
@@ -959,6 +961,7 @@ struct ContentView: View {
                     } else {
                         targetPath = serverTargetPath
                     }
+                    log("patch: inject package=\(packageFilename) display=\(item.displayName) original=\(project.rules.first?.relativePath ?? "none") target=\(targetPath ?? "package-default")")
                     if let targetPath {
                         targetedProject = project.retargeted(to: targetBundleID, targetPath: targetPath)
                     } else {
