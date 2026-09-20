@@ -955,9 +955,12 @@ struct ContentView: View {
                         || item.displayName.localizedCaseInsensitiveContains("aim")
                         || item.displayName.localizedCaseInsensitiveContains("magic")
                     let targetPath: String?
-                    if looksLikeAIM, containsCacheResource,
-                       serverTargetPath == nil || serverTargetPath?.hasPrefix("Documents/contentcache/Compulsory/") == true {
-                        targetPath = "Documents/contentcache/Compulsory/ios/gameassetbundles/cache_res.GkLlYqzsX4AtTdE55sDMRh9s-JOI~3D"
+                    if looksLikeAIM, containsCacheResource {
+                        // AIM packages from the known-working project carry
+                        // their exact cache target. Do not replace it with
+                        // server metadata; the old app applied the package
+                        // project unchanged after rebinding its bundle.
+                        targetPath = nil
                     } else {
                         targetPath = serverTargetPath
                     }
