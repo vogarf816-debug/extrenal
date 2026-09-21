@@ -13,7 +13,6 @@ struct ContentView: View {
     @State private var patchOperationBusy = false
     @State private var patchMessage = "READY — SELECT A PATCH"
     @State private var patchEnabled: [String: Bool] = [:]
-    @State private var aimAutoOffTokens: [String: UUID] = [:]
     private let fileNames: [String] = []
     private let normalPatchFiles: [String] = []
     private let maxPatchFiles: [String] = []
@@ -444,8 +443,7 @@ struct ContentView: View {
                             color: index.isMultiple(of: 2) ? AppTheme.accent : AppTheme.secondaryAccent,
                             imageURL: VesperDashRemoteSync.validImageURL(for: remote),
                             state: patchBinding(for: package, targetBundleID: targetBundleID),
-                            targetBundleID: targetBundleID,
-                            isAIM: category == "aim"
+                            targetBundleID: targetBundleID
                         )
                     }
                 }
@@ -466,16 +464,14 @@ struct ContentView: View {
         color: Color,
         imageURL: URL? = nil,
         state: Binding<Bool>,
-        targetBundleID: String,
-        isAIM: Bool
+        targetBundleID: String
     ) -> some View {
         PatchOptionCard(name: name, target: target, color: color, imageURL: imageURL, isEnabled: state, isBusy: patchOperationBusy) {
             togglePatch(
                 packageFilename: package,
                 displayName: name,
                 state: state,
-                targetBundleID: targetBundleID,
-                isAIM: isAIM
+                targetBundleID: targetBundleID
             )
         }
     }
@@ -895,42 +891,11 @@ struct ContentView: View {
         patchEnabled[patchStateKey(packageFilename, targetBundleID: targetBundleID)] = enabled
     }
 
-    private func scheduleAIMAutoOff(
-        packageFilename: String,
-        displayName: String,
-        targetBundleID: String
-    ) {
-        let key = patchStateKey(packageFilename, targetBundleID: targetBundleID)
-        let token = UUID()
-        aimAutoOffTokens[key] = token
-
-        let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "AIM Auto Off") {}
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
-            defer {
-                if backgroundTask != .invalid {
-                    UIApplication.shared.endBackgroundTask(backgroundTask)
-                }
-            }
-            guard self.aimAutoOffTokens[key] == token,
-                  self.patchEnabled[key] == true else { return }
-            self.aimAutoOffTokens[key] = nil
-            self.togglePatch(
-                packageFilename: packageFilename,
-                displayName: "\(displayName) (AUTO OFF)",
-                state: self.patchBinding(for: packageFilename, targetBundleID: targetBundleID),
-                targetBundleID: targetBundleID,
-                isAIM: true
-            )
-        }
-    }
-
     private func togglePatch(
         packageFilename: String,
         displayName: String,
         state: Binding<Bool>,
-        targetBundleID: String = "com.dts.freefireth",
-        isAIM: Bool = false
+        targetBundleID: String = "com.dts.freefireth"
     ) {
         guard !patchOperationBusy else { return }
         patchStore.refreshBundledPackages()
@@ -942,9 +907,6 @@ struct ContentView: View {
         }
 
         let wasEnabled = state.wrappedValue
-        if wasEnabled, isAIM {
-            aimAutoOffTokens[patchStateKey(packageFilename, targetBundleID: targetBundleID)] = nil
-        }
         patchOperationBusy = true
         patchMessage = "PROCESSING — \(displayName)"
         let project = item.project
@@ -999,13 +961,6 @@ struct ContentView: View {
                 switch result {
                 case .applied:
                     self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: true)
-                    if isAIM {
-                        self.scheduleAIMAutoOff(
-                            packageFilename: packageFilename,
-                            displayName: displayName,
-                            targetBundleID: targetBundleID
-                        )
-                    }
                     self.patchMessage = "Inject Successful — \(displayName)"
                     PatchAudioFeedback.bypassActivated()
                 case .restored:

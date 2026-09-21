@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from functools import wraps
 
-from flask import Flask, jsonify, request, send_from_directory, abort
+from flask import Flask, jsonify, request, send_from_directory, abort, make_response
 from werkzeug.utils import secure_filename
 
 ROOT = Path(__file__).resolve().parent
@@ -17,6 +17,9 @@ PATCH_DIR = DATA / "patches"
 IMAGE_DIR = DATA / "images"
 DB = DATA / "vesperdash.sqlite3"
 ADMIN_TOKEN = os.environ.get("VESPERDASH_ADMIN_TOKEN", "")
+ADMIN_USERNAME = os.environ.get("VESPERDASH_ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ.get("VESPERDASH_ADMIN_PASSWORD", "")
+SESSION_TTL = int(os.environ.get("VESPERDASH_SESSION_TTL", str(7 * 24 * 60 * 60)))
 MAX_UPLOAD = int(os.environ.get("VESPERDASH_MAX_UPLOAD", str(80 * 1024 * 1024)))
 ALLOWED_BUNDLES = {"com.dts.freefireth", "com.dts.freefiremax"}
 ALLOWED_CATEGORIES = {"aim", "esp", "hologram", "skin"}
@@ -33,7 +36,7 @@ def db():
     conn.row_factory = sqlite3.Row
     conn.execute("""CREATE TABLE IF NOT EXISTS patches (
         id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'aim', game TEXT NOT NULL,
-        bundle_id TEXT NOT NULL, target_path TEXT NOT NULL, filename TEXT NOT NULL,
+        bundle_id TEXT NOT NULL, target_path TEXT NOT NULL, target_paths TEXT NOT NULL DEFAULT '[]', filename TEXT NOT NULL,
         stored_filename TEXT NOT NULL, sha256 TEXT NOT NULL, size INTEGER NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1, paused INTEGER NOT NULL DEFAULT 0,
         version TEXT NOT NULL, image_filename TEXT NOT NULL DEFAULT '', status_text TEXT NOT NULL DEFAULT 'NO STATUS', sort_order INTEGER NOT NULL DEFAULT 1000, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
@@ -47,8 +50,13 @@ def db():
         conn.execute("ALTER TABLE patches ADD COLUMN status_text TEXT NOT NULL DEFAULT 'NO STATUS'")
     if "sort_order" not in columns:
         conn.execute("ALTER TABLE patches ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 1000")
+    if "target_paths" not in columns:
+        conn.execute("ALTER TABLE patches ADD COLUMN target_paths TEXT NOT NULL DEFAULT '[]'")
     conn.execute("""CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY, value TEXT NOT NULL
+    )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS sessions (
+        token_hash TEXT PRIMARY KEY, username TEXT NOT NULL, expires_at INTEGER NOT NULL
     )""")
     conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES('global_paused', '0')")
     reset = conn.execute("SELECT value FROM settings WHERE key='catalog_reset_20260918'").fetchone()
@@ -69,18 +77,35 @@ def db():
 def auth_required(fn):
     @wraps(fn)
     def wrapped(*args, **kwargs):
-        if not ADMIN_TOKEN:
-            abort(503, "VESPERDASH_ADMIN_TOKEN is not configured")
         token = request.headers.get("X-Admin-Token", "")
-        if not hmac.compare_digest(token, ADMIN_TOKEN):
-            abort(401, "unauthorized")
+        if ADMIN_TOKEN and hmac.compare_digest(token, ADMIN_TOKEN):
+            return fn(*args, **kwargs)
+        session_token = request.cookies.get("vesperdash_session", "")
+        if session_token:
+            digest = hashlib.sha256(session_token.encode()).hexdigest()
+            conn = db()
+            row = conn.execute("SELECT expires_at FROM sessions WHERE token_hash=?", (digest,)).fetchone()
+            if row and int(row["expires_at"]) > int(time.time()):
+                conn.close()
+                return fn(*args, **kwargs)
+            conn.execute("DELETE FROM sessions WHERE token_hash=?", (digest,)); conn.commit(); conn.close()
+        if not ADMIN_TOKEN and not ADMIN_PASSWORD:
+            abort(503, "admin login is not configured")
+        abort(401, "unauthorized")
         return fn(*args, **kwargs)
     return wrapped
 
 
 def public_row(row):
     image_url = f"/api/patches/{row['id']}/image" if row["image_filename"] else None
-    return {**dict(row), "enabled": bool(row["enabled"]), "paused": bool(row["paused"]), "download_url": f"/api/patches/{row['id']}/download", "image_url": image_url}
+    try:
+        target_paths = json.loads(row["target_paths"] or "[]")
+    except (TypeError, json.JSONDecodeError):
+        target_paths = []
+    target_paths = [str(path).strip() for path in target_paths if str(path).strip()]
+    if not target_paths and row["target_path"]:
+        target_paths = [row["target_path"]]
+    return {**dict(row), "target_paths": target_paths, "enabled": bool(row["enabled"]), "paused": bool(row["paused"]), "download_url": f"/api/patches/{row['id']}/download", "image_url": image_url}
 
 
 def global_paused(conn):
@@ -96,6 +121,40 @@ def too_large(_):
 @app.get("/health")
 def health():
     return jsonify(ok=True, service="vesperdash", time=int(time.time()))
+
+
+@app.post("/api/auth/login")
+def login():
+    body = request.get_json(silent=True) or {}
+    username = str(body.get("username", "")).strip()
+    password = str(body.get("password", ""))
+    if not ADMIN_PASSWORD:
+        return jsonify(error="username/password login is not configured"), 503
+    if not hmac.compare_digest(username, ADMIN_USERNAME) or not hmac.compare_digest(password, ADMIN_PASSWORD):
+        return jsonify(error="invalid username or password"), 401
+    raw_token = secrets.token_urlsafe(32)
+    digest = hashlib.sha256(raw_token.encode()).hexdigest()
+    expires = int(time.time()) + SESSION_TTL
+    conn = db(); conn.execute("INSERT INTO sessions(token_hash,username,expires_at) VALUES(?,?,?)", (digest, username, expires)); conn.commit(); conn.close()
+    response = make_response(jsonify(ok=True, username=username, expires_at=expires))
+    response.set_cookie("vesperdash_session", raw_token, max_age=SESSION_TTL, httponly=True, secure=request.is_secure, samesite="Lax")
+    return response
+
+
+@app.post("/api/auth/logout")
+def logout():
+    session_token = request.cookies.get("vesperdash_session", "")
+    if session_token:
+        digest = hashlib.sha256(session_token.encode()).hexdigest()
+        conn = db(); conn.execute("DELETE FROM sessions WHERE token_hash=?", (digest,)); conn.commit(); conn.close()
+    response = make_response(jsonify(ok=True)); response.delete_cookie("vesperdash_session")
+    return response
+
+
+@app.get("/api/auth/me")
+@auth_required
+def auth_me():
+    return jsonify(ok=True)
 
 
 @app.get("/api/patches")
@@ -155,6 +214,14 @@ def set_admin_state():
 def upload_patch():
     required = ["id", "name", "game", "bundle_id", "target_path", "version"]
     if not all(request.form.get(k) for k in required): return jsonify(error="missing metadata"), 400
+    raw_target_paths = [request.form.get("target_path", ""), request.form.get("target_path_2", "")]
+    target_paths = []
+    for path in raw_target_paths:
+        path = path.strip()
+        if path and path not in target_paths:
+            target_paths.append(path)
+    if not target_paths:
+        return jsonify(error="at least one target path is required"), 400
     bundle = request.form["bundle_id"]
     if bundle not in ALLOWED_BUNDLES: return jsonify(error="unsupported bundle_id"), 400
     category = request.form.get("category", "aim").lower()
@@ -191,9 +258,9 @@ def upload_patch():
         image_filename = f"{patch_id}-cover-{image_digest[:12]}.{extension}"
         IMAGE_DIR.mkdir(parents=True, exist_ok=True); (IMAGE_DIR / image_filename).write_bytes(image_raw)
     now = int(time.time()); conn = db()
-    conn.execute("""INSERT INTO patches(id,name,category,game,bundle_id,target_path,filename,stored_filename,sha256,size,version,image_filename,status_text,sort_order,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,category=excluded.category,game=excluded.game,bundle_id=excluded.bundle_id,target_path=excluded.target_path,filename=excluded.filename,stored_filename=excluded.stored_filename,sha256=excluded.sha256,size=excluded.size,version=excluded.version,image_filename=CASE WHEN excluded.image_filename != '' THEN excluded.image_filename ELSE patches.image_filename END,status_text=excluded.status_text,sort_order=excluded.sort_order,updated_at=excluded.updated_at""",
-        (patch_id, request.form["name"], category, request.form["game"], bundle, request.form["target_path"], filename, stored, digest, len(raw), request.form["version"], image_filename, status_text, sort_order, now, now))
+    conn.execute("""INSERT INTO patches(id,name,category,game,bundle_id,target_path,target_paths,filename,stored_filename,sha256,size,version,image_filename,status_text,sort_order,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,category=excluded.category,game=excluded.game,bundle_id=excluded.bundle_id,target_path=excluded.target_path,target_paths=excluded.target_paths,filename=excluded.filename,stored_filename=excluded.stored_filename,sha256=excluded.sha256,size=excluded.size,version=excluded.version,image_filename=CASE WHEN excluded.image_filename != '' THEN excluded.image_filename ELSE patches.image_filename END,status_text=excluded.status_text,sort_order=excluded.sort_order,updated_at=excluded.updated_at""",
+        (patch_id, request.form["name"], category, request.form["game"], bundle, target_paths[0], json.dumps(target_paths), filename, stored, digest, len(raw), request.form["version"], image_filename, status_text, sort_order, now, now))
     conn.commit(); row = conn.execute("SELECT * FROM patches WHERE id=?", (patch_id,)).fetchone(); conn.close()
     return jsonify(patch=public_row(row)), 201
 

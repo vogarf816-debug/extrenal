@@ -14,6 +14,7 @@ struct RemotePatch: Codable, Identifiable {
     let game: String
     let bundle_id: String
     let target_path: String
+    let target_paths: [String]?
     let filename: String
     let sha256: String
     let version: String
@@ -36,6 +37,11 @@ struct RemotePatch: Codable, Identifiable {
 
     var normalizedOrder: Int {
         sort_order ?? 1000
+    }
+
+    var normalizedTargetPaths: [String] {
+        let values = (target_paths ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        return values.isEmpty ? [target_path] : values
     }
 }
 

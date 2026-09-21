@@ -9,6 +9,8 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install flask gunicorn
 export VESPERDASH_ADMIN_TOKEN='use-a-long-random-token'
+export VESPERDASH_ADMIN_USERNAME='admin'
+export VESPERDASH_ADMIN_PASSWORD='use-a-long-password'
 python server.py
 ```
 
@@ -23,7 +25,7 @@ mkdir -p /opt/vesperdash/app
 python3 -m venv /opt/vesperdash/venv
 /opt/vesperdash/venv/bin/pip install --upgrade pip flask gunicorn
 TOKEN=$(openssl rand -hex 32)
-printf 'VESPERDASH_ADMIN_TOKEN=%s\n' "$TOKEN" > /etc/vesperdash.env
+printf 'VESPERDASH_ADMIN_TOKEN=%s\nVESPERDASH_ADMIN_USERNAME=admin\nVESPERDASH_ADMIN_PASSWORD=CHANGE_ME_TO_A_LONG_PASSWORD\n' "$TOKEN" > /etc/vesperdash.env
 chmod 600 /etc/vesperdash.env
 cat >/etc/systemd/system/vesperdash.service <<'UNIT'
 [Unit]
@@ -66,6 +68,8 @@ The admin token is stored only in `/etc/vesperdash.env`. The dashboard asks for 
 
 ## API
 
-`GET /health` is public. `GET /api/patches` returns enabled, non-paused patches. Admin endpoints require `X-Admin-Token`: `GET /api/admin/patches`, `POST /api/admin/patches` (multipart upload), `POST /api/admin/patches/:id/state`, and `DELETE /api/admin/patches/:id`.
+`GET /health` is public. `GET /api/patches` returns enabled, non-paused patches. The dashboard supports username/password login through `POST /api/auth/login` and an HttpOnly session cookie; the legacy `X-Admin-Token` header remains supported. Admin endpoints are `GET /api/admin/patches`, `POST /api/admin/patches` (multipart upload), `POST /api/admin/patches/:id/state`, and `DELETE /api/admin/patches/:id`.
+
+Each uploaded patch accepts `target_path` and an optional `target_path_2`. The API keeps `target_path` for older clients and also returns `target_paths` as an array. Existing catalog rows continue to work unchanged.
 
 This first server deliberately does not overwrite the IPA's local patch flow. Remote download and signature verification must be added to the IPA before remote files can be applied; the server is ready to provide the manifest and files.
