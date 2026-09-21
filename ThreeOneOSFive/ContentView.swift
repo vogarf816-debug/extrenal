@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var patchOperationBusy = false
     @State private var patchMessage = "READY — SELECT A PATCH"
     @State private var patchEnabled: [String: Bool] = [:]
+    @AppStorage("keepPatchesActiveAfterExit") private var keepPatchesActiveAfterExit = true
     private let fileNames: [String] = []
     private let normalPatchFiles: [String] = []
     private let maxPatchFiles: [String] = []
@@ -51,6 +52,11 @@ struct ContentView: View {
         .onDisappear {
             remoteSyncTask?.cancel()
             remoteSyncTask = nil
+            // Do not restore patches here. When this option is enabled, the
+            // package remains active until the user switches it OFF manually.
+            if keepPatchesActiveAfterExit {
+                log("patch: leaving app without automatic restore")
+            }
         }
         .onChange(of: scenePhase) { phase in
             guard phase == .active, !patchOperationBusy else { return }
@@ -250,6 +256,25 @@ struct ContentView: View {
                     .font(.system(size: 9, weight: .black, design: .rounded))
                     .foregroundStyle(AppTheme.secondaryAccent)
             }
+
+            HStack(spacing: 12) {
+                Image(systemName: keepPatchesActiveAfterExit ? "lock.shield.fill" : "lock.open")
+                    .foregroundStyle(keepPatchesActiveAfterExit ? AppTheme.secondaryAccent : AppTheme.paper.opacity(0.55))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("KEEP PATCH ACTIVE AFTER EXIT")
+                        .font(.system(size: 11, weight: .black, design: .rounded))
+                        .foregroundStyle(AppTheme.paper)
+                    Text("OFF only manually — no automatic restore when leaving the app")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppTheme.paper.opacity(0.55))
+                }
+                Spacer()
+                Toggle("", isOn: $keepPatchesActiveAfterExit)
+                    .labelsHidden()
+                    .tint(AppTheme.secondaryAccent)
+            }
+            .padding(12)
+            .background(AppTheme.ink.opacity(0.55), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             if patchStore.remoteEntries.isEmpty {
                 Text("NO FILES ON VESPERDASH")
