@@ -70,6 +70,6 @@ The admin token is stored only in `/etc/vesperdash.env`. The dashboard asks for 
 
 `GET /health` is public. `GET /api/patches` returns enabled, non-paused patches. The dashboard supports username/password login through `POST /api/auth/login` and an HttpOnly session cookie; the legacy `X-Admin-Token` header remains supported. Admin endpoints are `GET /api/admin/patches`, `POST /api/admin/patches` (multipart upload), `POST /api/admin/patches/:id/state`, and `DELETE /api/admin/patches/:id`.
 
-Each uploaded patch accepts `target_path` and an optional `target_path_2`. The API keeps `target_path` for older clients and also returns `target_paths` as an array. Existing catalog rows continue to work unchanged.
+Each uploaded patch may optionally provide `target_path` and `target_path_2`. If both are empty, the IPA uses the target paths embedded in the `.3105` package, matching the legacy `DevicePatchService.apply(project:)` behavior. The API keeps `target_path` for older clients and also returns `target_paths` as an array. Existing catalog rows continue to work unchanged.
 
 This first server deliberately does not overwrite the IPA's local patch flow. Remote download and signature verification must be added to the IPA before remote files can be applied; the server is ready to provide the manifest and files.

@@ -212,7 +212,7 @@ def set_admin_state():
 @app.post("/api/admin/patches")
 @auth_required
 def upload_patch():
-    required = ["id", "name", "game", "bundle_id", "target_path", "version"]
+    required = ["id", "name", "game", "bundle_id", "version"]
     if not all(request.form.get(k) for k in required): return jsonify(error="missing metadata"), 400
     raw_target_paths = [request.form.get("target_path", ""), request.form.get("target_path_2", "")]
     target_paths = []
@@ -220,8 +220,6 @@ def upload_patch():
         path = path.strip()
         if path and path not in target_paths:
             target_paths.append(path)
-    if not target_paths:
-        return jsonify(error="at least one target path is required"), 400
     bundle = request.form["bundle_id"]
     if bundle not in ALLOWED_BUNDLES: return jsonify(error="unsupported bundle_id"), 400
     category = request.form.get("category", "aim").lower()
@@ -260,7 +258,7 @@ def upload_patch():
     now = int(time.time()); conn = db()
     conn.execute("""INSERT INTO patches(id,name,category,game,bundle_id,target_path,target_paths,filename,stored_filename,sha256,size,version,image_filename,status_text,sort_order,created_at,updated_at)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,category=excluded.category,game=excluded.game,bundle_id=excluded.bundle_id,target_path=excluded.target_path,target_paths=excluded.target_paths,filename=excluded.filename,stored_filename=excluded.stored_filename,sha256=excluded.sha256,size=excluded.size,version=excluded.version,image_filename=CASE WHEN excluded.image_filename != '' THEN excluded.image_filename ELSE patches.image_filename END,status_text=excluded.status_text,sort_order=excluded.sort_order,updated_at=excluded.updated_at""",
-        (patch_id, request.form["name"], category, request.form["game"], bundle, target_paths[0], json.dumps(target_paths), filename, stored, digest, len(raw), request.form["version"], image_filename, status_text, sort_order, now, now))
+        (patch_id, request.form["name"], category, request.form["game"], bundle, target_paths[0] if target_paths else "", json.dumps(target_paths), filename, stored, digest, len(raw), request.form["version"], image_filename, status_text, sort_order, now, now))
     conn.commit(); row = conn.execute("SELECT * FROM patches WHERE id=?", (patch_id,)).fetchone(); conn.close()
     return jsonify(patch=public_row(row)), 201
 
