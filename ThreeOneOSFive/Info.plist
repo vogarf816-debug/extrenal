@@ -25,7 +25,7 @@
     <key>M3SB_API_BASE_URL</key>
     <string>https://api.m3sbapi.shop</string>
     <key>M3SB_PACKAGE_NAME</key>
-    <string>ext</string>
+    <string>external</string>
     <key>M3SB_PACKAGE_TOKEN</key>
     <string>$(M3SB_PACKAGE_TOKEN)</string>
     <key>M3SB_HMAC_SECRET</key>
