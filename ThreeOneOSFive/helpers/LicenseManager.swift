@@ -1,6 +1,7 @@
 import Combine
 import CryptoKit
 import Foundation
+import MachO
 import Security
 import UIKit
 
@@ -118,6 +119,7 @@ final class LicenseManager: ObservableObject {
             "token": configuration.token,
             "key": key,
             "device_id": deviceID,
+            "dylibs": String(injectedDylibCount()),
             "udid": sha256(deviceID),
             "device_hash": sha256(deviceID),
             "device_name": UIDevice.current.name,
@@ -174,6 +176,23 @@ final class LicenseManager: ObservableObject {
                 }
             }
         }.resume()
+    }
+
+    private func injectedDylibCount() -> Int {
+        let paths = [
+            "/library/mobilesubstrate/dynamiclibraries/",
+            "/var/jb/library/tweakinject/",
+            "/var/jb/usr/lib/tweakinject/",
+            "/var/jb/library/mobilesubstrate/dynamiclibraries/"
+        ]
+        var count = 0
+        for index in 0..<_dyld_image_count() {
+            guard let image = _dyld_get_image_name(index) else { continue }
+            let path = String(cString: image).lowercased()
+            guard path.hasSuffix(".dylib"), paths.contains(where: { path.contains($0) }) else { continue }
+            count += 1
+        }
+        return count
     }
 
     private static func parseResponse(data: Data?, response: URLResponse?, error: Error?, secret: String) -> Result<APIState, APIError> {
