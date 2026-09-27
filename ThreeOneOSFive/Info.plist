@@ -30,6 +30,12 @@
     <string>$(M3SB_PACKAGE_TOKEN)</string>
     <key>M3SB_HMAC_SECRET</key>
     <string>$(M3SB_HMAC_SECRET)</string>
+    <key>APONServerURL</key>
+    <string>https://api.m3sbapi.shop</string>
+    <key>APONPackageToken</key>
+    <string>$(M3SB_PACKAGE_TOKEN)</string>
+    <key>APONHMACSecret</key>
+    <string>$(M3SB_HMAC_SECRET)</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>

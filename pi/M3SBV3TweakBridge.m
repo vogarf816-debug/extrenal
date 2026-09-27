@@ -61,6 +61,13 @@ static BOOL M3SBSuspiciousLibraryIsLoaded(void) {
     return NO;
 }
 
+static BOOL M3SBIsTrustedSystemImagePath(NSString *path) {
+    if (!path.length) return YES;
+    return [path hasPrefix:@"/System/Library/"] ||
+           [path hasPrefix:@"/usr/lib/"] ||
+           [path hasPrefix:@"/private/preboot/"] ||
+           [path hasPrefix:@"/System/Applications/"];
+}
 static NSUInteger M3SBExternalInjectedDylibCount(void) {
     Dl_info ownInfo = {0};
     NSString *ownPath = nil;
@@ -73,8 +80,9 @@ static NSUInteger M3SBExternalInjectedDylibCount(void) {
         const char *imageName = _dyld_get_image_name(index);
         if (!imageName) continue;
         NSString *path = [[NSString stringWithUTF8String:imageName] lowercaseString];
-        if ([path rangeOfString:@"/library/mobilesubstrate/dynamiclibraries/"].location == NSNotFound) continue;
+        if (![path.pathExtension isEqualToString:@"dylib"]) continue;
         if (ownPath.length && [path isEqualToString:ownPath]) continue;
+        if (M3SBIsTrustedSystemImagePath(path)) continue;
         count += 1;
     }
     return count;
@@ -441,7 +449,7 @@ static void M3SBDeleteCachedLicense(NSString *token) {
     self.licenseKey = licenseKey;
     dispatch_queue_t q = dispatch_get_main_queue();
     self.heartbeatTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q);
-    dispatch_source_set_timer(self.heartbeatTimer, dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC), 30 * NSEC_PER_SEC, 1 * NSEC_PER_SEC);
+    dispatch_source_set_timer(self.heartbeatTimer, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), 10 * NSEC_PER_SEC, 1 * NSEC_PER_SEC);
     __weak typeof(self) weakSelf = self;
     dispatch_source_set_event_handler(self.heartbeatTimer, ^{ [weakSelf signedHeartbeat]; });
     dispatch_resume(self.heartbeatTimer);

@@ -6,18 +6,15 @@ import CommonCrypto
 public final class APONSDKConfig {
 
     public static var serverURL: String = {
-        if let v = Bundle.main.object(forInfoDictionaryKey: "M3SB_API_BASE_URL") as? String, !v.isEmpty { return v }
         if let v = Bundle.main.object(forInfoDictionaryKey: "APONServerURL") as? String, !v.isEmpty { return v }
         return "https://api.m3sbapi.shop"
     }()
 
     public static var token: String = {
-        if let v = Bundle.main.object(forInfoDictionaryKey: "M3SB_PACKAGE_TOKEN") as? String, !v.isEmpty { return v }
         Bundle.main.object(forInfoDictionaryKey: "APONPackageToken") as? String ?? ""
     }()
 
     public static var hmacSecret: String = {
-        if let v = Bundle.main.object(forInfoDictionaryKey: "M3SB_HMAC_SECRET") as? String, !v.isEmpty { return v }
         Bundle.main.object(forInfoDictionaryKey: "APONHMACSecret") as? String ?? ""
     }()
 

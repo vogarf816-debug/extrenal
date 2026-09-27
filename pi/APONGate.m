@@ -5,6 +5,8 @@
 #import <objc/runtime.h>
 
 static NSString * const kAPONPKGNAME = @"APON Test";
+static NSString * const kAPONServe   = @"https://api.m3sbapi.shop";
+static NSString * const kAPONUDIDURL = @"https://api.m3sbapi.shop/mdm.html";
 static NSString * const kAPONSELLER  = @"Telegram: @APONseller";
 static NSTimeInterval const kAPONShowDelay     = 2.0;
 static NSTimeInterval const kAPONUDIDPoll      = 5.0;
@@ -16,7 +18,6 @@ static NSString *APONConfigValue(NSString *key) {
 }
 static NSString *APONToken(void) { return APONConfigValue(@"M3SB_PACKAGE_TOKEN"); }
 static NSString *APONSecret(void) { return APONConfigValue(@"M3SB_HMAC_SECRET"); }
-static NSString *APONServer(void) { return APONConfigValue(@"M3SB_API_BASE_URL"); }
 
 typedef NS_ENUM(NSUInteger, APONGateMode) { APONGateModeNone, APONGateModeUDID, APONGateModeLicense };
 
@@ -273,7 +274,7 @@ static UIColor *APONColorFromHex(uint32_t hex, CGFloat alpha) {
         if (self.udidPollTimer) { [self.udidPollTimer invalidate]; self.udidPollTimer = nil; }
         return;
     }
-    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@/api/udid-status?udid=%@", APONServer(), APONDeviceHash()]];
+    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@/api/udid-status?udid=%@", kAPONServe, APONDeviceHash()]];
     __weak APONGate *weakSelf = self;
     NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithURL:url
         completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
@@ -302,12 +303,12 @@ static UIColor *APONColorFromHex(uint32_t hex, CGFloat alpha) {
 
 - (void)openUDIDURL:(UIButton *)sender {
     (void)sender;
-    [self openURL:[APONServer() stringByAppendingString:@"/mdm.html"]];
+    [self openURL:kAPONUDIDURL];
 }
 
 - (void)openGuideURL:(UIButton *)sender {
     (void)sender;
-    [self openURL:[APONServer() stringByAppendingString:@"/mdm.html"]];
+    [self openURL:kAPONUDIDURL];
 }
 
 - (void)showLicense {
@@ -478,8 +479,8 @@ static const void *kAPONCDKey = &kAPONCDKey;
         @"system_info": [NSString stringWithFormat:@"%@ %@", [[UIDevice currentDevice] systemName], [[UIDevice currentDevice] systemVersion]],
         @"os_info": [[UIDevice currentDevice] systemVersion],
     };
-    NSData *json = [NSJSONSerialization dataWithJSONObject:body options:NSJSONWritingSortedKeys error:nil];
-    NSURL *url = [NSURL URLWithString:[APONServer() stringByAppendingString:@"/api/sdk/verify"]];
+    NSData *json = [NSJSONSerialization dataWithJSONObject:body options:0 error:nil];
+    NSURL *url = [NSURL URLWithString:[kAPONServe stringByAppendingString:@"/api/sdk/verify"]];
     NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
     req.HTTPMethod = @"POST";
     req.timeoutInterval = 20;
@@ -545,7 +546,7 @@ static const void *kAPONCDKey = &kAPONCDKey;
         NSString *deviceID = APONStableDeviceID();
         NSDictionary *body = @{@"token": APONToken(), @"key": key, @"device_id": deviceID};
         NSData *json = [NSJSONSerialization dataWithJSONObject:body options:0 error:nil];
-        NSURL *url = [NSURL URLWithString:[APONServer() stringByAppendingString:@"/api/sdk/check"]];
+        NSURL *url = [NSURL URLWithString:[kAPONServe stringByAppendingString:@"/api/sdk/check"]];
         NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
         req.HTTPMethod = @"POST";
         [req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
