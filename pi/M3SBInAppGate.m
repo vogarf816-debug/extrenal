@@ -83,7 +83,12 @@ typedef NS_ENUM(NSInteger, M3SBGateState) {
     }
     NSString *cachedKey = [[M3SBV3TweakBridge shared] cachedLicenseKey];
     if (cachedKey.length) self.lastLicenseKey = cachedKey;
-    [self attemptFreeVersion];
+    NSString *cachedLicense = [[M3SBV3TweakBridge shared] cachedLicenseKey];
+    if (cachedLicense.length) {
+        [self restoreCachedAuthorization:cachedLicense];
+    } else {
+        [self showLicense];
+    }
 }
 
 - (void)buildCardIfNeeded {
