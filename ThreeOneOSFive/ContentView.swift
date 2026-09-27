@@ -6,6 +6,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var appState: AppState
     @State private var showCleaner = false
+    @State private var remoteSyncTask: Task<Void, Never>?
     @State private var fileSafety: [String: Bool] = [:]
     @State private var developerDesign = 0
     @StateObject private var patchStore = PatchProjectStore()
@@ -13,31 +14,30 @@ struct ContentView: View {
     @State private var patchMessage = "READY — SELECT A PATCH"
     @State private var patchEnabled: [String: Bool] = [:]
     @AppStorage("keepPatchesActiveAfterExit") private var keepPatchesActiveAfterExit = true
-    @State private var selectedSection = 0
     private let fileNames: [String] = []
     private let normalPatchFiles: [String] = []
     private let maxPatchFiles: [String] = []
 
     var body: some View {
-        GeometryReader { proxy in
-            HStack(spacing: 0) {
-                if proxy.size.width >= 650 { brModsSidebar }
-                VStack(spacing: 0) {
-                    brModsTopBar
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 14) {
-                            patchStatusBanner
-                            selectedSectionContent
-                        }
-                        .padding(.horizontal, proxy.size.width >= 650 ? 18 : 14)
-                        .padding(.vertical, 14)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+        TabView {
+            appTab(title: "AIM", icon: "scope") { aimTab }
+            appTab(title: "ESP", icon: "eye.fill") { espTab }
+            appTab(title: "HOLOGRAM", icon: "cube.transparent") { hologramTab }
+            appTab(title: "SKIN MOD", icon: "sparkles") { skinModTab }
+            appTab(title: "FILE STATUS", icon: "doc.badge.gearshape") { fileStatusTab }
         }
         .preferredColorScheme(.dark)
         .tint(AppTheme.accent)
+        .overlay {
+            if patchStore.isRemoteDisabled {
+                RemotePauseView()
+            }
+        }
+        .overlay {
+            if patchStore.isRemoteSyncing {
+                RemoteLoadingView(store: patchStore)
+            }
+        }
         .sheet(isPresented: $showCleaner) {
             CleanerView()
         }
@@ -46,8 +46,12 @@ struct ContentView: View {
         }
         .onAppear {
             syncPatchStates()
+            patchStore.syncVesperDash(showCompletionAlert: false, showProgress: true)
+            startRemoteStateChecks()
         }
         .onDisappear {
+            remoteSyncTask?.cancel()
+            remoteSyncTask = nil
             // Do not restore patches here. When this option is enabled, the
             // package remains active until the user switches it OFF manually.
             if keepPatchesActiveAfterExit {
@@ -61,74 +65,15 @@ struct ContentView: View {
         }
     }
 
-    private var selectedSectionContent: some View {
-        Group {
-            switch selectedSection {
-            case 0: aimTab
-            case 1: espTab
-            case 2: hologramTab
-            case 3: skinModTab
-            default: fileStatusTab
+    private func startRemoteStateChecks() {
+        guard remoteSyncTask == nil else { return }
+        remoteSyncTask = Task { @MainActor in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(4))
+                guard !Task.isCancelled else { return }
+                patchStore.syncVesperDash(showCompletionAlert: false, showProgress: false)
             }
         }
-    }
-
-    private var brModsTopBar: some View {
-        HStack(spacing: 12) {
-            AppLogo(size: 42)
-                .overlay(RoundedRectangle(cornerRadius: 9).stroke(AppTheme.accent.opacity(0.7), lineWidth: 1))
-            VStack(alignment: .leading, spacing: 1) {
-                Text("VESPER EXTERNAL")
-                    .font(.system(size: 23, weight: .black, design: .rounded))
-                    .tracking(1.5)
-                Text("PATCH CONTROL CENTER")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(AppTheme.mutedText)
-            }
-            Spacer()
-            Image(systemName: "rectangle.portrait.and.arrow.right")
-                .font(.system(size: 17, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
-                .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(AppTheme.panelBackground)
-        .overlay(alignment: .bottom) { Rectangle().fill(AppTheme.accent.opacity(0.28)).frame(height: 1) }
-    }
-
-    private var brModsSidebar: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 18)
-            sidebarButton(index: 0, icon: "scope", title: "Aim")
-            sidebarButton(index: 1, icon: "eye.slash.fill", title: "ESP")
-            sidebarButton(index: 2, icon: "cube.transparent", title: "Holo")
-            sidebarButton(index: 3, icon: "person.fill", title: "Skin")
-            Spacer()
-            sidebarButton(index: 4, icon: "gearshape.fill", title: "Settings")
-                .padding(.bottom, 18)
-        }
-        .frame(width: 76)
-        .background(AppTheme.sidebarBackground)
-        .overlay(alignment: .trailing) { Rectangle().fill(Color.white.opacity(0.05)).frame(width: 1) }
-    }
-
-    private func sidebarButton(index: Int, icon: String, title: String) -> some View {
-        Button { selectedSection = index } label: {
-            VStack(spacing: 5) {
-                Image(systemName: icon).font(.system(size: 19, weight: .semibold))
-                Text(title).font(.system(size: 8, weight: .bold, design: .rounded))
-            }
-            .foregroundStyle(selectedSection == index ? AppTheme.accent : AppTheme.mutedText)
-            .frame(maxWidth: .infinity)
-            .frame(height: 66)
-            .background(selectedSection == index ? AppTheme.accent.opacity(0.12) : .clear)
-            .overlay(alignment: .leading) {
-                Rectangle().fill(AppTheme.accent).frame(width: 3).opacity(selectedSection == index ? 1 : 0)
-            }
-        }
-        .buttonStyle(.plain)
     }
 
     private struct RemotePauseView: View {
@@ -331,25 +276,42 @@ struct ContentView: View {
             .padding(12)
             .background(AppTheme.ink.opacity(0.55), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            if patchStore.items.isEmpty {
-                Text("NO LOCAL PACKAGES")
+            if patchStore.remoteEntries.isEmpty {
+                Text("NO FILES ON VESPERDASH")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.paper.opacity(0.5))
                     .padding(.vertical, 14)
             } else {
-                ForEach(patchStore.items) { item in
+                ForEach(patchStore.remoteEntries.filter { $0.bundle_id == "com.dts.freefireth" }.sorted { first, second in
+                    if first.normalizedCategory != second.normalizedCategory { return first.normalizedCategory < second.normalizedCategory }
+                    if first.game != second.game { return first.game < second.game }
+                    if first.normalizedOrder != second.normalizedOrder { return first.normalizedOrder < second.normalizedOrder }
+                    return first.name.localizedCaseInsensitiveCompare(second.name) == .orderedAscending
+                }) { remote in
                     HStack(spacing: 12) {
-                        Image(systemName: "doc.fill").foregroundStyle(AppTheme.secondaryAccent).frame(width: 44, height: 44)
+                        if let imageURL = VesperDashRemoteSync.validImageURL(for: remote) {
+                            AsyncImage(url: imageURL) { phase in
+                                if let image = phase.image { image.resizable().scaledToFill() }
+                                else if phase.error != nil { Image(systemName: "doc.fill").foregroundStyle(AppTheme.accent) }
+                                else { ProgressView().tint(AppTheme.secondaryAccent) }
+                            }
+                            .frame(width: 44, height: 44)
+                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        } else {
+                            Image(systemName: "doc.fill")
+                                .foregroundStyle(AppTheme.secondaryAccent)
+                                .frame(width: 44, height: 44)
+                        }
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(item.displayName)
+                            Text(remote.name)
                                 .font(.system(size: 14, weight: .bold, design: .rounded))
                                 .foregroundStyle(AppTheme.paper)
-                            Text("LOCAL PACKAGE • \(item.packageURL.pathExtension.uppercased())")
+                            Text("#\(remote.normalizedOrder) • \(remote.normalizedCategory.uppercased()) • \(remote.game.uppercased())")
                                 .font(.system(size: 9, weight: .bold, design: .rounded))
                                 .foregroundStyle(AppTheme.secondaryAccent)
                         }
                         Spacer()
-                        Text(item.isLocked ? "LOCKED" : "READY")
+                        Text(remote.normalizedStatus)
                             .font(.system(size: 10, weight: .black, design: .rounded))
                             .foregroundStyle(AppTheme.paper)
                             .multilineTextAlignment(.trailing)
@@ -363,7 +325,7 @@ struct ContentView: View {
                 }
             }
 
-            Text("LOCAL MODE • API DISABLED")
+            Text("STATUS IS CONTROLLED ONLY FROM VESPERDASH")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.paper.opacity(0.52))
                 .padding(.top, 5)
@@ -494,46 +456,30 @@ struct ContentView: View {
                     .foregroundStyle(.white.opacity(0.45))
             }
 
-            let localPatches = localPackages(category: category, targetBundleID: targetBundleID)
-            if !localPatches.isEmpty {
+            let remotePatches = patchStore.remoteEntries(category: category, bundleID: targetBundleID)
+            if !remotePatches.isEmpty {
                 VStack(spacing: 0) {
-                    ForEach(Array(localPatches.enumerated()), id: \.element.id) { index, item in
-                        let package = item.packageURL.lastPathComponent
+                    ForEach(Array(remotePatches.enumerated()), id: \.element.id) { index, remote in
+                        let package = patchStore.localFilename(for: remote) ?? remote.filename
                         patchCard(
-                            name: item.displayName,
+                            name: remote.name,
                             target: targetTitle,
                             package: package,
                             color: index.isMultiple(of: 2) ? AppTheme.accent : AppTheme.secondaryAccent,
-                            imageURL: nil,
+                            imageURL: VesperDashRemoteSync.validImageURL(for: remote),
                             state: patchBinding(for: package, targetBundleID: targetBundleID),
                             targetBundleID: targetBundleID
                         )
                     }
                 }
             } else {
-                Text("NO LOCAL \(category.uppercased()) PACKAGES — ADD A .3105 FILE TO THE APP")
+                Text("NO \(category.uppercased()) PATCHES — ADD FILES FROM VESPERDASH")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.5))
                     .padding(.vertical, 10)
             }
 
         }
-    }
-
-    private func localPackages(category: String, targetBundleID: String) -> [PatchLibraryItem] {
-        patchStore.items
-            .filter { item in
-                guard item.project?.allBundleIdentifiers.contains(targetBundleID) == true else { return false }
-                let name = item.displayName.lowercased()
-                switch category {
-                case "aim": return name.contains("aim") || name.contains("obb") || name.contains("drag") || name.contains("magic")
-                case "esp": return name.contains("esp") || name.contains("chams") || name.contains("wall")
-                case "hologram": return name.contains("holo") || name.contains("weapon")
-                case "skin": return name.contains("skin")
-                default: return true
-                }
-            }
-            .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
     }
 
     private func patchCard(
@@ -866,13 +812,12 @@ struct ContentView: View {
             patchEnabled[patchStateKey(filename, targetBundleID: "com.dts.freefiremax")] = isPatchActive(filename, targetBundleID: "com.dts.freefiremax")
         }
         for item in patchStore.items {
-            for bundleID in item.project?.allBundleIdentifiers ?? [] {
-                guard DevicePatchService.latestReceipt(projectID: item.id, targetBundleID: bundleID) != nil else {
-                    continue
-                }
-                let filename = item.packageURL.lastPathComponent
-                patchEnabled[patchStateKey(filename, targetBundleID: bundleID)] = true
+            guard let bundleID = patchStore.remoteBundleID(for: item) else { continue }
+            guard DevicePatchService.latestReceipt(projectID: item.id, targetBundleID: bundleID) != nil else {
+                continue
             }
+            let filename = item.packageURL.lastPathComponent
+            patchEnabled[patchStateKey(filename, targetBundleID: bundleID)] = true
         }
     }
 
