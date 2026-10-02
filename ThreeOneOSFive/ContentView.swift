@@ -20,14 +20,17 @@ struct ContentView: View {
 
     var body: some View {
         TabView {
-            appTab(title: "AIM", icon: "scope") { aimTab }
-            appTab(title: "ESP", icon: "eye.fill") { espTab }
-            appTab(title: "HOLOGRAM", icon: "cube.transparent") { hologramTab }
-            appTab(title: "SKIN MOD", icon: "sparkles") { skinModTab }
-            appTab(title: "FILE STATUS", icon: "doc.badge.gearshape") { fileStatusTab }
+            appTab(title: "🎯 AIM", icon: "scope") { aimTab }
+            appTab(title: "👁 ESP", icon: "eye.fill") { espTab }
+            appTab(title: "🧊 HOLOGRAM", icon: "cube.transparent") { hologramTab }
+            appTab(title: "✨ SKIN MOD", icon: "sparkles") { skinModTab }
+            appTab(title: "📡 FILE STATUS", icon: "doc.badge.gearshape") { fileStatusTab }
         }
         .preferredColorScheme(.dark)
         .tint(AppTheme.accent)
+        .toolbarBackground(AppTheme.consoleBackground.opacity(0.96), for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarColorScheme(.dark, for: .tabBar)
         .overlay {
             if patchStore.isRemoteDisabled {
                 RemotePauseView()
@@ -208,7 +211,7 @@ struct ContentView: View {
 
     private var aimTab: some View {
         VStack(spacing: 16) {
-            gameIntro(title: "AIM", subtitle: "REMOTE AIM PATCHES", icon: "scope")
+            gameIntro(title: "🎯 AIM", subtitle: "ONLINE AIM PATCHES", icon: "scope")
             patchOptions(
                 files: normalPatchFiles,
                 category: "aim",
@@ -221,28 +224,28 @@ struct ContentView: View {
 
     private var espTab: some View {
         VStack(spacing: 16) {
-            gameIntro(title: "ESP", subtitle: "REMOTE ESP PATCHES", icon: "eye.fill")
+            gameIntro(title: "👁 ESP", subtitle: "ONLINE ESP PATCHES", icon: "eye.fill")
             patchOptions(files: [], category: "esp", sectionTitle: "FF NORMAL", targetTitle: "FREE FIRE • NORMAL", targetBundleID: "com.dts.freefireth")
         }
     }
 
     private var hologramTab: some View {
         VStack(spacing: 16) {
-            gameIntro(title: "HOLOGRAM", subtitle: "REMOTE HOLOGRAM PATCHES", icon: "cube.transparent")
+            gameIntro(title: "🧊 HOLOGRAM", subtitle: "ONLINE HOLOGRAM PATCHES", icon: "cube.transparent")
             patchOptions(files: [], category: "hologram", sectionTitle: "FF NORMAL", targetTitle: "FREE FIRE • NORMAL", targetBundleID: "com.dts.freefireth")
         }
     }
 
     private var skinModTab: some View {
         VStack(spacing: 16) {
-            gameIntro(title: "SKIN MOD", subtitle: "REMOTE SKIN PATCHES", icon: "sparkles")
+            gameIntro(title: "✨ SKIN MOD", subtitle: "ONLINE SKIN PATCHES", icon: "sparkles")
             patchOptions(files: [], category: "skin", sectionTitle: "FF NORMAL", targetTitle: "FREE FIRE • NORMAL", targetBundleID: "com.dts.freefireth")
         }
     }
 
     private var fileStatusTab: some View {
         VStack(spacing: 16) {
-            gameIntro(title: "FILE STATUS", subtitle: "REMOTE STATUS CENTER", icon: "doc.badge.gearshape")
+            gameIntro(title: "📡 FILE STATUS", subtitle: "ONLINE STATUS CENTER", icon: "doc.badge.gearshape")
             fileStatusPanel
         }
     }
@@ -1151,14 +1154,14 @@ struct AnimatedHyperBackdrop: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [AppTheme.pageBackground, Color(red: 0.16, green: 0.025, blue: 0.24), AppTheme.pageBackground],
+                colors: [AppTheme.pageBackground, Color(red: 0.02, green: 0.16, blue: 0.19), AppTheme.consoleBackground],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            RadialGradient(colors: [AppTheme.accent.opacity(0.18), .clear], center: .topTrailing, startRadius: 10, endRadius: 280)
-            RadialGradient(colors: [AppTheme.secondaryAccent.opacity(0.12), .clear], center: .bottomLeading, startRadius: 10, endRadius: 320)
-            RadialGradient(colors: [Color.blue.opacity(0.055), .clear], center: .center, startRadius: 10, endRadius: 360)
-            RadialGradient(colors: [Color.purple.opacity(0.035), .clear], center: .bottomTrailing, startRadius: 10, endRadius: 260)
+            AngularGradient(colors: [AppTheme.accent.opacity(0.13), .clear, AppTheme.secondaryAccent.opacity(0.10), .clear], center: .topTrailing)
+            RadialGradient(colors: [AppTheme.accent.opacity(0.16), .clear], center: .topTrailing, startRadius: 8, endRadius: 260)
+            RadialGradient(colors: [AppTheme.secondaryAccent.opacity(0.12), .clear], center: .bottomLeading, startRadius: 8, endRadius: 300)
+            EmberField()
             GridOverlay()
         }
     }
