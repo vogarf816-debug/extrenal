@@ -2,6 +2,23 @@
 
 A small private patch-management server for the IPA integration. It stores encrypted `.3105` packages, exposes an IPA manifest, and provides an authenticated dashboard for upload, replacement, enable/disable, pause/resume, and deletion.
 
+## Accounts and tenant isolation
+
+The dashboard supports two isolated workspaces:
+
+- `vesper` — the existing Vesper workspace.
+- `jefry` — the Jefry External workspace.
+
+Set the Jefry password only on the server environment; never put it in the repository or in an IPA:
+
+```bash
+sudo sh -c 'printf "\\nVESPERDASH_JEFRY_USERNAME=jefry\\nVESPERDASH_JEFRY_PASSWORD=REPLACE_WITH_A_LONG_RANDOM_PASSWORD\\n" >> /etc/vesperdash.env'
+sudo chmod 600 /etc/vesperdash.env
+sudo systemctl restart vesperdash
+```
+
+Jefry sessions can only list, upload, edit, pause, or delete Jefry-owned catalog entries. Jefry settings and resellers are stored separately in `app_settings_jefry.json` and `resellers_jefry.json`; existing Vesper data remains in the original files. The legacy `X-Admin-Token` remains an owner-level maintenance credential and must stay private.
+
 ## Local run
 
 ```bash
@@ -11,6 +28,8 @@ pip install flask gunicorn
 export VESPERDASH_ADMIN_TOKEN='use-a-long-random-token'
 export VESPERDASH_ADMIN_USERNAME='admin'
 export VESPERDASH_ADMIN_PASSWORD='use-a-long-password'
+export VESPERDASH_JEFRY_USERNAME='jefry'
+export VESPERDASH_JEFRY_PASSWORD='use-a-different-long-password'
 python server.py
 ```
 
@@ -25,7 +44,8 @@ mkdir -p /opt/vesperdash/app
 python3 -m venv /opt/vesperdash/venv
 /opt/vesperdash/venv/bin/pip install --upgrade pip flask gunicorn
 TOKEN=$(openssl rand -hex 32)
-printf 'VESPERDASH_ADMIN_TOKEN=%s\nVESPERDASH_ADMIN_USERNAME=admin\nVESPERDASH_ADMIN_PASSWORD=CHANGE_ME_TO_A_LONG_PASSWORD\n' "$TOKEN" > /etc/vesperdash.env
+JEFRY_PASSWORD=$(openssl rand -base64 24)
+printf 'VESPERDASH_ADMIN_TOKEN=%s\nVESPERDASH_ADMIN_USERNAME=admin\nVESPERDASH_ADMIN_PASSWORD=CHANGE_ME_TO_A_LONG_PASSWORD\nVESPERDASH_JEFRY_USERNAME=jefry\nVESPERDASH_JEFRY_PASSWORD=%s\n' "$TOKEN" "$JEFRY_PASSWORD" > /etc/vesperdash.env
 chmod 600 /etc/vesperdash.env
 cat >/etc/systemd/system/vesperdash.service <<'UNIT'
 [Unit]
@@ -47,29 +67,12 @@ WantedBy=multi-user.target
 UNIT
 chown -R vesperdash:www-data /opt/vesperdash
 systemctl daemon-reload && systemctl enable --now vesperdash
-cat >/etc/nginx/sites-available/vesperdash <<'NGINX'
-server {
-    listen 80;
-    server_name vesperdash.com api.vesperdash.com panel.vesperdash.com;
-    client_max_body_size 80M;
-    location / { proxy_pass http://127.0.0.1:8080; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; }
-}
-NGINX
-ln -sf /etc/nginx/sites-available/vesperdash /etc/nginx/sites-enabled/vesperdash
-rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl reload nginx
-apt install -y certbot python3-certbot-nginx
-certbot --nginx -d vesperdash.com -d api.vesperdash.com -d panel.vesperdash.com
 ```
-
-After Certbot asks for the email/terms, the dashboard is at `https://panel.vesperdash.com/` and the IPA manifest is at `https://api.vesperdash.com/api/patches`.
 
 The admin token is stored only in `/etc/vesperdash.env`. The dashboard asks for it in the browser and sends it as `X-Admin-Token`; do not put it in the IPA or publish it.
 
 ## API
 
-`GET /health` is public. `GET /api/patches` returns enabled, non-paused patches. The dashboard supports username/password login through `POST /api/auth/login` and an HttpOnly session cookie; the legacy `X-Admin-Token` header remains supported. Admin endpoints are `GET /api/admin/patches`, `POST /api/admin/patches` (multipart upload), `POST /api/admin/patches/:id/state`, and `DELETE /api/admin/patches/:id`.
+`GET /health` is public. `GET /api/patches` returns enabled, non-paused patches for the requested tenant. The dashboard supports username/password login through `POST /api/auth/login` and an HttpOnly session cookie; the legacy `X-Admin-Token` header remains supported. Admin endpoints are `GET /api/admin/patches`, `POST /api/admin/patches` (multipart upload), `POST /api/admin/patches/:id/state`, and `DELETE /api/admin/patches/:id`.
 
 Each uploaded patch may optionally provide `target_path` and `target_path_2`. If both are empty, the IPA uses the target paths embedded in the `.3105` package, matching the legacy `DevicePatchService.apply(project:)` behavior. The API keeps `target_path` for older clients and also returns `target_paths` as an array. Existing catalog rows continue to work unchanged.
-
-This first server deliberately does not overwrite the IPA's local patch flow. Remote download and signature verification must be added to the IPA before remote files can be applied; the server is ready to provide the manifest and files.
