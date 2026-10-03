@@ -69,17 +69,8 @@ def db():
         conn.execute("ALTER TABLE sessions ADD COLUMN owner TEXT NOT NULL DEFAULT 'vesper'")
     conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES('global_paused', '0')")
     conn.execute("INSERT OR IGNORE INTO settings(key, value) SELECT 'global_paused_vesper', value FROM settings WHERE key='global_paused'")
-    reset = conn.execute("SELECT value FROM settings WHERE key='catalog_reset_20260918'").fetchone()
-    if not reset:
-        stale_rows = conn.execute("SELECT stored_filename, image_filename FROM patches").fetchall()
-        conn.execute("DELETE FROM patches")
-        conn.execute("INSERT INTO settings(key, value) VALUES('catalog_reset_20260918', 'done')")
-        for stale in stale_rows:
-            try: (PATCH_DIR / stale["stored_filename"]).unlink()
-            except FileNotFoundError: pass
-            if stale["image_filename"]:
-                try: (IMAGE_DIR / stale["image_filename"]).unlink()
-                except FileNotFoundError: pass
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_patches_owner_order ON patches(owner, category, game, sort_order, name)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)")
     conn.commit()
     return conn
 
@@ -153,9 +144,9 @@ def load_settings(tenant="vesper"):
     return default_settings(tenant)
 
 
-def valid_settings(payload):
+def valid_settings(payload, tenant="vesper"):
     if not isinstance(payload, dict): return None
-    result = default_settings()
+    result = default_settings(tenant)
     for key in result:
         if key in payload:
             value = str(payload[key]).strip()
@@ -180,7 +171,7 @@ def admin_settings():
 @app.post("/api/admin/settings")
 @auth_required
 def save_settings():
-    payload = valid_settings(request.get_json(silent=True))
+    payload = valid_settings(request.get_json(silent=True), requested_tenant())
     if payload is None: return jsonify(error="invalid settings or link"), 400
     DATA.mkdir(parents=True, exist_ok=True)
     settings_file = scoped_file(SETTINGS_FILE, requested_tenant())
@@ -251,7 +242,9 @@ def save_resellers():
 
 
 def public_row(row):
-    image_url = f"/api/patches/{row['id']}/image" if row["image_filename"] else None
+    owner = str(row["owner"] or "vesper")
+    tenant_query = f"?tenant={owner}"
+    image_url = f"/api/patches/{row['id']}/image{tenant_query}" if row["image_filename"] else None
     try:
         target_paths = json.loads(row["target_paths"] or "[]")
     except (TypeError, json.JSONDecodeError):
@@ -259,7 +252,7 @@ def public_row(row):
     target_paths = [str(path).strip() for path in target_paths if str(path).strip()]
     if not target_paths and row["target_path"]:
         target_paths = [row["target_path"]]
-    return {**dict(row), "target_paths": target_paths, "enabled": bool(row["enabled"]), "paused": bool(row["paused"]), "download_url": f"/api/patches/{row['id']}/download", "image_url": image_url}
+    return {**dict(row), "target_paths": target_paths, "enabled": bool(row["enabled"]), "paused": bool(row["paused"]), "download_url": f"/api/patches/{row['id']}/download{tenant_query}", "image_url": image_url}
 
 
 def global_paused(conn, tenant="vesper"):
@@ -433,7 +426,13 @@ def upload_patch():
     now = int(time.time()); conn = db()
     existing = conn.execute("SELECT owner FROM patches WHERE id=?", (patch_id,)).fetchone()
     if existing and existing["owner"] != owner:
-        conn.close(); return jsonify(error="patch id belongs to another tenant"), 409
+        conn.close()
+        try: (PATCH_DIR / stored).unlink()
+        except FileNotFoundError: pass
+        if image_filename:
+            try: (IMAGE_DIR / image_filename).unlink()
+            except FileNotFoundError: pass
+        return jsonify(error="patch id belongs to another tenant"), 409
     conn.execute("""INSERT INTO patches(id,name,owner,category,game,bundle_id,target_path,target_paths,filename,stored_filename,sha256,size,version,image_filename,status_text,sort_order,created_at,updated_at)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,owner=excluded.owner,category=excluded.category,game=excluded.game,bundle_id=excluded.bundle_id,target_path=excluded.target_path,target_paths=excluded.target_paths,filename=excluded.filename,stored_filename=excluded.stored_filename,sha256=excluded.sha256,size=excluded.size,version=excluded.version,image_filename=CASE WHEN excluded.image_filename != '' THEN excluded.image_filename ELSE patches.image_filename END,status_text=excluded.status_text,sort_order=excluded.sort_order,updated_at=excluded.updated_at""",
         (patch_id, request.form["name"], owner, category, request.form["game"], bundle, target_paths[0] if target_paths else "", json.dumps(target_paths), filename, stored, digest, len(raw), request.form["version"], image_filename, status_text, sort_order, now, now))
