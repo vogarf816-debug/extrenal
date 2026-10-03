@@ -486,7 +486,7 @@ struct ContentView: View {
 
     private var externalChannelCard: some View {
         Button {
-            guard let url = URL(string: "https://t.me/VesperExtrenal") else { return }
+            guard let url = URL(string: VesperStringVault.vesperChannelURL) else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 12) {
@@ -670,7 +670,7 @@ struct ContentView: View {
                 .foregroundStyle(AppTheme.secondaryAccent.opacity(0.85))
 
             HStack(spacing: 10) {
-                channelButton(title: "NullZth CHANNEL", url: "https://t.me/+5HHaZurHPA9hOWM8")
+                channelButton(title: "NullZth CHANNEL", url: VesperStringVault.nullzthChannelURL)
             }
         }
         .frame(maxWidth: .infinity)
@@ -734,7 +734,7 @@ struct ContentView: View {
 
     private var extrenalChannelCard: some View {
         Button {
-            guard let url = URL(string: "https://t.me/VesperExtrenal") else { return }
+            guard let url = URL(string: VesperStringVault.vesperChannelURL) else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 14) {
@@ -764,7 +764,7 @@ struct ContentView: View {
 
     private var feedbackCard: some View {
         Button {
-            guard let url = URL(string: "https://t.me/NullZth") else { return }
+            guard let url = URL(string: VesperStringVault.nullzthURL) else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 14) {
@@ -810,7 +810,7 @@ struct ContentView: View {
 
     private var telegramCard: some View {
         Button {
-            guard let url = URL(string: "https://t.me/NullZth") else { return }
+            guard let url = URL(string: VesperStringVault.nullzthURL) else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 14) {

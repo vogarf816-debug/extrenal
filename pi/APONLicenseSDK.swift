@@ -7,7 +7,7 @@ public final class APONSDKConfig {
 
     public static var serverURL: String = {
         if let v = Bundle.main.object(forInfoDictionaryKey: "APONServerURL") as? String, !v.isEmpty { return v }
-        return "https://api.m3sbapi.shop"
+        return VesperStringVault.m3sbAPIBaseURL
     }()
 
     public static var token: String = {

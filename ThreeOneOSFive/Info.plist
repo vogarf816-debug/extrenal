@@ -23,7 +23,7 @@
     <key>HYPER_LICENSE_API_URL</key>
     <string>$(HYPER_LICENSE_API_URL)</string>
     <key>M3SB_API_BASE_URL</key>
-    <string>https://api.m3sbapi.shop</string>
+    <string></string>
     <key>M3SB_PACKAGE_NAME</key>
     <string>ext</string>
     <key>M3SB_PACKAGE_TOKEN</key>
@@ -31,7 +31,7 @@
     <key>M3SB_HMAC_SECRET</key>
     <string>$(M3SB_HMAC_SECRET)</string>
     <key>APONServerURL</key>
-    <string>https://api.m3sbapi.shop</string>
+    <string></string>
     <key>APONPackageToken</key>
     <string>$(M3SB_PACKAGE_TOKEN)</string>
     <key>APONHMACSecret</key>

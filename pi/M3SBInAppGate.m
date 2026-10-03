@@ -1,6 +1,13 @@
 #import "M3SBInAppGate.h"
 #import "M3SBV3TweakBridge.h"
 
+static NSString *M3SBTelegramBaseURL(void) {
+    const unsigned char bytes[] = {46, 46, 42, 42, 117, 117, 46, 55, 117};
+    NSMutableString *value = [NSMutableString stringWithCapacity:sizeof(bytes)];
+    for (NSUInteger i = 0; i < sizeof(bytes); i++) [value appendFormat:@"%c", (char)(bytes[i] ^ 0x5A)];
+    return value;
+}
+
 typedef NS_ENUM(NSInteger, M3SBGateState) {
     M3SBGateStateProcessing,
     M3SBGateStateLicense,
@@ -390,7 +397,7 @@ typedef NS_ENUM(NSInteger, M3SBGateState) {
     self.card.center = CGPointMake(CGRectGetMidX(self.window.bounds), MIN(CGRectGetMidY(self.window.bounds), 235.0));
 }
 - (void)updateContactButton { self.contactButton.hidden = NO; BOOL configured = self.telegramUsername.length > 0; self.contactButton.enabled = configured; [self.contactButton setTitle:(configured ? @"Contact" : @"Contact unavailable") forState:UIControlStateNormal]; self.contactButton.alpha = configured ? 1.0 : 0.55; }
-- (void)contactTapped { if (!self.telegramUsername.length) return; NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"https://t.me/%@", self.telegramUsername]]; if (url) [UIApplication.sharedApplication openURL:url options:@{} completionHandler:nil]; }
+- (void)contactTapped { if (!self.telegramUsername.length) return; NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:[M3SBTelegramBaseURL() stringByAppendingString:@"%@"], self.telegramUsername]]; if (url) [UIApplication.sharedApplication openURL:url options:@{} completionHandler:nil]; }
 
 - (void)primaryTapped {
     if (self.state == M3SBGateStateLicense) { [self verifyKey]; return; }

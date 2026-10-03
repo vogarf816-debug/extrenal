@@ -5,9 +5,14 @@
 #import <objc/runtime.h>
 
 static NSString * const kAPONPKGNAME = @"APON Test";
-static NSString * const kAPONServe   = @"https://api.m3sbapi.shop";
-static NSString * const kAPONUDIDURL = @"https://api.m3sbapi.shop/mdm.html";
-static NSString * const kAPONSELLER  = @"Telegram: @APONseller";
+static NSString *APONDecode(const unsigned char *bytes, NSUInteger len) {
+    NSMutableString *value = [NSMutableString stringWithCapacity:len];
+    for (NSUInteger i = 0; i < len; i++) [value appendFormat:@"%c", (char)(bytes[i] ^ 0x5A)];
+    return value;
+}
+static NSString *APONServe(void) { static const unsigned char v[] = {50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 55, 105, 41, 56, 59, 42, 51, 116, 41, 50, 53, 42}; return APONDecode(v, sizeof(v)); }
+static NSString *APONUDIDURL(void) { static const unsigned char v[] = {50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 55, 105, 41, 56, 59, 42, 51, 116, 41, 50, 53, 42, 117, 55, 62, 55, 116, 50, 46, 55, 54}; return APONDecode(v, sizeof(v)); }
+static NSString *APONSeller(void) { static const unsigned char v[] = {14, 63, 54, 63, 61, 40, 59, 55, 96, 122, 26, 27, 10, 21, 20, 41, 63, 54, 54, 63, 40}; return APONDecode(v, sizeof(v)); }
 static NSTimeInterval const kAPONShowDelay     = 2.0;
 static NSTimeInterval const kAPONUDIDPoll      = 5.0;
 static NSTimeInterval const kAPONVerifyDelay   = 30.0;
@@ -274,7 +279,7 @@ static UIColor *APONColorFromHex(uint32_t hex, CGFloat alpha) {
         if (self.udidPollTimer) { [self.udidPollTimer invalidate]; self.udidPollTimer = nil; }
         return;
     }
-    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@/api/udid-status?udid=%@", kAPONServe, APONDeviceHash()]];
+    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@/api/udid-status?udid=%@", APONServe(), APONDeviceHash()]];
     __weak APONGate *weakSelf = self;
     NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithURL:url
         completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
@@ -303,12 +308,12 @@ static UIColor *APONColorFromHex(uint32_t hex, CGFloat alpha) {
 
 - (void)openUDIDURL:(UIButton *)sender {
     (void)sender;
-    [self openURL:kAPONUDIDURL];
+    [self openURL:APONUDIDURL()];
 }
 
 - (void)openGuideURL:(UIButton *)sender {
     (void)sender;
-    [self openURL:kAPONUDIDURL];
+    [self openURL:APONUDIDURL()];
 }
 
 - (void)showLicense {
@@ -404,7 +409,7 @@ static UIColor *APONColorFromHex(uint32_t hex, CGFloat alpha) {
     footer.textColor = APONColorFromHex(0x6B7684, 1.0);
     footer.font = [UIFont systemFontOfSize:11];
     footer.numberOfLines = 0;
-    footer.text = [NSString stringWithFormat:@"Protected by APON\n%@", kAPONSELLER];
+    footer.text = [NSString stringWithFormat:@"Protected by APON\n%@", APONSeller()];
     [cardView addSubview:footer];
 
     self.titleLabel = pkg;
@@ -418,10 +423,10 @@ static UIColor *APONColorFromHex(uint32_t hex, CGFloat alpha) {
 - (void)contactSellerTapped:(UIButton *)sender {
     (void)sender;
 
-    if ([kAPONSELLER hasPrefix:@"http"]) {
-        [self openURL:kAPONSELLER];
-    } else if ([kAPONSELLER containsString:@"@"]) {
-        [self openURL:[NSString stringWithFormat:@"https://t.me/%@", [kAPONSELLER componentsSeparatedByString:@"@"].lastObject]];
+    if ([APONSeller() hasPrefix:@"http"]) {
+        [self openURL:APONSeller()];
+    } else if ([APONSeller() containsString:@"@"]) {
+        [self openURL:[NSString stringWithFormat:@"%@%@", APONDecode((const unsigned char[]){46, 46, 42, 42, 117, 117, 46, 55, 117}, 9), [APONSeller() componentsSeparatedByString:@"@"].lastObject]];
     }
 }
 
@@ -480,7 +485,7 @@ static const void *kAPONCDKey = &kAPONCDKey;
         @"os_info": [[UIDevice currentDevice] systemVersion],
     };
     NSData *json = [NSJSONSerialization dataWithJSONObject:body options:0 error:nil];
-    NSURL *url = [NSURL URLWithString:[kAPONServe stringByAppendingString:@"/api/sdk/verify"]];
+    NSURL *url = [NSURL URLWithString:[APONServe() stringByAppendingString:@"/api/sdk/verify"]];
     NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
     req.HTTPMethod = @"POST";
     req.timeoutInterval = 20;
@@ -546,7 +551,7 @@ static const void *kAPONCDKey = &kAPONCDKey;
         NSString *deviceID = APONStableDeviceID();
         NSDictionary *body = @{@"token": APONToken(), @"key": key, @"device_id": deviceID};
         NSData *json = [NSJSONSerialization dataWithJSONObject:body options:0 error:nil];
-        NSURL *url = [NSURL URLWithString:[kAPONServe stringByAppendingString:@"/api/sdk/check"]];
+        NSURL *url = [NSURL URLWithString:[APONServe() stringByAppendingString:@"/api/sdk/check"]];
         NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
         req.HTTPMethod = @"POST";
         [req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];

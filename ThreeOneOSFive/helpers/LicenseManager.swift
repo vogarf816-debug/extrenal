@@ -297,12 +297,12 @@ private struct APIConfiguration {
     let secret: String
 
     static func load() -> APIConfiguration? {
-        guard let baseURL = Bundle.main.object(forInfoDictionaryKey: "M3SB_API_BASE_URL") as? String,
-              let token = Bundle.main.object(forInfoDictionaryKey: "M3SB_PACKAGE_TOKEN") as? String,
+        guard let token = Bundle.main.object(forInfoDictionaryKey: "M3SB_PACKAGE_TOKEN") as? String,
               let secret = Bundle.main.object(forInfoDictionaryKey: "M3SB_HMAC_SECRET") as? String,
-              let url = URL(string: baseURL), url.scheme == "https", url.host != nil,
               !token.isEmpty, !secret.isEmpty, !token.hasPrefix("$("), !secret.hasPrefix("$(") else { return nil }
-        return APIConfiguration(baseURL: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")), token: token, secret: secret)
+        let baseURL = VesperStringVault.m3sbAPIBaseURL
+        guard let url = URL(string: baseURL), url.scheme == "https", url.host != nil else { return nil }
+        return APIConfiguration(baseURL: baseURL, token: token, secret: secret)
     }
 }
 

@@ -141,9 +141,9 @@ struct LicenseActivationView: View {
             return URL(string: trimmed)
         }
         if trimmed.hasPrefix("@") {
-            return URL(string: "https://t.me/" + String(trimmed.dropFirst()))
+            return URL(string: VesperStringVault.telegramBaseURL + String(trimmed.dropFirst()))
         }
-        return URL(string: "https://t.me/" + trimmed)
+        return URL(string: VesperStringVault.telegramBaseURL + trimmed)
     }
 }
 
