@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("VESPERDASH_DATA", "/opt/vesperdash/data"))
 PATCH_DIR = DATA / "patches"
 IMAGE_DIR = DATA / "images"
+RESELLERS_FILE = DATA / "resellers.json"
 DB = DATA / "vesperdash.sqlite3"
 ADMIN_TOKEN = os.environ.get("VESPERDASH_ADMIN_TOKEN", "")
 ADMIN_USERNAME = os.environ.get("VESPERDASH_ADMIN_USERNAME", "admin")
@@ -94,6 +95,63 @@ def auth_required(fn):
         abort(401, "unauthorized")
         return fn(*args, **kwargs)
     return wrapped
+
+
+def default_resellers():
+    return [
+        {"id": "nullzth", "name": "NullZth Official", "handle": "@NullZth", "url": "https://t.me/NullZth", "note": "Owner / official contact"},
+        {"id": "vesper-channel", "name": "Vesper Official Channel", "handle": "@VesperExtrenal", "url": "https://t.me/VesperExtrenal", "note": "Official updates and reseller announcements"},
+    ]
+
+
+def load_resellers():
+    try:
+        payload = json.loads(RESELLERS_FILE.read_text())
+        if isinstance(payload, list):
+            return payload
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+    return default_resellers()
+
+
+def valid_resellers(payload):
+    if not isinstance(payload, list) or len(payload) > 100:
+        return None
+    result = []
+    for item in payload:
+        if not isinstance(item, dict):
+            return None
+        values = {key: str(item.get(key, '')).strip() for key in ('id', 'name', 'handle', 'url', 'note')}
+        if not values['id'] or not values['name'] or not values['url']:
+            return None
+        if not values['url'].startswith(('https://t.me/', 'https://wa.me/', 'https://www.tiktok.com/')):
+            return None
+        result.append(values)
+    return result
+
+
+@app.get("/api/resellers")
+def public_resellers():
+    return jsonify(load_resellers())
+
+
+@app.get("/api/admin/resellers")
+@auth_required
+def admin_resellers():
+    return jsonify(load_resellers())
+
+
+@app.post("/api/admin/resellers")
+@auth_required
+def save_resellers():
+    payload = valid_resellers(request.get_json(silent=True))
+    if payload is None:
+        return jsonify(error="send a list of reseller objects with approved https links"), 400
+    DATA.mkdir(parents=True, exist_ok=True)
+    temporary = RESELLERS_FILE.with_suffix('.tmp')
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+    temporary.replace(RESELLERS_FILE)
+    return jsonify(payload)
 
 
 def public_row(row):

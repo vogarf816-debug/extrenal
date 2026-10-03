@@ -80,3 +80,25 @@ enum VesperDashRemoteSync {
         return url
     }
 }
+
+struct OfficialReseller: Codable, Identifiable {
+    let id: String
+    let name: String
+    let handle: String
+    let url: String
+    let note: String
+}
+
+extension VesperDashRemoteSync {
+    static let resellersURL = URL(string: "https://api.vesperdash.com/api/resellers")!
+    static func fetchOfficialResellers() async throws -> [OfficialReseller] {
+        var request = URLRequest(url: resellersURL)
+        request.timeoutInterval = 20
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode([OfficialReseller].self, from: data)
+    }
+}

@@ -1,11 +1,11 @@
 import SwiftUI
 
 enum AppTheme {
-    static let accent = Color(red: 0.00, green: 0.86, blue: 0.96)
-    static let secondaryAccent = Color(red: 1.00, green: 0.62, blue: 0.08)
+    static let accent = Color(red: 1.00, green: 0.20, blue: 0.28)
+    static let secondaryAccent = Color(red: 1.00, green: 0.58, blue: 0.62)
     static let pageBackground = Color(red: 0.012, green: 0.028, blue: 0.040)
     static let consoleBackground = Color(red: 0.004, green: 0.010, blue: 0.016)
-    static let referenceCard = Color(red: 0.035, green: 0.095, blue: 0.125).opacity(0.98)
+    static let referenceCard = Color(red: 0.15, green: 0.025, blue: 0.04).opacity(0.98)
     static let paper = Color(red: 0.86, green: 0.88, blue: 0.92)
     static let ink = Color(red: 0.006, green: 0.010, blue: 0.020)
     static let pageInset: CGFloat = 16

@@ -9,6 +9,9 @@ struct ContentView: View {
     @State private var remoteSyncTask: Task<Void, Never>?
     @State private var fileSafety: [String: Bool] = [:]
     @State private var developerDesign = 0
+    @State private var officialResellers: [OfficialReseller] = []
+    @State private var resellersLoading = false
+    @State private var resellersMessage = "Loading official resellers…"
     @StateObject private var patchStore = PatchProjectStore()
     @State private var patchOperationBusy = false
     @State private var patchMessage = "READY — SELECT A PATCH"
@@ -25,6 +28,8 @@ struct ContentView: View {
             appTab(title: "🧊 HOLOGRAM", icon: "cube.transparent") { hologramTab }
             appTab(title: "✨ SKIN MOD", icon: "sparkles") { skinModTab }
             appTab(title: "📡 FILE STATUS", icon: "doc.badge.gearshape") { fileStatusTab }
+            appTab(title: "DEVELOPER", icon: "person.crop.circle") { developerTab }
+            appTab(title: "OFFICIAL RESELLERS", icon: "checkmark.seal.fill") { officialResellersTab }
         }
         .preferredColorScheme(.dark)
         .tint(AppTheme.accent)
@@ -50,6 +55,7 @@ struct ContentView: View {
         .onAppear {
             syncPatchStates()
             patchStore.syncVesperDash(showCompletionAlert: false, showProgress: true)
+            loadOfficialResellers()
             startRemoteStateChecks()
         }
         .onDisappear {
@@ -65,6 +71,70 @@ struct ContentView: View {
             guard phase == .active, !patchOperationBusy else { return }
             syncPatchStates()
             patchMessage = "READY — SELECT A PATCH"
+        }
+    }
+
+    private var officialResellersTab: some View {
+        VStack(spacing: 16) {
+            gameIntro(title: "OFFICIAL RESELLERS", subtitle: "LIVE LIST FROM VESPERDASH", icon: "checkmark.seal.fill")
+            if resellersLoading {
+                ProgressView().tint(AppTheme.accent).padding(.vertical, 20)
+            }
+            if !resellersMessage.isEmpty && officialResellers.isEmpty {
+                Text(resellersMessage)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.paper.opacity(0.66))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(20)
+                    .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+            ForEach(officialResellers) { reseller in
+                Button {
+                    guard let url = URL(string: reseller.url) else { return }
+                    UIApplication.shared.open(url)
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "person.crop.circle.badge.checkmark")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundStyle(AppTheme.accent)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(reseller.name)
+                                .font(.system(size: 16, weight: .black, design: .rounded))
+                                .foregroundStyle(AppTheme.paper)
+                            Text(reseller.handle)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(AppTheme.secondaryAccent)
+                            if !reseller.note.isEmpty {
+                                Text(reseller.note)
+                                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                                    .foregroundStyle(AppTheme.paper.opacity(0.58))
+                            }
+                        }
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                            .foregroundStyle(AppTheme.accent)
+                    }
+                    .padding(16)
+                    .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.accent.opacity(0.4), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func loadOfficialResellers() {
+        guard !resellersLoading else { return }
+        resellersLoading = true
+        Task { @MainActor in
+            defer { resellersLoading = false }
+            do {
+                officialResellers = try await VesperDashRemoteSync.fetchOfficialResellers()
+                resellersMessage = officialResellers.isEmpty ? "No official resellers are listed yet." : ""
+            } catch {
+                resellersMessage = "Official reseller list is temporarily unavailable."
+            }
         }
     }
 
@@ -107,7 +177,7 @@ struct ContentView: View {
         var body: some View {
             ZStack {
                 LinearGradient(
-                    colors: [Color.purple.opacity(0.96), Color(red: 0.08, green: 0.01, blue: 0.16)],
+                    colors: [Color(red: 0.96, green: 0.10, blue: 0.16).opacity(0.96), Color(red: 0.08, green: 0.005, blue: 0.012)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
@@ -373,7 +443,7 @@ struct ContentView: View {
     private var brandHeader: some View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("VESPER EXTERNAL")
+                Text("NULLZTH")
                     .font(.system(size: 25, weight: .black, design: .rounded))
                     .tracking(3)
                     .foregroundStyle(AppTheme.paper)
@@ -425,10 +495,10 @@ struct ContentView: View {
                     .frame(width: 32, height: 32)
                     .background(AppTheme.secondaryAccent.opacity(0.14), in: Circle())
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("VESPER EXTERNAL CHANNEL")
+                    Text("NULLZTH OFFICIAL CHANNEL")
                         .font(.system(size: 12, weight: .black, design: .rounded))
                         .foregroundStyle(AppTheme.paper)
-                    Text("t.me/VesperExtrenal")
+                    Text("@VesperExtrenal")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.secondaryAccent)
                 }
@@ -578,7 +648,7 @@ struct ContentView: View {
                 .tracking(1.2)
                 .foregroundStyle(.white.opacity(0.72))
             Spacer()
-            Text("VESPER • PRONTO")
+            Text("NULLZTH • READY")
                 .font(.system(size: 9, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.accent.opacity(0.8))
         }
@@ -590,7 +660,7 @@ struct ContentView: View {
 
     private var developerCredits: some View {
         VStack(spacing: 10) {
-            Text("VESPER EXTRENAL")
+            Text("NULLZTH")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.72))
                 .multilineTextAlignment(.center)
@@ -600,7 +670,7 @@ struct ContentView: View {
                 .foregroundStyle(AppTheme.secondaryAccent.opacity(0.85))
 
             HStack(spacing: 10) {
-                channelButton(title: "YAGAMI iOS", url: "https://t.me/+5HHaZurHPA9hOWM8")
+                channelButton(title: "NullZth CHANNEL", url: "https://t.me/+5HHaZurHPA9hOWM8")
             }
         }
         .frame(maxWidth: .infinity)
@@ -618,15 +688,15 @@ struct ContentView: View {
                     .clipShape(Circle())
                     .overlay(Circle().stroke(developerAccent.opacity(0.7), lineWidth: 2))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("DEVELOPER INFO")
+                    Text("NULLZTH DEVELOPER INFO")
                         .font(.system(size: 11, weight: .black, design: .rounded))
                         .foregroundStyle(developerAccent)
-                    Text("YAGAMIxIOS")
+                    Text("NullZth")
                         .font(.system(size: 20, weight: .black, design: .rounded))
                         .foregroundStyle(AppTheme.paper)
                 }
             }
-            Label("DEVELOPER INFO • DESIGN \(developerDesign + 1)", systemImage: developerIcon)
+            Label("NULLZTH DEVELOPER INFO • DESIGN \(developerDesign + 1)", systemImage: developerIcon)
                 .font(.system(size: 12, weight: .black, design: .rounded))
                 .tracking(1.4)
                 .foregroundStyle(AppTheme.accent)
@@ -672,11 +742,11 @@ struct ContentView: View {
                     .foregroundStyle(developerAccent)
                     .font(.system(size: 22, weight: .bold))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("EXTRENAL CHANNEL")
+                    Text("VESPER OFFICIAL CHANNEL")
                         .font(.system(size: 11, weight: .black, design: .rounded))
                         .tracking(1.2)
                         .foregroundStyle(AppTheme.paper)
-                    Text("@VesperExtrenal")
+                    Text("@Vesper Official Channel")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.paper.opacity(0.62))
                 }
@@ -694,7 +764,7 @@ struct ContentView: View {
 
     private var feedbackCard: some View {
         Button {
-            guard let url = URL(string: "https://t.me/YAGAMIxIOS") else { return }
+            guard let url = URL(string: "https://t.me/NullZth") else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 14) {
@@ -706,7 +776,7 @@ struct ContentView: View {
                         .font(.system(size: 11, weight: .black, design: .rounded))
                         .tracking(1.2)
                         .foregroundStyle(AppTheme.paper)
-                    Text("Send feedback to @YAGAMIxIOS")
+                    Text("Send feedback to @NullZth")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.paper.opacity(0.62))
                 }
@@ -740,7 +810,7 @@ struct ContentView: View {
 
     private var telegramCard: some View {
         Button {
-            guard let url = URL(string: "https://t.me/YAGAMIxIOS") else { return }
+            guard let url = URL(string: "https://t.me/NullZth") else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 14) {
@@ -754,7 +824,7 @@ struct ContentView: View {
                         .font(.system(size: 11, weight: .black, design: .rounded))
                         .tracking(1.2)
                         .foregroundStyle(AppTheme.secondaryAccent)
-                    Text("@YAGAMIxIOS")
+                    Text("@NullZth")
                         .font(.system(size: 17, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.paper)
                 }
@@ -768,7 +838,7 @@ struct ContentView: View {
             .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.accent.opacity(0.55), lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open Telegram YAGAMIxIOS")
+        .accessibilityLabel("Open Telegram NullZth")
     }
 
     private func channelButton(title: String, url: String) -> some View {
