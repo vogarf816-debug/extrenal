@@ -97,6 +97,19 @@ enum VesperDashRemoteSync {
 
 
 struct VesperAppSettings: Decodable {
+    private enum CodingKeys: String, CodingKey {
+        case appName = "app_name"
+        case developerName = "developer_name"
+        case developerSubtitle = "developer_subtitle"
+        case channelName = "channel_name"
+        case channelHandle = "channel_handle"
+        case channelURL = "channel_url"
+        case ownerName = "owner_name"
+        case ownerHandle = "owner_handle"
+        case ownerURL = "owner_url"
+        case footerText = "footer_text"
+    }
+
     let appName: String
     let developerName: String
     let developerSubtitle: String
