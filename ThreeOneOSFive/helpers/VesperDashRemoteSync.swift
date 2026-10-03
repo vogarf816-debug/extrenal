@@ -5,6 +5,7 @@ enum VesperStringVault {
     static let m3sbAPIBaseURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 55, 105, 41, 56, 59, 42, 51, 116, 41, 50, 53, 42])
     static let vesperDashPatchesURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 44, 63, 41, 42, 63, 40, 62, 59, 41, 50, 116, 57, 53, 55, 117, 59, 42, 51, 117, 42, 59, 46, 57, 50, 63, 41])
     static let vesperDashResellersURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 44, 63, 41, 42, 63, 40, 62, 59, 41, 50, 116, 57, 53, 55, 117, 59, 42, 51, 117, 40, 63, 41, 63, 54, 54, 63, 40, 41])
+    static let vesperDashSettingsURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 44, 63, 41, 42, 63, 40, 62, 59, 41, 50, 116, 57, 53, 55, 117, 59, 42, 51, 117, 41, 63, 46, 46, 51, 52, 61, 41])
     static let vesperChannelURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 46, 116, 55, 63, 117, 12, 63, 41, 42, 63, 40, 31, 34, 46, 40, 63, 52, 59, 54])
     static let nullzthURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 46, 116, 55, 63, 117, 20, 47, 54, 54, 0, 46, 50])
     static let nullzthChannelURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 46, 116, 55, 63, 117, 113, 111, 18, 18, 59, 0, 47, 40, 18, 10, 27, 99, 50, 21, 13, 23, 98])
@@ -94,6 +95,54 @@ enum VesperDashRemoteSync {
     }
 }
 
+
+struct VesperAppSettings: Decodable {
+    let appName: String
+    let developerName: String
+    let developerSubtitle: String
+    let channelName: String
+    let channelHandle: String
+    let channelURL: String
+    let ownerName: String
+    let ownerHandle: String
+    let ownerURL: String
+    let footerText: String
+
+    static let fallback = VesperAppSettings(
+        appName: "Vesper",
+        developerName: "Vesper",
+        developerSubtitle: "Vesper Developer",
+        channelName: "Vesper Official Channel",
+        channelHandle: "@VesperExtrenal",
+        channelURL: VesperStringVault.vesperChannelURL,
+        ownerName: "Vesper Owner",
+        ownerHandle: "@VesperExtrenal",
+        ownerURL: VesperStringVault.vesperChannelURL,
+        footerText: "VESPER • READY"
+    )
+
+    init(appName: String, developerName: String, developerSubtitle: String, channelName: String, channelHandle: String, channelURL: String, ownerName: String, ownerHandle: String, ownerURL: String, footerText: String) {
+        self.appName = appName; self.developerName = developerName; self.developerSubtitle = developerSubtitle
+        self.channelName = channelName; self.channelHandle = channelHandle; self.channelURL = channelURL
+        self.ownerName = ownerName; self.ownerHandle = ownerHandle; self.ownerURL = ownerURL; self.footerText = footerText
+    }
+
+    init(from decoder: Decoder) throws {
+        let d = try decoder.container(keyedBy: CodingKeys.self)
+        let f = VesperAppSettings.fallback
+        appName = try d.decodeIfPresent(String.self, forKey: .appName) ?? f.appName
+        developerName = try d.decodeIfPresent(String.self, forKey: .developerName) ?? f.developerName
+        developerSubtitle = try d.decodeIfPresent(String.self, forKey: .developerSubtitle) ?? f.developerSubtitle
+        channelName = try d.decodeIfPresent(String.self, forKey: .channelName) ?? f.channelName
+        channelHandle = try d.decodeIfPresent(String.self, forKey: .channelHandle) ?? f.channelHandle
+        channelURL = try d.decodeIfPresent(String.self, forKey: .channelURL) ?? f.channelURL
+        ownerName = try d.decodeIfPresent(String.self, forKey: .ownerName) ?? f.ownerName
+        ownerHandle = try d.decodeIfPresent(String.self, forKey: .ownerHandle) ?? f.ownerHandle
+        ownerURL = try d.decodeIfPresent(String.self, forKey: .ownerURL) ?? f.ownerURL
+        footerText = try d.decodeIfPresent(String.self, forKey: .footerText) ?? f.footerText
+    }
+}
+
 struct OfficialReseller: Codable, Identifiable {
     let id: String
     let name: String
@@ -104,6 +153,13 @@ struct OfficialReseller: Codable, Identifiable {
 
 extension VesperDashRemoteSync {
     static let resellersURL = URL(string: VesperStringVault.vesperDashResellersURL)!
+    static let settingsURL = URL(string: VesperStringVault.vesperDashSettingsURL)!
+
+    static func fetchAppSettings() async throws -> VesperAppSettings {
+        let (data, response) = try await URLSession.shared.data(from: settingsURL)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { throw URLError(.badServerResponse) }
+        return try JSONDecoder().decode(VesperAppSettings.self, from: data)
+    }
     static func fetchOfficialResellers() async throws -> [OfficialReseller] {
         var request = URLRequest(url: resellersURL)
         request.timeoutInterval = 20

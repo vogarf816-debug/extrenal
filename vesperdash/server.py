@@ -16,6 +16,7 @@ DATA = Path(os.environ.get("VESPERDASH_DATA", "/opt/vesperdash/data"))
 PATCH_DIR = DATA / "patches"
 IMAGE_DIR = DATA / "images"
 RESELLERS_FILE = DATA / "resellers.json"
+SETTINGS_FILE = DATA / "app_settings.json"
 DB = DATA / "vesperdash.sqlite3"
 ADMIN_TOKEN = os.environ.get("VESPERDASH_ADMIN_TOKEN", "")
 ADMIN_USERNAME = os.environ.get("VESPERDASH_ADMIN_USERNAME", "admin")
@@ -95,6 +96,67 @@ def auth_required(fn):
         abort(401, "unauthorized")
         return fn(*args, **kwargs)
     return wrapped
+
+
+def default_settings():
+    return {
+        "app_name": "Vesper",
+        "developer_name": "Vesper",
+        "developer_subtitle": "Vesper Developer",
+        "channel_name": "Vesper Official Channel",
+        "channel_handle": "@VesperExtrenal",
+        "channel_url": "https://t.me/VesperExtrenal",
+        "owner_name": "Vesper Owner",
+        "owner_handle": "@VesperExtrenal",
+        "owner_url": "https://t.me/VesperExtrenal",
+        "footer_text": "VESPER • READY"
+    }
+
+
+def load_settings():
+    try:
+        payload = json.loads(SETTINGS_FILE.read_text())
+        if isinstance(payload, dict):
+            result = default_settings(); result.update(payload); return result
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+    return default_settings()
+
+
+def valid_settings(payload):
+    if not isinstance(payload, dict): return None
+    result = default_settings()
+    for key in result:
+        if key in payload:
+            value = str(payload[key]).strip()
+            if len(value) > 180: return None
+            result[key] = value
+    for key in ("channel_url", "owner_url"):
+        if not result[key].startswith(("https://t.me/", "https://wa.me/", "https://www.tiktok.com/")): return None
+    return result
+
+
+@app.get("/api/settings")
+def public_settings():
+    return jsonify(load_settings())
+
+
+@app.get("/api/admin/settings")
+@auth_required
+def admin_settings():
+    return jsonify(load_settings())
+
+
+@app.post("/api/admin/settings")
+@auth_required
+def save_settings():
+    payload = valid_settings(request.get_json(silent=True))
+    if payload is None: return jsonify(error="invalid settings or link"), 400
+    DATA.mkdir(parents=True, exist_ok=True)
+    temporary = SETTINGS_FILE.with_suffix('.tmp')
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+    temporary.replace(SETTINGS_FILE)
+    return jsonify(payload)
 
 
 def default_resellers():

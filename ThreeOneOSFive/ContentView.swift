@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var fileSafety: [String: Bool] = [:]
     @State private var developerDesign = 0
     @State private var officialResellers: [OfficialReseller] = []
+    @State private var appSettings = VesperAppSettings.fallback
     @State private var resellersLoading = false
     @State private var resellersMessage = "Loading official resellers…"
     @StateObject private var patchStore = PatchProjectStore()
@@ -56,6 +57,7 @@ struct ContentView: View {
             syncPatchStates()
             patchStore.syncVesperDash(showCompletionAlert: false, showProgress: true)
             loadOfficialResellers()
+            loadAppSettings()
             startRemoteStateChecks()
         }
         .onDisappear {
@@ -121,6 +123,12 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
             }
+        }
+    }
+
+    private func loadAppSettings() {
+        Task { @MainActor in
+            if let remote = try? await VesperDashRemoteSync.fetchAppSettings() { appSettings = remote }
         }
     }
 
@@ -443,7 +451,7 @@ struct ContentView: View {
     private var brandHeader: some View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("NULLZTH")
+                Text(appSettings.appName.uppercased())
                     .font(.system(size: 25, weight: .black, design: .rounded))
                     .tracking(3)
                     .foregroundStyle(AppTheme.paper)
@@ -486,7 +494,7 @@ struct ContentView: View {
 
     private var externalChannelCard: some View {
         Button {
-            guard let url = URL(string: VesperStringVault.vesperChannelURL) else { return }
+            guard let url = URL(string: appSettings.channelURL) else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 12) {
@@ -495,10 +503,10 @@ struct ContentView: View {
                     .frame(width: 32, height: 32)
                     .background(AppTheme.secondaryAccent.opacity(0.14), in: Circle())
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("NULLZTH OFFICIAL CHANNEL")
+                    Text(appSettings.channelName)
                         .font(.system(size: 12, weight: .black, design: .rounded))
                         .foregroundStyle(AppTheme.paper)
-                    Text("@VesperExtrenal")
+                    Text(appSettings.channelHandle)
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.secondaryAccent)
                 }
@@ -648,7 +656,7 @@ struct ContentView: View {
                 .tracking(1.2)
                 .foregroundStyle(.white.opacity(0.72))
             Spacer()
-            Text("NULLZTH • READY")
+            Text(appSettings.footerText)
                 .font(.system(size: 9, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.accent.opacity(0.8))
         }
@@ -660,17 +668,17 @@ struct ContentView: View {
 
     private var developerCredits: some View {
         VStack(spacing: 10) {
-            Text("NULLZTH")
+            Text("VESPER")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.72))
                 .multilineTextAlignment(.center)
 
-            Text("Our Telegram channels")
+            Text("Official channels")
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(AppTheme.secondaryAccent.opacity(0.85))
 
             HStack(spacing: 10) {
-                channelButton(title: "NullZth CHANNEL", url: VesperStringVault.nullzthChannelURL)
+                channelButton(title: "Vesper CHANNEL", url: VesperStringVault.nullzthChannelURL)
             }
         }
         .frame(maxWidth: .infinity)
@@ -681,22 +689,22 @@ struct ContentView: View {
     private var developerCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                Image("VesperBanner")
+                Image("VesperDeveloperPhoto")
                     .resizable()
                     .scaledToFill()
                     .frame(width: 58, height: 58)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(developerAccent.opacity(0.7), lineWidth: 2))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("NULLZTH DEVELOPER INFO")
+                    Text("VESPER DEVELOPER INFO")
                         .font(.system(size: 11, weight: .black, design: .rounded))
                         .foregroundStyle(developerAccent)
-                    Text("NullZth")
+                    Text(appSettings.developerName)
                         .font(.system(size: 20, weight: .black, design: .rounded))
                         .foregroundStyle(AppTheme.paper)
                 }
             }
-            Label("NULLZTH DEVELOPER INFO • DESIGN \(developerDesign + 1)", systemImage: developerIcon)
+            Label("VESPER DEVELOPER INFO • DESIGN \(developerDesign + 1)", systemImage: developerIcon)
                 .font(.system(size: 12, weight: .black, design: .rounded))
                 .tracking(1.4)
                 .foregroundStyle(AppTheme.accent)
@@ -734,7 +742,7 @@ struct ContentView: View {
 
     private var extrenalChannelCard: some View {
         Button {
-            guard let url = URL(string: VesperStringVault.vesperChannelURL) else { return }
+            guard let url = URL(string: appSettings.channelURL) else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 14) {
@@ -742,7 +750,7 @@ struct ContentView: View {
                     .foregroundStyle(developerAccent)
                     .font(.system(size: 22, weight: .bold))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("VESPER OFFICIAL CHANNEL")
+                    Text(appSettings.channelName)
                         .font(.system(size: 11, weight: .black, design: .rounded))
                         .tracking(1.2)
                         .foregroundStyle(AppTheme.paper)
@@ -764,7 +772,7 @@ struct ContentView: View {
 
     private var feedbackCard: some View {
         Button {
-            guard let url = URL(string: VesperStringVault.nullzthURL) else { return }
+            guard let url = URL(string: appSettings.ownerURL) else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 14) {
@@ -776,7 +784,7 @@ struct ContentView: View {
                         .font(.system(size: 11, weight: .black, design: .rounded))
                         .tracking(1.2)
                         .foregroundStyle(AppTheme.paper)
-                    Text("Send feedback to @NullZth")
+                    Text("Send feedback to @Vesper")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.paper.opacity(0.62))
                 }
@@ -810,7 +818,7 @@ struct ContentView: View {
 
     private var telegramCard: some View {
         Button {
-            guard let url = URL(string: VesperStringVault.nullzthURL) else { return }
+            guard let url = URL(string: appSettings.ownerURL) else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 14) {
@@ -824,7 +832,7 @@ struct ContentView: View {
                         .font(.system(size: 11, weight: .black, design: .rounded))
                         .tracking(1.2)
                         .foregroundStyle(AppTheme.secondaryAccent)
-                    Text("@NullZth")
+                    Text("@Vesper")
                         .font(.system(size: 17, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.paper)
                 }
@@ -838,7 +846,7 @@ struct ContentView: View {
             .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.accent.opacity(0.55), lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open Telegram NullZth")
+        .accessibilityLabel("Open Telegram Vesper")
     }
 
     private func channelButton(title: String, url: String) -> some View {
