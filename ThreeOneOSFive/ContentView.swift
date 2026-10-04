@@ -1183,7 +1183,20 @@ private struct PatchOptionCard: View {
             }
 
             Spacer(minLength: 8)
-
+            if isEnabled {
+                Button(action: restoreAction) {
+                    Text("CLEAN")
+                        .font(.system(size: 9, weight: .black, design: .rounded))
+                        .tracking(0.8)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(color, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(isBusy)
+                .accessibilityLabel("Clean and restore package for \(name)")
+            }
             Text(isEnabled ? "ON" : "OFF")
                 .font(.system(size: 10, weight: .black, design: .rounded))
                 .foregroundStyle(isEnabled ? AppTheme.secondaryAccent : .white.opacity(0.5))
@@ -1197,20 +1210,6 @@ private struct PatchOptionCard: View {
             .tint(color)
             .scaleEffect(1.05)
             .disabled(isBusy)
-        }
-        VStack(alignment: .leading, spacing: 0) {
-            Divider().overlay(color.opacity(0.18))
-            Button(action: restoreAction) {
-                Label("RESTORE PACKAGE", systemImage: "arrow.uturn.backward.circle.fill")
-                    .font(.system(size: 10, weight: .black, design: .rounded))
-                    .tracking(0.7)
-                    .foregroundStyle(!isBusy ? color : .white.opacity(0.3))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 10)
-            }
-            .buttonStyle(.plain)
-            .disabled(isBusy)
-            .accessibilityLabel("Restore package for \(name)")
         }
         }
         .frame(maxWidth: .infinity, minHeight: 58)
