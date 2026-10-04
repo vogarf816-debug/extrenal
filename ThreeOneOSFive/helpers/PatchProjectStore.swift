@@ -279,10 +279,14 @@ final class PatchProjectStore: ObservableObject {
               VesperDashDigest.hex(data).caseInsensitiveCompare(remote.sha256) == .orderedSame else {
             throw PatchPackageError.remoteImportFailed
         }
-        let decoded = try PatchPackageCodec.decode(data, password: VesperStringVault.remotePackagePassword)
-        guard decoded.project.allBundleIdentifiers.contains(remote.bundle_id) else {
-            throw PatchPackageError.invalidBundleIdentifier
+        var decoded: DecodedPatchPackage?
+        for password in VesperStringVault.remotePackagePasswords {
+            if let candidate = try? PatchPackageCodec.decode(data, password: password) {
+                decoded = candidate
+                break
+            }
         }
+        guard let decoded else { throw PatchPackageError.invalidPasswordOrCorruptedPackage }
         return try await Task.detached(priority: .userInitiated) {
             try DevicePatchService.apply(project: decoded.project)
         }.value

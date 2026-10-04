@@ -13,7 +13,10 @@ enum VesperStringVault {
     static let telegramBaseURL = decode([46, 46, 42, 42, 117, 117, 46, 55, 117])
     // Remote packages are decoded only after download; keep the protocol
     // compatibility value out of plaintext strings in the client source.
-    static let remotePackagePassword = decode([2, 8, 31])
+    static let remotePackagePasswords = [
+        decode([2, 8, 31]), // XRE
+        decode([9, 17, 27, 23]) // SKAM
+    ]
 }
 import Foundation
 
