@@ -369,9 +369,9 @@
 "patch.project_name" = "Project name";
 "patch.replacement_file" = "Replacement File";
 "patch.replacement_required" = "Replacement file required";
-"patch.restore" = "Restore Originals";
-"patch.restore_confirm_title" = "Restore original files?";
-"patch.restored_message" = "The original files were restored.";
+"patch.restore" = "Restore Package";
+"patch.restore_confirm_title" = "Restore this package?";
+"patch.restored_message" = "The package was restored and original files were recovered.";
 "patch.rules" = "Rules";
 "patch.rules_count" = "%lld replacement rules";
 "patch.search" = "Search patches";

@@ -579,6 +579,12 @@ struct ContentView: View {
                 state: state,
                 targetBundleID: targetBundleID
             )
+        } restoreAction: {
+            restorePackage(
+                packageFilename: package,
+                displayName: name,
+                targetBundleID: targetBundleID
+            )
         }
     }
 
@@ -1081,6 +1087,50 @@ struct ContentView: View {
         }
     }
 
+    private func restorePackage(
+        packageFilename: String,
+        displayName: String,
+        targetBundleID: String
+    ) {
+        guard !patchOperationBusy else { return }
+        patchStore.refreshBundledPackages()
+        guard let item = patchItem(for: packageFilename, targetBundleID: targetBundleID) else {
+            patchMessage = "RESTORE FAILED — PACKAGE NOT FOUND"
+            return
+        }
+        guard let receipt = DevicePatchService.latestReceipt(
+            projectID: item.id,
+            targetBundleID: targetBundleID
+        ) else {
+            patchMessage = "NOTHING TO RESTORE — NO ACTIVE PACKAGE"
+            setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
+            return
+        }
+
+        patchOperationBusy = true
+        patchMessage = "RESTORING PACKAGE — \(displayName)"
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result: Result<Void, Error>
+            do {
+                try DevicePatchService.restore(receipt: receipt)
+                result = .success(())
+            } catch {
+                result = .failure(error)
+            }
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
+                    self.patchMessage = "PACKAGE RESTORED — \(displayName)"
+                    PatchAudioFeedback.originalRestored()
+                case .failure(let error):
+                    self.patchMessage = "RESTORE FAILED — \(error.localizedDescription)"
+                }
+                self.patchOperationBusy = false
+            }
+        }
+    }
+
     private func openGame(scheme: String) {
         guard let url = URL(string: "\(scheme)://") else { return }
         UIApplication.shared.open(url, options: [:]) { success in
@@ -1097,9 +1147,11 @@ private struct PatchOptionCard: View {
     @Binding var isEnabled: Bool
     let isBusy: Bool
     let action: () -> Void
+    let restoreAction: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 14) {
             if let imageURL {
                 AsyncImage(url: imageURL) { phase in
                     if let image = phase.image {
@@ -1145,6 +1197,21 @@ private struct PatchOptionCard: View {
             .tint(color)
             .scaleEffect(1.05)
             .disabled(isBusy)
+        }
+        VStack(alignment: .leading, spacing: 0) {
+            Divider().overlay(color.opacity(0.18))
+            Button(action: restoreAction) {
+                Label("RESTORE PACKAGE", systemImage: "arrow.uturn.backward.circle.fill")
+                    .font(.system(size: 10, weight: .black, design: .rounded))
+                    .tracking(0.7)
+                    .foregroundStyle(!isBusy ? color : .white.opacity(0.3))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 10)
+            }
+            .buttonStyle(.plain)
+            .disabled(isBusy)
+            .accessibilityLabel("Restore package for \(name)")
+        }
         }
         .frame(maxWidth: .infinity, minHeight: 58)
         .padding(.horizontal, 14)
