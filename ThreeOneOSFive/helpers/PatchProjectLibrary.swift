@@ -50,88 +50,18 @@ enum PatchProjectLibrary {
         return root
     }
 
-    static func installBundledPackagesIfNeeded(
-        bundle: Bundle = .main,
+    static func removeBundledPackagesIfNeeded(
         fileManager: FileManager = .default
     ) {
-        guard let root = try? packageRootURL(fileManager: fileManager) else {
-            return
-        }
-
-        // Migrate packages created by older builds so they remain available
-        // under the current clean naming scheme.
-        if let existingURLs = try? fileManager.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
-        ) {
-            for oldURL in existingURLs where oldURL.pathExtension.lowercased() == "3105" {
-                let oldName = oldURL.deletingPathExtension().lastPathComponent
-                guard oldName.hasPrefix("xTop1 External File ("),
-                      oldName.hasSuffix(")") else { continue }
-                let packageName = String(oldName.dropFirst("xTop1 External File (".count).dropLast())
-                let newURL = root.appendingPathComponent(bundledFilenamePrefix + packageName).appendingPathExtension("3105")
-                if !fileManager.fileExists(atPath: newURL.path) {
-                    try? fileManager.moveItem(at: oldURL, to: newURL)
-                }
-            }
-        }
-
-        // Xcode may flatten folder references into the app bundle. Resolve both
-        // the intended Patches subdirectory and the flattened bundle root so
-        // standalone builds remain self-contained across packaging layouts.
-        let nestedURLs = bundle.urls(forResourcesWithExtension: "3105", subdirectory: "Patches") ?? []
-        let skinURLs = bundle.urls(forResourcesWithExtension: "3105", subdirectory: "Patches/Skins") ?? []
-        let flattenedURLs = bundle.urls(forResourcesWithExtension: "3105", subdirectory: nil) ?? []
-        var recursiveURLs: [URL] = []
-        if let patchesURL = bundle.url(forResource: "Patches", withExtension: nil) {
-            recursiveURLs = (fileManager.enumerator(
-                at: patchesURL,
-                includingPropertiesForKeys: [.isRegularFileKey]
-            )?.allObjects as? [URL] ?? []).filter {
-                $0.pathExtension.caseInsensitiveCompare("3105") == .orderedSame
-            }
-        }
-        let allBundleURLs = bundle.paths(forResourcesOfType: "3105", inDirectory: nil)
-            .map(URL.init(fileURLWithPath:))
-        // Keep the six active resources explicit. Xcode can flatten folder
-        // resources or omit directory enumeration in some build modes, while
-        // direct lookup remains stable for both FF Normal and FF Max.
-        let activePatchFilenames = [
-            "DRAG.3105", "MAGIC.3105", "OBB.3105",
-            "DRAGM.3105", "MAGICM.3105", "OBBM.3105",
-            "WEAPONS.3105", "WEAPONSM.3105"
-        ]
-        let explicitURLs = activePatchFilenames.compactMap { filename in
-            let resourceName = (filename as NSString).deletingPathExtension
-            return bundle.url(
-                forResource: resourceName,
-                withExtension: "3105",
-                subdirectory: "Patches"
-            ) ?? bundle.url(forResource: resourceName, withExtension: "3105")
-        }
-        var seen = Set<String>()
-        let bundledURLs = (explicitURLs + nestedURLs + skinURLs + flattenedURLs + recursiveURLs + allBundleURLs)
-            .filter { seen.insert($0.standardizedFileURL.path).inserted }
-
-        for sourceURL in bundledURLs {
-            // Mark files copied from the signed app bundle so only these internal
-            // resources use the built-in unlock key. Imported packages keep asking
-            // the user for their own password.
-            let bundledName = bundledFilenamePrefix + sourceURL.lastPathComponent
-            let destinationURL = root.appendingPathComponent(bundledName)
-            do {
-                let data = try Data(contentsOf: sourceURL, options: .mappedIfSafe)
-                _ = try PatchPackageCodec.inspect(data)
-                if fileManager.fileExists(atPath: destinationURL.path),
-                   let existing = try? Data(contentsOf: destinationURL, options: .mappedIfSafe),
-                   existing == data {
-                    continue
-                }
-                try data.write(to: destinationURL, options: [.atomic, .completeFileProtection])
-            } catch {
-                log("patch: skipped bundled package \(sourceURL.lastPathComponent): \(error)")
-            }
+        guard let root = try? packageRootURL(fileManager: fileManager),
+              let urls = try? fileManager.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+              ) else { return }
+        for url in urls where url.pathExtension.lowercased() == "3105" &&
+            url.deletingPathExtension().lastPathComponent.hasPrefix(bundledFilenamePrefix) {
+            try? fileManager.removeItem(at: url)
         }
     }
 
@@ -156,37 +86,17 @@ enum PatchProjectLibrary {
                    let known = try? PatchPackageCodec.decode(data, contentKey: contentKey) {
                     decoded = known
                 } else if summary.isPasswordProtected {
-                    // Only the app's renamed bundled resources use the internal
-                    // key; imported packages remain locked for the user.
-                    guard url.deletingPathExtension().lastPathComponent.hasPrefix(bundledFilenamePrefix) else {
-                        decoded = nil
-                        // Keep imported locked packages in the catalog so the UI can
-                        // show them and route the user to the unlock flow.
-                        // Dropping them here made Inject report "PACKAGE NOT FOUND"
-                        // even though the .3105 file was present on disk.
-                        let item = PatchLibraryItem(
-                            summary: summary,
-                            project: nil,
-                            contentKey: nil,
-                            packageURL: url
-                        )
-                        byPackagePath[url.standardizedFileURL.path] = item
-                        continue
-                    }
-                    do {
-                        var bundled: DecodedPatchPackage?
-                        for password in PatchPackageCodec.bundledResourcePasswords {
-                            if let decoded = try? PatchPackageCodec.decode(data, password: password) {
-                                bundled = decoded
-                                break
-                            }
-                        }
-                        guard let bundled else { throw PatchPackageError.invalidPasswordOrCorruptedPackage }
-                        try PatchKeyStore.store(bundled.contentKey, for: summary)
-                        decoded = bundled
-                    } catch {
-                        decoded = nil
-                    }
+                    // Password-protected packages stay locked until the user
+                    // supplies the password. No built-in password exists.
+                    decoded = nil
+                    let item = PatchLibraryItem(
+                        summary: summary,
+                        project: nil,
+                        contentKey: nil,
+                        packageURL: url
+                    )
+                    byPackagePath[url.standardizedFileURL.path] = item
+                    continue
                 } else {
                     decoded = try PatchPackageCodec.decode(data, password: nil)
                 }

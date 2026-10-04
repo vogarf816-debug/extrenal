@@ -29,6 +29,9 @@ enum DevicePatchService {
                     return root
                 }
             )
+            // Remote-only packages must not leave original backups or journals
+            // behind after a successful CLEAN/restore.
+            try? PatchTransaction.discardBackup(for: receipt)
         }
     }
 

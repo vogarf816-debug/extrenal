@@ -295,6 +295,25 @@ enum PatchTransaction {
         }
     }
 
+    static func discardBackup(
+        for receipt: PatchTransactionReceipt,
+        fileManager: FileManager = .default
+    ) throws {
+        let journal = try readJournal(receipt.journalURL)
+        guard journal.transactionID == receipt.id,
+              journal.projectID == receipt.projectID,
+              journal.status == .restored else {
+            throw PatchPackageError.restoreFailed
+        }
+        let transactionDirectory = receipt.journalURL.deletingLastPathComponent().standardizedFileURL
+        guard transactionDirectory.lastPathComponent == receipt.id.uuidString,
+              transactionDirectory.deletingLastPathComponent().lastPathComponent == receipt.projectID.uuidString,
+              transactionDirectory.path != "/" else {
+            throw PatchPackageError.restoreFailed
+        }
+        try fileManager.removeItem(at: transactionDirectory)
+    }
+
     static func latestReceipt(
         projectID: UUID,
         backupRoot: URL,

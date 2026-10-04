@@ -11,6 +11,9 @@ enum VesperStringVault {
     static let nullzthChannelURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 46, 116, 55, 63, 117, 113, 111, 18, 18, 59, 0, 47, 40, 18, 10, 27, 99, 50, 21, 13, 23, 98])
     static let tiktokURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 45, 45, 45, 116, 46, 51, 49, 46, 53, 49, 116, 57, 53, 55, 117, 26, 63, 54, 5, 48, 63, 60, 40, 35, 5, 5, 5, 101, 5, 40, 103, 107, 124, 5, 46, 103, 0, 14, 119, 99, 99, 49, 109, 43, 25, 35, 42, 31, 51, 108, 45])
     static let telegramBaseURL = decode([46, 46, 42, 42, 117, 117, 46, 55, 117])
+    // Remote packages are decoded only after download; keep the protocol
+    // compatibility value out of plaintext strings in the client source.
+    static let remotePackagePassword = decode([2, 8, 31])
 }
 import Foundation
 
