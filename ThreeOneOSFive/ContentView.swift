@@ -549,7 +549,8 @@ struct ContentView: View {
                             color: index.isMultiple(of: 2) ? AppTheme.accent : AppTheme.secondaryAccent,
                             imageURL: VesperDashRemoteSync.validImageURL(for: remote),
                             state: patchBinding(for: package, targetBundleID: targetBundleID),
-                            targetBundleID: targetBundleID
+                            targetBundleID: targetBundleID,
+                            autoRestoreAfter: category == "aim"
                         )
                     }
                 }
@@ -570,14 +571,16 @@ struct ContentView: View {
         color: Color,
         imageURL: URL? = nil,
         state: Binding<Bool>,
-        targetBundleID: String
+        targetBundleID: String,
+        autoRestoreAfter: Bool
     ) -> some View {
         PatchOptionCard(name: name, target: target, color: color, imageURL: imageURL, isEnabled: state, isBusy: patchOperationBusy) {
             togglePatch(
                 packageFilename: package,
                 displayName: name,
                 state: state,
-                targetBundleID: targetBundleID
+                targetBundleID: targetBundleID,
+                autoRestoreAfter: autoRestoreAfter
             )
         } restoreAction: {
             restorePackage(
@@ -1007,7 +1010,8 @@ struct ContentView: View {
         packageFilename: String,
         displayName: String,
         state: Binding<Bool>,
-        targetBundleID: String = "com.dts.freefireth"
+        targetBundleID: String = "com.dts.freefireth",
+        autoRestoreAfter: Bool = false
     ) {
         guard !patchOperationBusy else { return }
         patchStore.refreshBundledPackages()
@@ -1073,8 +1077,20 @@ struct ContentView: View {
                 switch result {
                 case .applied:
                     self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: true)
-                    self.patchMessage = "Inject Successful — \(displayName)"
+                    self.patchMessage = autoRestoreAfter
+                        ? "AIM ACTIVE — AUTO CLEAN IN 15 SECONDS"
+                        : "Inject Successful — \(displayName)"
                     PatchAudioFeedback.bypassActivated()
+                    if autoRestoreAfter {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+                            guard self.patchEnabled[self.patchStateKey(packageFilename, targetBundleID: targetBundleID), default: false] else { return }
+                            self.restorePackage(
+                                packageFilename: packageFilename,
+                                displayName: displayName,
+                                targetBundleID: targetBundleID
+                            )
+                        }
+                    }
                 case .restored:
                     self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
                     self.patchMessage = "Restore Successful — \(displayName)"
