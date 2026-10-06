@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var patchMessage = "READY — SELECT A PATCH"
     @State private var remoteReceipts: [String: PatchTransactionReceipt] = [:]
     @State private var patchEnabled: [String: Bool] = [:]
+    @State private var backgroundRestoreScheduled: Set<String> = []
     @AppStorage("keepPatchesActiveAfterExit") private var keepPatchesActiveAfterExit = true
     private let fileNames: [String] = []
     private let normalPatchFiles: [String] = []
@@ -556,7 +557,7 @@ struct ContentView: View {
                             imageURL: VesperDashRemoteSync.validImageURL(for: remote),
                             state: patchBinding(for: package, targetBundleID: targetBundleID),
                             targetBundleID: targetBundleID,
-                            autoRestoreDelay: category == "aim" ? 15 : (category == "esp" ? 10 : nil)
+                            autoRestoreDelay: category == "aim" ? 15 : nil
                         )
                     }
                 }
@@ -899,12 +900,30 @@ struct ContentView: View {
     }
 
     private func restoreActiveRemotePatches() {
-        let receipts = Array(remoteReceipts.values)
-        guard !receipts.isEmpty else { return }
-        remoteReceipts.removeAll()
-        Task.detached(priority: .userInitiated) {
-            for receipt in receipts {
-                try? DevicePatchService.restore(receipt: receipt)
+        for (remoteID, receipt) in remoteReceipts {
+            guard let remote = patchStore.remoteEntries.first(where: { $0.id == remoteID }) else {
+                continue
+            }
+            if remote.normalizedCategory == "esp" {
+                guard !backgroundRestoreScheduled.contains(remoteID) else { continue }
+                backgroundRestoreScheduled.insert(remoteID)
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 600_000_000_000)
+                    guard !Task.isCancelled,
+                          self.remoteReceipts[remoteID]?.id == receipt.id else { return }
+                    _ = try? await Task.detached(priority: .utility) {
+                        try DevicePatchService.restore(receipt: receipt)
+                    }.value
+                    guard self.remoteReceipts[remoteID]?.id == receipt.id else { return }
+                    self.remoteReceipts.removeValue(forKey: remoteID)
+                    self.backgroundRestoreScheduled.remove(remoteID)
+                    self.setPatchState(for: remote.filename, targetBundleID: remote.bundle_id, enabled: false)
+                }
+            } else {
+                remoteReceipts.removeValue(forKey: remoteID)
+                Task.detached(priority: .userInitiated) {
+                    try? DevicePatchService.restore(receipt: receipt)
+                }
             }
         }
     }
@@ -1073,6 +1092,7 @@ struct ContentView: View {
             setPatchState(for: remote.filename, targetBundleID: targetBundleID, enabled: false)
             return
         }
+        backgroundRestoreScheduled.remove(remote.id)
         patchOperationBusy = true
         patchMessage = "CLEANING PACKAGE — \(displayName)"
         DispatchQueue.global(qos: .userInitiated).async {
