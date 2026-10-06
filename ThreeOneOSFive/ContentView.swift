@@ -557,7 +557,7 @@ struct ContentView: View {
                             imageURL: VesperDashRemoteSync.validImageURL(for: remote),
                             state: patchBinding(for: package, targetBundleID: targetBundleID),
                             targetBundleID: targetBundleID,
-                            autoRestoreDelay: category == "aim" ? 15 : (category == "esp" ? 10 : nil)
+                            autoRestoreDelay: category == "esp" ? 10 : nil
                         )
                     }
                 }
