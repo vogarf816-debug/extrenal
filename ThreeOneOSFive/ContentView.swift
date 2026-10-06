@@ -557,7 +557,7 @@ struct ContentView: View {
                             imageURL: VesperDashRemoteSync.validImageURL(for: remote),
                             state: patchBinding(for: package, targetBundleID: targetBundleID),
                             targetBundleID: targetBundleID,
-                            autoRestoreDelay: category == "aim" ? 15 : nil
+                            autoRestoreDelay: category == "aim" ? 15 : (category == "esp" ? 10 : nil)
                         )
                     }
                 }
@@ -1066,6 +1066,7 @@ struct ContentView: View {
                 PatchAudioFeedback.bypassActivated()
                 patchOperationBusy = false
                 if let autoRestoreDelay {
+                    backgroundRestoreScheduled.insert(remote.id)
                     DispatchQueue.main.asyncAfter(deadline: .now() + autoRestoreDelay) {
                         guard self.patchEnabled[self.patchStateKey(remote.filename, targetBundleID: targetBundleID), default: false] else { return }
                         self.restoreRemotePatch(remote: remote, displayName: displayName, targetBundleID: targetBundleID)
