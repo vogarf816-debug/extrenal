@@ -8,9 +8,7 @@ struct ContentView: View {
     @State private var showCleaner = false
     @State private var remoteSyncTask: Task<Void, Never>?
     @State private var fileSafety: [String: Bool] = [:]
-    @State private var developerDesign = 0
     @State private var officialResellers: [OfficialReseller] = []
-    @State private var appSettings = VesperAppSettings.fallback
     @State private var resellersLoading = false
     @State private var resellersMessage = "Loading official resellers…"
     @StateObject private var patchStore = PatchProjectStore()
@@ -27,7 +25,6 @@ struct ContentView: View {
     var body: some View {
         TabView {
             appTab(title: "AIM", icon: "scope") { aimTab }
-            appTab(title: "ESP", icon: "eye.fill") { espTab }
             appTab(title: "HOLOGRAM", icon: "cube.transparent") { hologramTab }
             appTab(title: "SKIN MOD", icon: "sparkles") { skinModTab }
             appTab(title: "FILE STATUS", icon: "doc.badge.gearshape") { fileStatusTab }
@@ -59,7 +56,6 @@ struct ContentView: View {
             syncPatchStates()
             patchStore.syncVesperDash(showCompletionAlert: false, showProgress: true)
             loadOfficialResellers()
-            loadAppSettings()
             startRemoteStateChecks()
         }
         .onDisappear {
@@ -84,7 +80,7 @@ struct ContentView: View {
 
     private var officialResellersTab: some View {
         VStack(spacing: 16) {
-            gameIntro(title: "OFFICIAL RESELLERS", subtitle: "LIVE LIST FROM VESPERDASH", icon: "checkmark.seal.fill")
+            gameIntro(title: "OFFICIAL RESELLERS", subtitle: "BABA PANEL COMMUNITY", icon: "checkmark.seal.fill")
             if resellersLoading {
                 ProgressView().tint(AppTheme.accent).padding(.vertical, 20)
             }
@@ -132,12 +128,6 @@ struct ContentView: View {
         }
     }
 
-    private func loadAppSettings() {
-        Task { @MainActor in
-            if let remote = try? await VesperDashRemoteSync.fetchAppSettings() { appSettings = remote }
-        }
-    }
-
     private func loadOfficialResellers() {
         guard !resellersLoading else { return }
         resellersLoading = true
@@ -156,8 +146,9 @@ struct ContentView: View {
         guard remoteSyncTask == nil else { return }
         remoteSyncTask = Task { @MainActor in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(4))
+                try? await Task.sleep(for: .seconds(20))
                 guard !Task.isCancelled else { return }
+                guard scenePhase == .active, !patchOperationBusy else { continue }
                 patchStore.syncVesperDash(showCompletionAlert: false, showProgress: false)
             }
         }
@@ -306,13 +297,6 @@ struct ContentView: View {
         }
     }
 
-    private var espTab: some View {
-        VStack(spacing: 16) {
-            gameIntro(title: "ESP", subtitle: "ONLINE ESP PATCHES", icon: "eye.fill")
-            patchOptions(files: [], category: "esp", sectionTitle: "FF NORMAL", targetTitle: "FREE FIRE • NORMAL", targetBundleID: "com.dts.freefireth")
-        }
-    }
-
     private var hologramTab: some View {
         VStack(spacing: 16) {
             gameIntro(title: "HOLOGRAM", subtitle: "ONLINE HOLOGRAM PATCHES", icon: "cube.transparent")
@@ -339,7 +323,7 @@ struct ContentView: View {
             HStack {
                 panelTitle("PATCH FILES", icon: "checkmark.shield.fill")
                 Spacer()
-                Text("VESPERDASH")
+                Text("BABA PANEL")
                     .font(.system(size: 9, weight: .black, design: .rounded))
                     .foregroundStyle(AppTheme.secondaryAccent)
             }
@@ -364,7 +348,7 @@ struct ContentView: View {
             .background(AppTheme.ink.opacity(0.55), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             if patchStore.remoteEntries.isEmpty {
-                Text("NO FILES ON VESPERDASH")
+                Text("NO FILES AVAILABLE")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.paper.opacity(0.5))
                     .padding(.vertical, 14)
@@ -412,7 +396,7 @@ struct ContentView: View {
                 }
             }
 
-            Text("STATUS IS CONTROLLED ONLY FROM VESPERDASH")
+            Text("STATUS IS MANAGED BY BABA PANEL")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.paper.opacity(0.52))
                 .padding(.top, 5)
@@ -426,8 +410,7 @@ struct ContentView: View {
         VStack(spacing: 16) {
             developerCard
             telegramCard
-            externalChannelCard
-            feedbackCard
+            tiktokCard
             devicePanel
         }
     }
@@ -438,7 +421,7 @@ struct ContentView: View {
                 .font(.system(size: 25, weight: .black))
                 .foregroundStyle(AppTheme.accent)
                 .frame(width: 54, height: 54)
-                .background(AppTheme.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(AppTheme.ink, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.system(size: 22, weight: .black, design: .rounded)).foregroundStyle(AppTheme.paper)
                 Text(subtitle).font(.system(size: 10, weight: .bold, design: .rounded)).tracking(1.5).foregroundStyle(AppTheme.secondaryAccent)
@@ -456,14 +439,19 @@ struct ContentView: View {
 
     private var brandHeader: some View {
         HStack(spacing: 14) {
+            Image("BabaPanelBranding")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 72, height: 54)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
-                Text(appSettings.appName.uppercased())
+                Text("BABA EXTERNAL")
                     .font(.system(size: 25, weight: .black, design: .rounded))
-                    .tracking(3)
+                    .tracking(1.5)
                     .foregroundStyle(AppTheme.paper)
-                Text("PATCH CONTROL CENTER")
+                Text("BABA PANEL • OFFICIAL INFO")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .tracking(1.7)
+                    .tracking(1.1)
                     .foregroundStyle(AppTheme.accent)
             }
 
@@ -496,35 +484,6 @@ struct ContentView: View {
         .padding(16)
         .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.32), lineWidth: 1))
-    }
-
-    private var externalChannelCard: some View {
-        Button {
-            guard let url = URL(string: appSettings.channelURL) else { return }
-            UIApplication.shared.open(url)
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "paperplane.fill")
-                    .foregroundStyle(AppTheme.secondaryAccent)
-                    .frame(width: 32, height: 32)
-                    .background(AppTheme.secondaryAccent.opacity(0.14), in: Circle())
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(appSettings.channelName)
-                        .font(.system(size: 12, weight: .black, design: .rounded))
-                        .foregroundStyle(AppTheme.paper)
-                    Text(appSettings.channelHandle)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(AppTheme.secondaryAccent)
-                }
-                Spacer()
-                Image(systemName: "arrow.up.right")
-                    .foregroundStyle(AppTheme.secondaryAccent)
-            }
-            .padding(14)
-            .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.28), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
     }
 
     private func patchOptions(
@@ -562,7 +521,7 @@ struct ContentView: View {
                     }
                 }
             } else {
-                Text("NO \(category.uppercased()) PATCHES — ADD FILES FROM VESPERDASH")
+                Text("NO \(category.uppercased()) PATCHES — ADD FILES FROM BABA PANEL")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.5))
                     .padding(.vertical, 10)
@@ -673,7 +632,7 @@ struct ContentView: View {
                 .tracking(1.2)
                 .foregroundStyle(.white.opacity(0.72))
             Spacer()
-            Text(appSettings.footerText)
+            Text("BABA PANEL • READY")
                 .font(.system(size: 9, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.accent.opacity(0.8))
         }
@@ -683,159 +642,39 @@ struct ContentView: View {
         .overlay(Capsule().stroke(AppTheme.secondaryAccent.opacity(0.25), lineWidth: 1))
     }
 
-    private var developerCredits: some View {
-        VStack(spacing: 10) {
-            Text("VESPER")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.72))
-                .multilineTextAlignment(.center)
-
-            Text("Official channels")
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(AppTheme.secondaryAccent.opacity(0.85))
-
-            HStack(spacing: 10) {
-                channelButton(title: "Vesper CHANNEL", url: VesperStringVault.nullzthChannelURL)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 4)
-        .padding(.bottom, 8)
-    }
-
     private var developerCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Image("VesperDeveloperPhoto")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 58, height: 58)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(developerAccent.opacity(0.7), lineWidth: 2))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("VESPER DEVELOPER INFO")
-                        .font(.system(size: 11, weight: .black, design: .rounded))
-                        .foregroundStyle(developerAccent)
-                    Text(appSettings.developerName)
-                        .font(.system(size: 20, weight: .black, design: .rounded))
-                        .foregroundStyle(AppTheme.paper)
-                }
+        VStack(spacing: 11) {
+            Image("BabaPanelBranding")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .frame(height: 176)
+                .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            VStack(spacing: 4) {
+                Text("BABA EXTERNAL")
+                    .font(.system(size: 19, weight: .black, design: .rounded))
+                    .tracking(1.2)
+                    .foregroundStyle(AppTheme.paper)
+                Text("Developer information and official social links")
+                    .font(.system(size: 11, weight: .regular, design: .rounded))
+                    .foregroundStyle(AppTheme.paper.opacity(0.66))
+                Text("developed by yagami")
+                    .font(.system(size: 10, weight: .light, design: .rounded))
+                    .tracking(0.8)
+                    .foregroundStyle(AppTheme.secondaryAccent)
+                    .padding(.top, 4)
             }
-            Label("VESPER DEVELOPER INFO • DESIGN \(developerDesign + 1)", systemImage: developerIcon)
-                .font(.system(size: 12, weight: .black, design: .rounded))
-                .tracking(1.4)
-                .foregroundStyle(AppTheme.accent)
-            HStack {
-                Text("BUILD")
-                Spacer()
-                Text("1.2")
-            }
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .foregroundStyle(AppTheme.secondaryAccent)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(developerBackground, in: developerShape)
-        .overlay(developerShape.stroke(developerAccent.opacity(0.5), lineWidth: 1))
-    }
-
-    private var developerDesignPicker: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("DEVELOPER STYLES")
-                .font(.system(size: 11, weight: .black, design: .rounded))
-                .tracking(1.2)
-                .foregroundStyle(AppTheme.secondaryAccent)
-            Picker("Developer style", selection: $developerDesign) {
-                ForEach(0..<10, id: \.self) { index in
-                    Text("\(index + 1)").tag(index)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityLabel("Choose developer information design")
-        }
-        .padding(14)
-        .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private var extrenalChannelCard: some View {
-        Button {
-            guard let url = URL(string: appSettings.channelURL) else { return }
-            UIApplication.shared.open(url)
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "paperplane.fill")
-                    .foregroundStyle(developerAccent)
-                    .font(.system(size: 22, weight: .bold))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(appSettings.channelName)
-                        .font(.system(size: 11, weight: .black, design: .rounded))
-                        .tracking(1.2)
-                        .foregroundStyle(AppTheme.paper)
-                    Text("@Vesper Official Channel")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(AppTheme.paper.opacity(0.62))
-                }
-                Spacer()
-                Image(systemName: "arrow.up.right")
-                    .foregroundStyle(developerAccent)
-            }
-            .padding(15)
-            .background(AppTheme.ink.opacity(0.72), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(developerAccent.opacity(0.45), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Open Extrenal channel")
-    }
-
-    private var feedbackCard: some View {
-        Button {
-            guard let url = URL(string: appSettings.ownerURL) else { return }
-            UIApplication.shared.open(url)
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "bubble.left.and.bubble.right.fill")
-                    .foregroundStyle(developerAccent)
-                    .font(.system(size: 22, weight: .bold))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("FEEDBACK")
-                        .font(.system(size: 11, weight: .black, design: .rounded))
-                        .tracking(1.2)
-                        .foregroundStyle(AppTheme.paper)
-                    Text("Send feedback to @Vesper")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(AppTheme.paper.opacity(0.62))
-                }
-                Spacer()
-                Image(systemName: "arrow.up.right")
-                    .foregroundStyle(developerAccent)
-            }
-            .padding(15)
-            .background(AppTheme.ink.opacity(0.72), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(developerAccent.opacity(0.45), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Send feedback on Telegram")
-    }
-
-    private var developerAccent: Color {
-        [AppTheme.accent, AppTheme.secondaryAccent, .cyan, .orange, .pink, .yellow, .mint, .indigo, .teal, .white][developerDesign]
-    }
-
-    private var developerIcon: String {
-        ["hammer.fill", "sparkles", "bolt.fill", "person.crop.circle.fill", "star.fill", "wand.and.stars", "swift", "paintpalette.fill", "terminal.fill", "crown.fill"][developerDesign]
-    }
-
-    private var developerShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: CGFloat(12 + (developerDesign % 5) * 4), style: .continuous)
-    }
-
-    private var developerBackground: Color {
-        developerDesign.isMultiple(of: 2) ? AppTheme.referenceCard : developerAccent.opacity(0.16)
+        .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(AppTheme.accent.opacity(0.42), lineWidth: 1))
     }
 
     private var telegramCard: some View {
         Button {
-            guard let url = URL(string: appSettings.ownerURL) else { return }
+            guard let url = URL(string: "https://t.me/BABAPANELSTOREonlybaba18") else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 14) {
@@ -849,9 +688,11 @@ struct ContentView: View {
                         .font(.system(size: 11, weight: .black, design: .rounded))
                         .tracking(1.2)
                         .foregroundStyle(AppTheme.secondaryAccent)
-                    Text("@Vesper")
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                    Text("@BABAPANELSTOREonlybaba18")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.paper)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                 }
                 Spacer()
                 Image(systemName: "arrow.up.right")
@@ -863,7 +704,40 @@ struct ContentView: View {
             .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.accent.opacity(0.55), lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open Telegram Vesper")
+        .accessibilityLabel("Open Baba Panel on Telegram")
+    }
+
+    private var tiktokCard: some View {
+        Button {
+            guard let url = URL(string: "https://www.tiktok.com/@onlybaba18?_r=1&_t=ZS-9AWocG5ZtUm") else { return }
+            UIApplication.shared.open(url)
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "music.note")
+                    .font(.system(size: 20, weight: .black))
+                    .foregroundStyle(AppTheme.paper)
+                    .frame(width: 48, height: 48)
+                    .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("TIKTOK")
+                        .font(.system(size: 11, weight: .black, design: .rounded))
+                        .tracking(1.2)
+                        .foregroundStyle(AppTheme.secondaryAccent)
+                    Text("@onlybaba18")
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.paper)
+                }
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(AppTheme.accent)
+            }
+            .padding(15)
+            .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.accent.opacity(0.45), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open Baba Panel on TikTok")
     }
 
     private func channelButton(title: String, url: String) -> some View {
@@ -1429,15 +1303,11 @@ struct AnimatedHyperBackdrop: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [AppTheme.pageBackground, Color(red: 0.02, green: 0.16, blue: 0.19), AppTheme.consoleBackground],
+                colors: [AppTheme.pageBackground, Color(red: 0.14, green: 0.018, blue: 0.028), AppTheme.consoleBackground],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            AngularGradient(colors: [AppTheme.accent.opacity(0.13), .clear, AppTheme.secondaryAccent.opacity(0.10), .clear], center: .topTrailing)
-            RadialGradient(colors: [AppTheme.accent.opacity(0.16), .clear], center: .topTrailing, startRadius: 8, endRadius: 260)
-            RadialGradient(colors: [AppTheme.secondaryAccent.opacity(0.12), .clear], center: .bottomLeading, startRadius: 8, endRadius: 300)
-            EmberField()
-            GridOverlay()
+            RadialGradient(colors: [AppTheme.accent.opacity(0.12), .clear], center: .topTrailing, startRadius: 8, endRadius: 260)
         }
     }
 }
