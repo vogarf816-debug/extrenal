@@ -24,7 +24,7 @@ struct ContentView: View {
             appTab(title: "AIM", icon: "scope") { aimTab }
             appTab(title: "HOLOGRAM", icon: "cube.transparent") { hologramTab }
             appTab(title: "SKIN MOD", icon: "sparkles") { skinModTab }
-            appTab(title: "SUPPORTED DEVICE", icon: "iphone") { supportedDeviceTab }
+            appTab(title: "COMPATIBILITY", icon: "iphone") { supportedDeviceTab }
             appTab(title: "FILE STATUS", icon: "doc.badge.gearshape") { fileStatusTab }
             appTab(title: "DEVELOPER", icon: "person.crop.circle") { developerTab }
         }
@@ -348,10 +348,10 @@ struct ContentView: View {
 
     private var supportedDeviceTab: some View {
         VStack(spacing: 16) {
-            gameIntro(title: "SUPPORTED DEVICE", subtitle: "DEVICE & IOS COMPATIBILITY", icon: "iphone")
+            gameIntro(title: "COMPATIBILITY", subtitle: "DEVICE REQUIREMENTS", icon: "iphone")
             devicePanel
             VStack(alignment: .leading, spacing: 12) {
-                panelTitle("VERIFIED IOS VERSIONS", icon: "checkmark.seal.fill")
+                panelTitle("SUPPORTED IOS VERSIONS", icon: "checkmark.seal.fill")
                 Text("iOS 17.0–17.7.x  •  iOS 18.0–18.7.1  •  iOS 26.0–26.6.1")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.paper)
