@@ -21,9 +21,9 @@ struct ContentView: View {
 
     var body: some View {
         TabView {
-            appTab(title: "AIM", icon: "scope") { aimTab }
-            appTab(title: "HOLOGRAM", icon: "cube.transparent") { hologramTab }
-            appTab(title: "SKIN MOD", icon: "sparkles") { skinModTab }
+            appTab(title: "AIM", icon: "scope", showsPatchStatus: true) { aimTab }
+            appTab(title: "HOLOGRAM", icon: "cube.transparent", showsPatchStatus: true) { hologramTab }
+            appTab(title: "SKIN MOD", icon: "sparkles", showsPatchStatus: true) { skinModTab }
             appTab(title: "COMPATIBILITY", icon: "iphone") { supportedDeviceTab }
             appTab(title: "FILE STATUS", icon: "doc.badge.gearshape") { fileStatusTab }
             appTab(title: "DEVELOPER", icon: "person.crop.circle") { developerTab }
@@ -176,14 +176,16 @@ struct ContentView: View {
         }
     }
 
-    private func appTab<Content: View>(title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
+    private func appTab<Content: View>(title: String, icon: String, showsPatchStatus: Bool = false, @ViewBuilder content: () -> Content) -> some View {
         NavigationStack {
             ZStack {
                 AnimatedHyperBackdrop().ignoresSafeArea()
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
                         brandHeader
-                        patchStatusBanner
+                        if showsPatchStatus {
+                            patchStatusBanner
+                        }
                         content()
                     }
                     .padding(.horizontal, 16)
