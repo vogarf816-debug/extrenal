@@ -622,10 +622,11 @@ struct ContentView: View {
         VStack(spacing: 12) {
             Image("BabaPanelBranding")
                 .resizable()
-                .scaledToFill()
-                .frame(width: 92, height: 92)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(AppTheme.accent.opacity(0.7), lineWidth: 2))
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .frame(height: 176)
+                .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             VStack(spacing: 4) {
                 Text("BABA EXTERNAL")
                     .font(.system(size: 16, weight: .black, design: .rounded))
