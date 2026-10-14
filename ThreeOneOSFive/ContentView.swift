@@ -5,15 +5,12 @@ import AVFoundation
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var appState: AppState
-    @State private var showCleaner = false
     @State private var remoteSyncTask: Task<Void, Never>?
     @State private var fileSafety: [String: Bool] = [:]
     @StateObject private var patchStore = PatchProjectStore()
     @State private var patchOperationBusy = false
     @State private var patchMessage = "READY — SELECT A PATCH"
-    @State private var remoteReceipts: [String: PatchTransactionReceipt] = [:]
     @State private var patchEnabled: [String: Bool] = [:]
-    @State private var backgroundRestoreScheduled: Set<String> = []
     @AppStorage("keepPatchesActiveAfterExit") private var keepPatchesActiveAfterExit = true
     private let fileNames: [String] = []
     private let normalPatchFiles: [String] = []
@@ -43,9 +40,6 @@ struct ContentView: View {
                 RemoteLoadingView(store: patchStore)
             }
         }
-        .sheet(isPresented: $showCleaner) {
-            CleanerView()
-        }
         .sheet(item: $patchStore.passwordRequest, onDismiss: patchStore.cancelUnlock) { _ in
             PatchUnlockPrompt(store: patchStore)
         }
@@ -53,6 +47,9 @@ struct ContentView: View {
             syncPatchStates()
             patchStore.syncVesperDash(showCompletionAlert: false, showProgress: true)
             startRemoteStateChecks()
+        }
+        .onChange(of: patchStore.isBusy) { isBusy in
+            if !isBusy { syncPatchStates() }
         }
         .onDisappear {
             remoteSyncTask?.cancel()
@@ -65,7 +62,7 @@ struct ContentView: View {
         }
         .onChange(of: scenePhase) { phase in
             if phase == .background {
-                restoreActiveRemotePatches()
+                restoreActivePatches()
                 return
             }
             guard phase == .active, !patchOperationBusy else { return }
@@ -484,18 +481,31 @@ struct ContentView: View {
             if !remotePatches.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(Array(remotePatches.enumerated()), id: \.element.id) { index, remote in
-                        let package = patchStore.localFilename(for: remote) ?? remote.filename
-                        patchCard(
-                            remote: remote,
-                            name: remote.name,
-                            target: targetTitle,
-                            package: package,
-                            color: index.isMultiple(of: 2) ? AppTheme.accent : AppTheme.secondaryAccent,
-                            imageURL: VesperDashRemoteSync.validImageURL(for: remote),
-                            state: patchBinding(for: package, targetBundleID: targetBundleID),
-                            targetBundleID: targetBundleID,
-                            autoRestoreDelay: category == "esp" ? 10 : nil
-                        )
+                        if let package = patchStore.localFilename(for: remote) {
+                            patchCard(
+                                name: remote.name,
+                                target: targetTitle,
+                                package: package,
+                                color: index.isMultiple(of: 2) ? AppTheme.accent : AppTheme.secondaryAccent,
+                                imageURL: VesperDashRemoteSync.validImageURL(for: remote),
+                                state: patchBinding(for: package, targetBundleID: targetBundleID),
+                                targetBundleID: targetBundleID
+                            )
+                        } else {
+                            HStack(spacing: 10) {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .foregroundStyle(AppTheme.secondaryAccent)
+                                Text(remote.name)
+                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    .foregroundStyle(AppTheme.paper)
+                                Spacer()
+                                Text("PACKAGE NOT READY")
+                                    .font(.system(size: 8, weight: .black, design: .rounded))
+                                    .foregroundStyle(AppTheme.secondaryAccent)
+                            }
+                            .padding(14)
+                            .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
                     }
                 }
             } else {
@@ -509,28 +519,19 @@ struct ContentView: View {
     }
 
     private func patchCard(
-        remote: RemotePatch,
         name: String,
         target: String,
         package: String,
         color: Color,
         imageURL: URL? = nil,
         state: Binding<Bool>,
-        targetBundleID: String,
-        autoRestoreDelay: TimeInterval?
+        targetBundleID: String
     ) -> some View {
         PatchOptionCard(name: name, target: target, color: color, imageURL: imageURL, isEnabled: state, isBusy: patchOperationBusy) {
-            toggleRemotePatch(
-                remote: remote,
+            togglePatch(
+                packageFilename: package,
                 displayName: name,
                 state: state,
-                targetBundleID: targetBundleID,
-                autoRestoreDelay: autoRestoreDelay
-            )
-        } restoreAction: {
-            restoreRemotePatch(
-                remote: remote,
-                displayName: name,
                 targetBundleID: targetBundleID
             )
         }
@@ -566,18 +567,6 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 12) {
             panelTitle("LAUNCH GAME", icon: "arrow.up.forward.app.fill")
             launchButton(title: "FF NORMAL", subtitle: "Free Fire Normal", color: AppTheme.accent, scheme: "freefireth")
-            Button {
-                showCleaner = true
-            } label: {
-                Label("Clean Cache & Temp", systemImage: "trash.slash.fill")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.accent.opacity(0.52), lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open cache and temporary files cleaner")
         }
     }
 
@@ -759,32 +748,18 @@ struct ContentView: View {
         .padding(.top, 14)
     }
 
-    private func restoreActiveRemotePatches() {
-        for (remoteID, receipt) in remoteReceipts {
-            guard let remote = patchStore.remoteEntries.first(where: { $0.id == remoteID }) else {
-                continue
+    private func restoreActivePatches() {
+        guard !keepPatchesActiveAfterExit else { return }
+        var restoredReceipts = Set<UUID>()
+        for item in patchStore.items {
+            guard let bundleID = patchStore.remoteBundleID(for: item),
+                  let receipt = DevicePatchService.latestReceipt(projectID: item.id, targetBundleID: bundleID),
+                  restoredReceipts.insert(receipt.id).inserted else { continue }
+            let filename = item.packageURL.lastPathComponent
+            Task.detached(priority: .utility) {
+                try? DevicePatchService.restore(receipt: receipt)
             }
-            if remote.normalizedCategory == "esp" {
-                guard !backgroundRestoreScheduled.contains(remoteID) else { continue }
-                backgroundRestoreScheduled.insert(remoteID)
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 600_000_000_000)
-                    guard !Task.isCancelled,
-                          self.remoteReceipts[remoteID]?.id == receipt.id else { return }
-                    _ = try? await Task.detached(priority: .utility) {
-                        try DevicePatchService.restore(receipt: receipt)
-                    }.value
-                    guard self.remoteReceipts[remoteID]?.id == receipt.id else { return }
-                    self.remoteReceipts.removeValue(forKey: remoteID)
-                    self.backgroundRestoreScheduled.remove(remoteID)
-                    self.setPatchState(for: remote.filename, targetBundleID: remote.bundle_id, enabled: false)
-                }
-            } else {
-                remoteReceipts.removeValue(forKey: remoteID)
-                Task.detached(priority: .userInitiated) {
-                    try? DevicePatchService.restore(receipt: receipt)
-                }
-            }
+            setPatchState(for: filename, targetBundleID: bundleID, enabled: false)
         }
     }
 
@@ -903,88 +878,11 @@ struct ContentView: View {
         patchEnabled[patchStateKey(packageFilename, targetBundleID: targetBundleID)] = enabled
     }
 
-    private func toggleRemotePatch(
-        remote: RemotePatch,
-        displayName: String,
-        state: Binding<Bool>,
-        targetBundleID: String,
-        autoRestoreDelay: TimeInterval?
-    ) {
-        guard !patchOperationBusy else { return }
-        if state.wrappedValue {
-            restoreRemotePatch(remote: remote, displayName: displayName, targetBundleID: targetBundleID)
-            return
-        }
-        patchOperationBusy = true
-        patchMessage = "FETCHING PACKAGE — \(displayName)"
-        Task { @MainActor in
-            do {
-                let receipt = try await patchStore.applyRemotePatch(remote)
-                remoteReceipts[remote.id] = receipt
-                setPatchState(for: remote.filename, targetBundleID: targetBundleID, enabled: true)
-                patchMessage = autoRestoreDelay.map { "PACKAGE ACTIVE — AUTO CLEAN IN \(Int($0)) SECONDS" } ?? "Inject Successful — \(displayName)"
-                PatchAudioFeedback.bypassActivated()
-                patchOperationBusy = false
-                if let autoRestoreDelay {
-                    backgroundRestoreScheduled.insert(remote.id)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + autoRestoreDelay) {
-                        guard self.patchEnabled[self.patchStateKey(remote.filename, targetBundleID: targetBundleID), default: false] else { return }
-                        self.restoreRemotePatch(remote: remote, displayName: displayName, targetBundleID: targetBundleID)
-                    }
-                }
-            } catch let error as PatchPackageError {
-                patchMessage = "FAILED — \(error.localizedDescription)"
-                patchOperationBusy = false
-            } catch {
-                patchMessage = "FAILED — PACKAGE DOWNLOAD"
-                patchOperationBusy = false
-            }
-        }
-    }
-
-    private func restoreRemotePatch(
-        remote: RemotePatch,
-        displayName: String,
-        targetBundleID: String
-    ) {
-        guard !patchOperationBusy else { return }
-        guard let receipt = remoteReceipts[remote.id] else {
-            patchMessage = "NOTHING TO RESTORE — NO ACTIVE PACKAGE"
-            setPatchState(for: remote.filename, targetBundleID: targetBundleID, enabled: false)
-            return
-        }
-        backgroundRestoreScheduled.remove(remote.id)
-        patchOperationBusy = true
-        patchMessage = "CLEANING PACKAGE — \(displayName)"
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result: Result<Void, Error>
-            do {
-                try DevicePatchService.restore(receipt: receipt)
-                result = .success(())
-            } catch {
-                result = .failure(error)
-            }
-            DispatchQueue.main.async {
-                switch result {
-                case .success:
-                    self.remoteReceipts.removeValue(forKey: remote.id)
-                    self.setPatchState(for: remote.filename, targetBundleID: targetBundleID, enabled: false)
-                    self.patchMessage = "PACKAGE CLEANED — \(displayName)"
-                    PatchAudioFeedback.originalRestored()
-                case .failure(let error):
-                    self.patchMessage = "CLEAN FAILED — \(error.localizedDescription)"
-                }
-                self.patchOperationBusy = false
-            }
-        }
-    }
-
     private func togglePatch(
         packageFilename: String,
         displayName: String,
         state: Binding<Bool>,
-        targetBundleID: String = "com.dts.freefireth",
-        autoRestoreDelay: TimeInterval? = nil
+        targetBundleID: String = "com.dts.freefireth"
     ) {
         guard !patchOperationBusy else { return }
         patchStore.refreshBundledPackages()
@@ -1050,72 +948,14 @@ struct ContentView: View {
                 switch result {
                 case .applied:
                     self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: true)
-                    if let autoRestoreDelay {
-                        self.patchMessage = "PACKAGE ACTIVE — AUTO CLEAN IN \(Int(autoRestoreDelay)) SECONDS"
-                    } else {
-                        self.patchMessage = "Inject Successful — \(displayName)"
-                    }
+                    self.patchMessage = "Inject Successful — \(displayName)"
                     PatchAudioFeedback.bypassActivated()
-                    if let autoRestoreDelay {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + autoRestoreDelay) {
-                            guard self.patchEnabled[self.patchStateKey(packageFilename, targetBundleID: targetBundleID), default: false] else { return }
-                            self.restorePackage(
-                                packageFilename: packageFilename,
-                                displayName: displayName,
-                                targetBundleID: targetBundleID
-                            )
-                        }
-                    }
                 case .restored:
                     self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
                     self.patchMessage = "Restore Successful — \(displayName)"
                     PatchAudioFeedback.originalRestored()
                 case .unavailable(let message):
                     self.patchMessage = message
-                }
-                self.patchOperationBusy = false
-            }
-        }
-    }
-
-    private func restorePackage(
-        packageFilename: String,
-        displayName: String,
-        targetBundleID: String
-    ) {
-        guard !patchOperationBusy else { return }
-        patchStore.refreshBundledPackages()
-        guard let item = patchItem(for: packageFilename, targetBundleID: targetBundleID) else {
-            patchMessage = "RESTORE FAILED — PACKAGE NOT FOUND"
-            return
-        }
-        guard let receipt = DevicePatchService.latestReceipt(
-            projectID: item.id,
-            targetBundleID: targetBundleID
-        ) else {
-            patchMessage = "NOTHING TO RESTORE — NO ACTIVE PACKAGE"
-            setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
-            return
-        }
-
-        patchOperationBusy = true
-        patchMessage = "RESTORING PACKAGE — \(displayName)"
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result: Result<Void, Error>
-            do {
-                try DevicePatchService.restore(receipt: receipt)
-                result = .success(())
-            } catch {
-                result = .failure(error)
-            }
-            DispatchQueue.main.async {
-                switch result {
-                case .success:
-                    self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
-                    self.patchMessage = "PACKAGE RESTORED — \(displayName)"
-                    PatchAudioFeedback.originalRestored()
-                case .failure(let error):
-                    self.patchMessage = "RESTORE FAILED — \(error.localizedDescription)"
                 }
                 self.patchOperationBusy = false
             }
@@ -1138,7 +978,6 @@ private struct PatchOptionCard: View {
     @Binding var isEnabled: Bool
     let isBusy: Bool
     let action: () -> Void
-    let restoreAction: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1174,20 +1013,6 @@ private struct PatchOptionCard: View {
             }
 
             Spacer(minLength: 8)
-            if isEnabled {
-                Button(action: restoreAction) {
-                    Text("CLEAN")
-                        .font(.system(size: 9, weight: .black, design: .rounded))
-                        .tracking(0.8)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .background(color, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .disabled(isBusy)
-                .accessibilityLabel("Clean and restore package for \(name)")
-            }
             Text(isEnabled ? "ON" : "OFF")
                 .font(.system(size: 10, weight: .black, design: .rounded))
                 .foregroundStyle(isEnabled ? AppTheme.secondaryAccent : .white.opacity(0.5))
