@@ -8,9 +8,6 @@ struct ContentView: View {
     @State private var showCleaner = false
     @State private var remoteSyncTask: Task<Void, Never>?
     @State private var fileSafety: [String: Bool] = [:]
-    @State private var officialResellers: [OfficialReseller] = []
-    @State private var resellersLoading = false
-    @State private var resellersMessage = "Loading official resellers…"
     @StateObject private var patchStore = PatchProjectStore()
     @State private var patchOperationBusy = false
     @State private var patchMessage = "READY — SELECT A PATCH"
@@ -27,9 +24,9 @@ struct ContentView: View {
             appTab(title: "AIM", icon: "scope") { aimTab }
             appTab(title: "HOLOGRAM", icon: "cube.transparent") { hologramTab }
             appTab(title: "SKIN MOD", icon: "sparkles") { skinModTab }
+            appTab(title: "SUPPORTED DEVICE", icon: "iphone") { supportedDeviceTab }
             appTab(title: "FILE STATUS", icon: "doc.badge.gearshape") { fileStatusTab }
             appTab(title: "DEVELOPER", icon: "person.crop.circle") { developerTab }
-            appTab(title: "OFFICIAL RESELLERS", icon: "checkmark.seal.fill") { officialResellersTab }
         }
         .preferredColorScheme(.dark)
         .tint(AppTheme.accent)
@@ -55,7 +52,6 @@ struct ContentView: View {
         .onAppear {
             syncPatchStates()
             patchStore.syncVesperDash(showCompletionAlert: false, showProgress: true)
-            loadOfficialResellers()
             startRemoteStateChecks()
         }
         .onDisappear {
@@ -75,70 +71,6 @@ struct ContentView: View {
             guard phase == .active, !patchOperationBusy else { return }
             syncPatchStates()
             patchMessage = "READY — SELECT A PATCH"
-        }
-    }
-
-    private var officialResellersTab: some View {
-        VStack(spacing: 16) {
-            gameIntro(title: "OFFICIAL RESELLERS", subtitle: "BABA PANEL COMMUNITY", icon: "checkmark.seal.fill")
-            if resellersLoading {
-                ProgressView().tint(AppTheme.accent).padding(.vertical, 20)
-            }
-            if !resellersMessage.isEmpty && officialResellers.isEmpty {
-                Text(resellersMessage)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AppTheme.paper.opacity(0.66))
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(20)
-                    .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            }
-            ForEach(officialResellers) { reseller in
-                Button {
-                    guard let url = URL(string: reseller.url) else { return }
-                    UIApplication.shared.open(url)
-                } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "person.crop.circle.badge.checkmark")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(AppTheme.accent)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(reseller.name)
-                                .font(.system(size: 16, weight: .black, design: .rounded))
-                                .foregroundStyle(AppTheme.paper)
-                            Text(reseller.handle)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundStyle(AppTheme.secondaryAccent)
-                            if !reseller.note.isEmpty {
-                                Text(reseller.note)
-                                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                                    .foregroundStyle(AppTheme.paper.opacity(0.58))
-                            }
-                        }
-                        Spacer()
-                        Image(systemName: "arrow.up.right")
-                            .foregroundStyle(AppTheme.accent)
-                    }
-                    .padding(16)
-                    .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.accent.opacity(0.4), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func loadOfficialResellers() {
-        guard !resellersLoading else { return }
-        resellersLoading = true
-        Task { @MainActor in
-            defer { resellersLoading = false }
-            do {
-                officialResellers = try await VesperDashRemoteSync.fetchOfficialResellers()
-                resellersMessage = officialResellers.isEmpty ? "No official resellers are listed yet." : ""
-            } catch {
-                resellersMessage = "Official reseller list is temporarily unavailable."
-            }
         }
     }
 
@@ -411,7 +343,32 @@ struct ContentView: View {
             developerCard
             telegramCard
             tiktokCard
+        }
+    }
+
+    private var supportedDeviceTab: some View {
+        VStack(spacing: 16) {
+            gameIntro(title: "SUPPORTED DEVICE", subtitle: "DEVICE & IOS COMPATIBILITY", icon: "iphone")
             devicePanel
+            VStack(alignment: .leading, spacing: 12) {
+                panelTitle("VERIFIED IOS VERSIONS", icon: "checkmark.seal.fill")
+                Text("iOS 17.0–17.7.x  •  iOS 18.0–18.7.1  •  iOS 26.0–26.6.1")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.paper)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("iOS 27.0 Developer Beta 1–4 and Public Beta 1–2")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(AppTheme.secondaryAccent)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Compatibility is checked using this device and its installed iOS version/build.")
+                    .font(.system(size: 10, weight: .regular, design: .rounded))
+                    .foregroundStyle(AppTheme.paper.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(AppTheme.accent.opacity(0.38), lineWidth: 1))
         }
     }
 
@@ -423,8 +380,17 @@ struct ContentView: View {
                 .frame(width: 54, height: 54)
                 .background(AppTheme.ink, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.system(size: 22, weight: .black, design: .rounded)).foregroundStyle(AppTheme.paper)
-                Text(subtitle).font(.system(size: 10, weight: .bold, design: .rounded)).tracking(1.5).foregroundStyle(AppTheme.secondaryAccent)
+                Text(title)
+                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .foregroundStyle(AppTheme.paper)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(subtitle)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .tracking(1.2)
+                    .foregroundStyle(AppTheme.secondaryAccent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
             Spacer()
         }
@@ -441,18 +407,23 @@ struct ContentView: View {
         HStack(spacing: 14) {
             Image("BabaPanelBranding")
                 .resizable()
-                .scaledToFit()
-                .frame(width: 72, height: 54)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .scaledToFill()
+                .frame(width: 48, height: 48)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(AppTheme.accent.opacity(0.65), lineWidth: 1))
             VStack(alignment: .leading, spacing: 3) {
                 Text("BABA EXTERNAL")
-                    .font(.system(size: 25, weight: .black, design: .rounded))
-                    .tracking(1.5)
+                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .tracking(0.5)
                     .foregroundStyle(AppTheme.paper)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
                 Text("BABA PANEL • OFFICIAL INFO")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .tracking(1.1)
+                    .tracking(0.6)
                     .foregroundStyle(AppTheme.accent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
 
             Spacer()
@@ -476,10 +447,15 @@ struct ContentView: View {
 
     private var devicePanel: some View {
         VStack(spacing: 0) {
-            panelTitle("DEVICE STATUS", icon: "shield.lefthalf.filled")
+            panelTitle("CURRENT DEVICE STATUS", icon: "shield.lefthalf.filled")
             statusRow(icon: "apple.logo", title: "iOS", value: AppInfo.osVersion, color: AppTheme.secondaryAccent)
             statusRow(icon: "iphone", title: "Device", value: AppInfo.displayMachineName, color: AppTheme.secondaryAccent)
             statusRow(icon: "checkmark.seal.fill", title: "Support", value: appState.isSupported ? "SUPPORTED" : "UNSUPPORTED", color: appState.isSupported ? .green : .red)
+            Text(appState.isSupported ? "This device and iOS build are within the verified support range." : "This device or iOS build is outside the verified support range.")
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.paper.opacity(0.62))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 10)
         }
         .padding(16)
         .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -643,19 +619,20 @@ struct ContentView: View {
     }
 
     private var developerCard: some View {
-        VStack(spacing: 11) {
+        VStack(spacing: 12) {
             Image("BabaPanelBranding")
                 .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity)
-                .frame(height: 176)
-                .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .scaledToFill()
+                .frame(width: 92, height: 92)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(AppTheme.accent.opacity(0.7), lineWidth: 2))
             VStack(spacing: 4) {
                 Text("BABA EXTERNAL")
-                    .font(.system(size: 19, weight: .black, design: .rounded))
-                    .tracking(1.2)
+                    .font(.system(size: 16, weight: .black, design: .rounded))
+                    .tracking(0.6)
                     .foregroundStyle(AppTheme.paper)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                 Text("Developer information and official social links")
                     .font(.system(size: 11, weight: .regular, design: .rounded))
                     .foregroundStyle(AppTheme.paper.opacity(0.66))

@@ -4,7 +4,6 @@ enum VesperStringVault {
     }
     static let m3sbAPIBaseURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 55, 105, 41, 56, 59, 42, 51, 116, 41, 50, 53, 42])
     static let vesperDashPatchesURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 44, 63, 41, 42, 63, 40, 62, 59, 41, 50, 116, 57, 53, 55, 117, 59, 42, 51, 117, 42, 59, 46, 57, 50, 63, 41])
-    static let vesperDashResellersURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 44, 63, 41, 42, 63, 40, 62, 59, 41, 50, 116, 57, 53, 55, 117, 59, 42, 51, 117, 40, 63, 41, 63, 54, 54, 63, 40, 41])
     static let vesperDashSettingsURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 44, 63, 41, 42, 63, 40, 62, 59, 41, 50, 116, 57, 53, 55, 117, 59, 42, 51, 117, 41, 63, 46, 46, 51, 52, 61, 41])
     static let vesperChannelURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 46, 116, 55, 63, 117, 12, 63, 41, 42, 63, 40, 31, 34, 46, 40, 63, 52, 59, 54])
     static let nullzthURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 46, 116, 55, 63, 117, 20, 47, 54, 54, 0, 46, 50])
@@ -162,31 +161,12 @@ struct VesperAppSettings: Decodable {
     }
 }
 
-struct OfficialReseller: Codable, Identifiable {
-    let id: String
-    let name: String
-    let handle: String
-    let url: String
-    let note: String
-}
-
 extension VesperDashRemoteSync {
-    static let resellersURL = URL(string: VesperStringVault.vesperDashResellersURL)!
     static let settingsURL = URL(string: VesperStringVault.vesperDashSettingsURL)!
 
     static func fetchAppSettings() async throws -> VesperAppSettings {
         let (data, response) = try await URLSession.shared.data(from: settingsURL)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { throw URLError(.badServerResponse) }
         return try JSONDecoder().decode(VesperAppSettings.self, from: data)
-    }
-    static func fetchOfficialResellers() async throws -> [OfficialReseller] {
-        var request = URLRequest(url: resellersURL)
-        request.timeoutInterval = 20
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        return try JSONDecoder().decode([OfficialReseller].self, from: data)
     }
 }
