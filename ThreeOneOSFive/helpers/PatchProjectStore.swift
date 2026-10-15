@@ -83,6 +83,7 @@ final class PatchProjectStore: ObservableObject {
     }
 
     func reload() {
+        digestCache = [:]
         items = PatchProjectLibrary.load()
     }
 
@@ -125,7 +126,8 @@ final class PatchProjectStore: ObservableObject {
                 var metadataByDigest: [String: (category: String, imageURL: URL?, statusText: String, sortOrder: Int)] = [:]
                 for remote in manifest.patches {
                     let digest = remote.sha256.lowercased()
-                    if metadataByDigest[digest] == nil {
+                    let current = metadataByDigest[digest]
+                    if current == nil || (remote.normalizedCategory == "hologram" && current?.category != "hologram") {
                         metadataByDigest[digest] = (
                             remote.normalizedCategory,
                             VesperDashRemoteSync.validImageURL(for: remote),
@@ -170,9 +172,6 @@ final class PatchProjectStore: ObservableObject {
                         guard let decoded else {
                             throw PatchPackageError.invalidPasswordOrCorruptedPackage
                         }
-                        guard decoded.project.allBundleIdentifiers.contains(remote.bundle_id) else {
-                            throw PatchPackageError.invalidBundleIdentifier
-                        }
                         let existingURL = await self?.existingPackageURL(matchingDigest: remote.sha256)
                         try PatchKeyStore.store(decoded.contentKey, for: summary)
                         try PatchProjectLibrary.installImportedPackage(
@@ -181,6 +180,7 @@ final class PatchProjectStore: ObservableObject {
                             summary: summary,
                             existingURL: existingURL
                         )
+                        await self?.reload()
                         let localFilename = existingURL?.lastPathComponent
                             ?? PatchProjectLibrary.sanitizedPackageFilename(decoded.project.name)
                         await self?.recordRemoteBundleID(
@@ -288,9 +288,17 @@ final class PatchProjectStore: ObservableObject {
     }
 
     private func applyRemoteEntries(_ entries: [RemotePatch]) {
-        var seenDigests = Set<String>()
+        var seenEntries = Set<String>()
         remoteEntries = entries.filter { entry in
-            seenDigests.insert(entry.sha256.lowercased()).inserted
+            // The same .3105 payload may intentionally appear in more than
+            // one tab (for example ESP and Hologram). Deduplicate only within
+            // the same category and target bundle, not by digest alone.
+            let key = [
+                entry.normalizedCategory,
+                entry.bundle_id.lowercased(),
+                entry.sha256.lowercased()
+            ].joined(separator: "|")
+            return seenEntries.insert(key).inserted
         }
         if let data = try? JSONEncoder().encode(remoteEntries) {
             UserDefaults.standard.set(data, forKey: Self.remoteEntriesKey)
@@ -385,7 +393,7 @@ final class PatchProjectStore: ObservableObject {
                 orders[path] = metadata.sortOrder
             } else {
                 // Do not delete user-imported local packages during remote sync.
-                // Remote packages are no longer persisted by this store.
+                // Remote packages remain cached in the local package library.
             }
         }
         remoteCategories = categories
