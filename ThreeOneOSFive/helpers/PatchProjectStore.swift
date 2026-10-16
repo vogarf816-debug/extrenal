@@ -106,7 +106,7 @@ final class PatchProjectStore: ObservableObject {
         remoteSyncMessage = "REMOTE DATA: CHECKING…"
         syncFileNames = []
         syncFinishedFileNames = []
-        syncCurrentFile = "WAITING FOR API"
+        syncCurrentFile = "PREPARING DOWNLOADS"
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let manifest = try await VesperDashRemoteSync.fetchManifest()
@@ -116,9 +116,8 @@ final class PatchProjectStore: ObservableObject {
                 }
                 await self?.applyRemoteState(paused: manifest.global_paused)
                 await self?.applyRemoteEntries(manifest.all_patches ?? manifest.patches)
-                // The API catalog is ready now. Reveal the app immediately;
-                // package downloads continue in the background.
-                await self?.setRemoteSyncing(false)
+                let hasNewFiles = await self?.hasNewRemoteFiles(manifest.patches) ?? false
+                await self?.setRemoteSyncing(showProgress || hasNewFiles)
                 await self?.beginSyncFiles(manifest.patches.map(\.name))
                 guard !manifest.global_paused else {
                     await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: 0)

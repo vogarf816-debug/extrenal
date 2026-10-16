@@ -117,7 +117,7 @@ struct ContentView: View {
                 .ignoresSafeArea()
                 VStack(spacing: 18) {
                     VStack(spacing: 7) {
-                        Text("CONNECTING TO API")
+                        Text("DOWNLOAD RESOURCE FROM SERVER")
                             .font(.system(size: 14, weight: .black, design: .rounded))
                             .multilineTextAlignment(.center)
                         Text(progressText)
@@ -126,9 +126,13 @@ struct ContentView: View {
                     }
                     .foregroundStyle(.white)
 
-                    ProgressView(value: progress)
-                        .tint(AppTheme.accent)
-                        .scaleEffect(x: 1, y: 1.5, anchor: .center)
+                    if store.syncFileNames.isEmpty {
+                        ProgressView().tint(AppTheme.accent)
+                    } else {
+                        ProgressView(value: progress)
+                            .tint(AppTheme.accent)
+                            .scaleEffect(x: 1, y: 1.5, anchor: .center)
+                    }
 
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(store.syncFileNames, id: \.self) { name in

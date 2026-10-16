@@ -32,6 +32,9 @@ struct ThreeOneOSFiveApp: App {
                             .environmentObject(licenseManager)
                             .transition(.opacity)
                     }
+                } else if licenseManager.hasRememberedKey && (licenseManager.isLoadingScreen || licenseManager.isBusy) {
+                    LicenseCheckingView()
+                        .transition(.opacity)
                 } else {
                     LicenseActivationView(manager: licenseManager)
                         .transition(.opacity)
@@ -61,6 +64,24 @@ struct ThreeOneOSFiveApp: App {
                 patchDraftCoordinator.presentImport(url)
             }
             .preferredColorScheme(.dark)
+        }
+    }
+}
+
+private struct LicenseCheckingView: View {
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: 16) {
+                ProgressView().tint(.white)
+                Text("VERIFYING SAVED ACCESS KEY")
+                    .font(.system(size: 14, weight: .black, design: .rounded))
+                    .tracking(0.8)
+                Text("PLEASE WAIT")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.58))
+            }
+            .foregroundStyle(.white)
         }
     }
 }

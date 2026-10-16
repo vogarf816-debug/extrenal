@@ -77,6 +77,9 @@ struct LicenseActivationView: View {
                 }
             }
             .onAppear {
+                if key.isEmpty, let savedKey = manager.rememberedKey() {
+                    key = savedKey
+                }
                 withAnimation(.easeOut(duration: 0.65)) {
                     introVisible = true
                 }
@@ -200,11 +203,6 @@ struct LicenseActivationView: View {
             }
             .font(.system(size: 12, weight: .semibold, design: .rounded))
             .frame(maxWidth: .infinity, alignment: .center)
-
-            Toggle("Remember key on this device", isOn: $manager.rememberKey)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.72))
-                .tint(AppTheme.accent)
 
             Button(action: activate) {
                 HStack(spacing: 9) {

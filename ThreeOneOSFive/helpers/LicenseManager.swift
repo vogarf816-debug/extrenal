@@ -13,7 +13,6 @@ final class LicenseManager: ObservableObject {
     @Published private(set) var isLoadingScreen = true
     @Published private(set) var message: String?
     @Published private(set) var contactOwner: String?
-    @Published var rememberKey = true
 
     private let service = "com.m3sb.external-ios.activation"
     private let keyAccount = "license-key"
@@ -44,7 +43,7 @@ final class LicenseManager: ObservableObject {
         }
         isBusy = true
         message = "Checking access key…"
-        verify(key: key, remember: true)
+        verify(key: key)
     }
 
     func activate(key: String) {
@@ -58,7 +57,7 @@ final class LicenseManager: ObservableObject {
         isBusy = true
         isLoadingScreen = true
         message = "Checking access key…"
-        verify(key: trimmed, remember: rememberKey)
+        verify(key: trimmed)
     }
 
     func rememberedKey() -> String? { string(for: keyAccount) }
@@ -110,7 +109,7 @@ final class LicenseManager: ObservableObject {
         SecItemDelete(query as CFDictionary)
     }
 
-    private func verify(key: String, remember: Bool) {
+    private func verify(key: String) {
         guard let configuration = APIConfiguration.load() else {
             isBusy = false
             isLoadingScreen = false
@@ -172,7 +171,7 @@ final class LicenseManager: ObservableObject {
                         self.message = state.message ?? "License is not active"
                         return
                     }
-                    if remember { self.save(key, for: self.keyAccount) }
+                    self.save(key, for: self.keyAccount)
                     self.isActive = true
                     self.message = state.message ?? "Activated successfully"
                 case .failure(.message(let error)):

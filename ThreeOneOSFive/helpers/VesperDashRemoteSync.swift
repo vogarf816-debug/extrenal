@@ -70,6 +70,11 @@ struct RemotePatch: Codable, Identifiable {
     }
 }
 
+private struct ManifestHTTPError: LocalizedError {
+    let statusCode: Int
+    var errorDescription: String? { "API returned HTTP \(statusCode)" }
+}
+
 enum VesperDashRemoteSync {
     static let manifestURL = URL(string: VesperStringVault.vesperDashPatchesURL)!
 
@@ -82,11 +87,18 @@ enum VesperDashRemoteSync {
                 request.timeoutInterval = 15
                 request.cachePolicy = .reloadIgnoringLocalCacheData
                 let (data, response) = try await URLSession.shared.data(for: request)
-                guard let http = response as? HTTPURLResponse,
-                      (200..<300).contains(http.statusCode) else {
+                guard let http = response as? HTTPURLResponse else {
+                    throw URLError(.badServerResponse)
+                }
+                guard (200..<300).contains(http.statusCode) else {
+                    if (400..<500).contains(http.statusCode) && http.statusCode != 408 && http.statusCode != 429 {
+                        throw ManifestHTTPError(statusCode: http.statusCode)
+                    }
                     throw URLError(.badServerResponse)
                 }
                 return try JSONDecoder().decode(VesperDashManifest.self, from: data)
+            } catch let error as ManifestHTTPError {
+                throw error
             } catch {
                 lastError = error
             }
