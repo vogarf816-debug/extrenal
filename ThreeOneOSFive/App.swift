@@ -8,8 +8,8 @@ struct ThreeOneOSFiveApp: App {
     @StateObject private var patchDraftCoordinator = PatchDraftCoordinator()
     @StateObject private var fileOperationCoordinator = FileOperationCoordinator();
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
+    @AppStorage("vesperWelcomeShownOnce") private var hasShownWelcome = false
     @State private var showWelcome = false
-    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         setupLogCapture()
@@ -27,19 +27,13 @@ struct ThreeOneOSFiveApp: App {
                     ZStack {
                         ContentView()
                             .environmentObject(licenseManager)
-                            .transition(.opacity)
                         if showWelcome {
                             WelcomeView()
-                                .transition(.opacity)
                                 .zIndex(1)
                         }
                     }
-                } else if licenseManager.hasRememberedKey && (licenseManager.isLoadingScreen || licenseManager.isBusy) {
-                    LicenseCheckingView()
-                        .transition(.opacity)
                 } else {
                     LicenseActivationView(manager: licenseManager)
-                        .transition(.opacity)
                 }
             }
                 .environmentObject(appState)
@@ -50,14 +44,15 @@ struct ThreeOneOSFiveApp: App {
             .onChange(of: licenseManager.isActive) { active in
                 guard active else { return }
                 appState.detectSupport()
-                presentWelcome()
+                presentWelcomeOnce()
             }
             .onAppear {
-                licenseManager.beginLaunchSession()
-            }
-            .onChange(of: scenePhase) { phase in
-                guard phase == .active, licenseManager.isActive else { return }
-                presentWelcome()
+                if licenseManager.isActive {
+                    appState.detectSupport()
+                    presentWelcomeOnce()
+                } else {
+                    licenseManager.beginLaunchSession()
+                }
             }
             .onOpenURL { url in
                 patchDraftCoordinator.presentImport(url)
@@ -66,28 +61,12 @@ struct ThreeOneOSFiveApp: App {
         }
     }
 
-    private func presentWelcome() {
-        withAnimation(.easeIn(duration: 0.22)) { showWelcome = true }
+    private func presentWelcomeOnce() {
+        guard !hasShownWelcome else { return }
+        hasShownWelcome = true
+        showWelcome = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
-            withAnimation(.easeOut(duration: 0.28)) { showWelcome = false }
-        }
-    }
-}
-
-private struct LicenseCheckingView: View {
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            VStack(spacing: 16) {
-                ProgressView().tint(.white)
-                Text("VERIFYING SAVED ACCESS KEY")
-                    .font(.system(size: 14, weight: .black, design: .rounded))
-                    .tracking(0.8)
-                Text("PLEASE WAIT")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.58))
-            }
-            .foregroundStyle(.white)
+            showWelcome = false
         }
     }
 }

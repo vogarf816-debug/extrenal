@@ -21,29 +21,24 @@ final class LicenseManager: ObservableObject {
     private var lastAttemptAt: Date?
 
     init() {
-        // Never reveal the main app until the saved or newly entered key is
-        // verified successfully during this launch.
-        isActive = false
+        // A key accepted and stored in Keychain stays active on this device.
+        // The subscription API is called only when a key is entered.
+        isActive = string(for: keyAccount) != nil
+        isLoadingScreen = false
     }
 
     var hasRememberedKey: Bool { string(for: keyAccount) != nil }
 
     func beginLaunchSession() {
         guard !isBusy else { return }
-        isLoadingScreen = true
-        isActive = false
-        guard let key = string(for: keyAccount) else {
-            isActive = false
-            message = "Key required — enter your access key"
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) { [weak self] in
-                guard let self, !self.isBusy, !self.isActive else { return }
-                self.isLoadingScreen = false
-            }
+        if hasRememberedKey {
+            isActive = true
+            isLoadingScreen = false
             return
         }
-        isBusy = true
-        message = "Checking access key…"
-        verify(key: key)
+        isActive = false
+        isLoadingScreen = false
+        message = "Key required — enter your access key"
     }
 
     func activate(key: String) {

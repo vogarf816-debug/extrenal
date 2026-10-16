@@ -44,7 +44,7 @@ struct ContentView: View {
         }
         .onAppear {
             syncPatchStates()
-            patchStore.syncVesperDash(showCompletionAlert: false, showProgress: true)
+            patchStore.syncVesperDash(showCompletionAlert: false, showProgress: false)
             startRemoteStateChecks()
         }
         .onChange(of: patchStore.isBusy) { isBusy in
@@ -1139,9 +1139,6 @@ struct AnimatedHyperBackdrop: View {
                 endPoint: .bottomTrailing
             )
             RadialGradient(colors: [AppTheme.accent.opacity(0.12), .clear], center: .topTrailing, startRadius: 8, endRadius: 260)
-            GridOverlay()
-            EmberField()
-            PanelScanner()
         }
     }
 }
