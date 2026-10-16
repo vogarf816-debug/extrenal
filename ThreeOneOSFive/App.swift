@@ -24,13 +24,15 @@ struct ThreeOneOSFiveApp: App {
         WindowGroup {
             Group {
                 if licenseManager.isActive {
-                    if showWelcome {
-                        WelcomeView()
-                            .transition(.opacity)
-                    } else {
+                    ZStack {
                         ContentView()
                             .environmentObject(licenseManager)
                             .transition(.opacity)
+                        if showWelcome {
+                            WelcomeView()
+                                .transition(.opacity)
+                                .zIndex(1)
+                        }
                     }
                 } else if licenseManager.hasRememberedKey && (licenseManager.isLoadingScreen || licenseManager.isBusy) {
                     LicenseCheckingView()
@@ -48,22 +50,26 @@ struct ThreeOneOSFiveApp: App {
             .onChange(of: licenseManager.isActive) { active in
                 guard active else { return }
                 appState.detectSupport()
-                withAnimation(.easeIn(duration: 0.22)) { showWelcome = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
-                    withAnimation(.easeOut(duration: 0.28)) { showWelcome = false }
-                }
+                presentWelcome()
             }
             .onAppear {
                 licenseManager.beginLaunchSession()
             }
             .onChange(of: scenePhase) { phase in
-                guard phase == .active else { return }
-                licenseManager.beginLaunchSession()
+                guard phase == .active, licenseManager.isActive else { return }
+                presentWelcome()
             }
             .onOpenURL { url in
                 patchDraftCoordinator.presentImport(url)
             }
             .preferredColorScheme(.dark)
+        }
+    }
+
+    private func presentWelcome() {
+        withAnimation(.easeIn(duration: 0.22)) { showWelcome = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+            withAnimation(.easeOut(duration: 0.28)) { showWelcome = false }
         }
     }
 }
@@ -201,17 +207,14 @@ private struct WelcomeView: View {
                 Image("VesperEmblem")
                     .resizable()
                     .scaledToFit()
-                    .frame(height: 132)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                Text("WELCOME TO VESPER")
-                    .font(.system(size: 21, weight: .black, design: .rounded))
+                    .frame(height: 112)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(AppTheme.accent.opacity(0.7), lineWidth: 1))
+                Text("WELCOME TO VESPER EXTERNAL")
+                    .font(.system(size: 20, weight: .black, design: .rounded))
                     .tracking(1.2)
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
-                Text("ENJOY")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .tracking(3.2)
-                    .foregroundStyle(AppTheme.secondaryAccent)
             }
             .padding(28)
             .background(.ultraThinMaterial.opacity(0.72), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
@@ -219,5 +222,6 @@ private struct WelcomeView: View {
             .padding(24)
         }
         .preferredColorScheme(.dark)
+        .accessibilityIdentifier("vesper-welcome-screen")
     }
 }

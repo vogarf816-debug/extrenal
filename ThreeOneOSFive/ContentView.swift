@@ -1139,6 +1139,9 @@ struct AnimatedHyperBackdrop: View {
                 endPoint: .bottomTrailing
             )
             RadialGradient(colors: [AppTheme.accent.opacity(0.12), .clear], center: .topTrailing, startRadius: 8, endRadius: 260)
+            GridOverlay()
+            EmberField()
+            PanelScanner()
         }
     }
 }
@@ -1183,5 +1186,36 @@ private struct GridOverlay: View {
             }
             context.stroke(path, with: .color(AppTheme.accent.opacity(0.055)), lineWidth: 1)
         }
+        .allowsHitTesting(false)
+    }
+}
+
+private struct PanelScanner: View {
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 24.0, paused: false)) { timeline in
+            Canvas { context, size in
+                let time = timeline.date.timeIntervalSinceReferenceDate
+
+                let scanY = CGFloat(time.truncatingRemainder(dividingBy: 5.0) / 5.0) * size.height
+                var scanLine = Path()
+                scanLine.move(to: CGPoint(x: 0, y: scanY))
+                scanLine.addLine(to: CGPoint(x: size.width, y: scanY))
+                context.stroke(scanLine, with: .color(AppTheme.accent.opacity(0.20)), lineWidth: 1.2)
+
+                let center = CGPoint(x: size.width * 0.84, y: size.height * 0.18)
+                for radius in [CGFloat(24), 42, 60] {
+                    let circle = Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+                    context.stroke(circle, with: .color(AppTheme.secondaryAccent.opacity(0.14)), lineWidth: 0.8)
+                }
+
+                let angle = time * 0.72
+                let rayEnd = CGPoint(x: center.x + CGFloat(cos(angle) * 60), y: center.y + CGFloat(sin(angle) * 60))
+                var ray = Path()
+                ray.move(to: center)
+                ray.addLine(to: rayEnd)
+                context.stroke(ray, with: .color(AppTheme.accent.opacity(0.42)), lineWidth: 1.1)
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
