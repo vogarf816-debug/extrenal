@@ -99,7 +99,7 @@ After rotating the M3SB credentials, setting a new `VESPERDASH_PACKAGE_PASSWORDS
 curl -fsSL 'https://raw.githubusercontent.com/vogarf816-debug/extrenal/feat/baba-external-redesign/vesperdash/deploy_update.sh' -o /tmp/vesperdash-deploy.sh && sudo bash /tmp/vesperdash-deploy.sh
 ```
 
-The script asks for confirmation, validates the server-side environment values and package-password lengths, runs the security tests, backs up the existing app under `/opt/vesperdash/backups`, preserves the data directory and `/etc/vesperdash.env`, restarts the service, and checks that `/api/patches` is private. It attempts to restore the prior code if the post-deploy health checks fail. Set `VESPERDASH_DEPLOY_REF` only when you intentionally want a different Git ref.
+The script requires explicit acknowledgement that the exposed M3SB credentials were rotated and old packages were re-encrypted/re-uploaded. It validates the server-side environment values and package-password lengths, runs the security tests, backs up the existing app under `/opt/vesperdash/backups`, preserves the data directory and `/etc/vesperdash.env`, restarts the service, and checks that `/api/patches` is private. It attempts to restore the prior code if the post-deploy health checks fail. Set `VESPERDASH_DEPLOY_REF` only when you intentionally want a different Git ref.
 
 The server stores only hashes of client access tokens and binds each session to a device ID. The app stores its session and package passwords in device-only Keychain storage. This prevents unauthenticated scraping, but it cannot prevent a fully authorized or jailbroken device from extracting a package after decryption; no client-side encryption can guarantee that.
 

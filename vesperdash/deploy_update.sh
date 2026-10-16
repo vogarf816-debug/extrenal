@@ -104,6 +104,10 @@ the protected patches endpoint, and the client-session route.
 New rotated M3SB credentials and new package passwords must already be configured;
 re-encrypt/re-upload old .3105 packages before activation.
 NOTICE
+read -r -p 'Have you rotated the M3SB token and HMAC secret with the provider? Type ROTATED to continue: ' rotated_answer
+[[ "$rotated_answer" == "ROTATED" ]] || fail "Rotate the exposed M3SB credentials first; no files were changed"
+read -r -p 'Have all old .3105 packages been re-encrypted and re-uploaded? Type READY to continue: ' packages_answer
+[[ "$packages_answer" == "READY" ]] || fail "Re-encrypt/re-upload the packages first; no application files were changed"
 read -r -p 'Proceed with deployment? [y/N] ' answer
 [[ "${answer,,}" == "y" || "${answer,,}" == "yes" ]] || { echo 'Cancelled; no changes made.'; exit 0; }
 
