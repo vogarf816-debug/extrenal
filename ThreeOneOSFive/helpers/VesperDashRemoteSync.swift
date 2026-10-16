@@ -163,9 +163,14 @@ enum VesperDashRemoteSync {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes])
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              let result = try? JSONDecoder().decode(VesperDashClientAuthResponse.self, from: data) else {
+        guard let http = response as? HTTPURLResponse else {
             throw VesperDashClientError(message: "VesperDash returned an invalid activation response")
+        }
+        guard let result = try? JSONDecoder().decode(VesperDashClientAuthResponse.self, from: data) else {
+            if http.statusCode == 404 {
+                throw VesperDashClientError(message: "VesperDash server update required before activation. Contact the server administrator.")
+            }
+            throw VesperDashClientError(message: "VesperDash returned an invalid activation response (HTTP \(http.statusCode))")
         }
         if !(200..<300).contains(http.statusCode) && http.statusCode != 401 {
             throw VesperDashClientError(message: result.message ?? "VesperDash activation failed (HTTP \(http.statusCode))")
