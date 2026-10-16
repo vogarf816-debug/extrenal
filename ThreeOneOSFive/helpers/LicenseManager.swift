@@ -9,6 +9,7 @@ import UIKit
 final class LicenseManager: ObservableObject {
     @Published private(set) var expirationDate: Date?
     @Published private(set) var hasExpiryInformation = false
+    @Published private(set) var expiryDateWasProvided = false
     @Published private(set) var isActive = false
     @Published private(set) var isBusy = false
     @Published private(set) var isLoadingScreen = true
@@ -19,7 +20,8 @@ final class LicenseManager: ObservableObject {
     private let keyAccount = "license-key"
     private let expirationAccount = "license-expiration"
     private let expiryKnownAccount = "license-expiry-known"
-    private let lastCheckAccount = "license-last-check"
+    private let expiryPresentAccount = "license-expiry-present"
+    private let lastCheckAccount = "license-last-check-expiry-v2"
     private let deviceService = "com.m3sb.api.instance.v1"
     private let deviceAccount = "default"
     private let silentCheckInterval: TimeInterval = 6 * 60 * 60
@@ -29,6 +31,7 @@ final class LicenseManager: ObservableObject {
         // Keep the app available from the saved key while any revalidation runs silently.
         isActive = string(for: keyAccount) != nil
         hasExpiryInformation = string(for: expiryKnownAccount) == "true"
+        expiryDateWasProvided = string(for: expiryPresentAccount) == "true"
         if let value = string(for: expirationAccount), let timestamp = Double(value) {
             expirationDate = Date(timeIntervalSince1970: timestamp)
         }
@@ -79,9 +82,11 @@ final class LicenseManager: ObservableObject {
         delete(keyAccount)
         delete(expirationAccount)
         delete(expiryKnownAccount)
+        delete(expiryPresentAccount)
         delete(lastCheckAccount)
         expirationDate = nil
         hasExpiryInformation = false
+        expiryDateWasProvided = false
         isActive = false
         isLoadingScreen = false
         message = "Activation removed from this device"
@@ -184,6 +189,8 @@ final class LicenseManager: ObservableObject {
                     self.expirationDate = state.expiresAt
                     self.hasExpiryInformation = true
                     self.save("true", for: self.expiryKnownAccount)
+                    self.expiryDateWasProvided = state.hasExpiryField
+                    self.save(state.hasExpiryField ? "true" : "false", for: self.expiryPresentAccount)
                     if let expirationDate = state.expiresAt {
                         self.save(String(expirationDate.timeIntervalSince1970), for: self.expirationAccount)
                     } else {
@@ -197,9 +204,11 @@ final class LicenseManager: ObservableObject {
                         self.delete(self.keyAccount)
                         self.delete(self.expirationAccount)
                         self.delete(self.expiryKnownAccount)
+                        self.delete(self.expiryPresentAccount)
                         self.delete(self.lastCheckAccount)
                         self.expirationDate = nil
                         self.hasExpiryInformation = false
+                        self.expiryDateWasProvided = false
                         self.message = state.message ?? "License is not active"
                         return
                     }
@@ -349,6 +358,7 @@ private struct APIState {
     let valid: Bool
     let status: String?
     let expiresAt: Date?
+    let hasExpiryField: Bool
     let contactOwner: String?
     let message: String?
 
@@ -357,15 +367,32 @@ private struct APIState {
         status = json["status"] as? String
         contactOwner = json["telegram_username"] as? String
         message = json["message"] as? String
-        if let timestamp = json["expires_at"] as? NSNumber {
+        let rawExpiry = json["expires_at"]
+        hasExpiryField = rawExpiry != nil && !(rawExpiry is NSNull) && !((rawExpiry as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? false)
+        if let timestamp = rawExpiry as? NSNumber {
             let rawValue = timestamp.doubleValue
             expiresAt = Date(timeIntervalSince1970: rawValue > 10_000_000_000 ? rawValue / 1000 : rawValue)
-        } else if let value = json["expires_at"] as? String {
+        } else if let value = rawExpiry as? String, !value.isEmpty {
             let formatter = ISO8601DateFormatter()
-            expiresAt = formatter.date(from: value) ?? {
-                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                return formatter.date(from: value)
-            }()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            var parsed = formatter.date(from: value)
+            if parsed == nil {
+                formatter.formatOptions = [.withInternetDateTime]
+                parsed = formatter.date(from: value)
+            }
+            if parsed == nil {
+                let dateFormatter = DateFormatter()
+                dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+                dateFormatter.timeZone = TimeZone.current
+                for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSZ", "yyyy-MM-dd'T'HH:mm:ssZ", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss.SSS", "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd"] {
+                    dateFormatter.dateFormat = format
+                    if let date = dateFormatter.date(from: value) {
+                        parsed = date
+                        break
+                    }
+                }
+            }
+            expiresAt = parsed
         } else {
             expiresAt = nil
         }

@@ -363,7 +363,7 @@ struct ContentView: View {
                     .tracking(1)
                     .foregroundStyle(AppTheme.secondaryAccent)
                 if let expiry = licenseManager.expirationDate {
-                    TimelineView(.periodic(from: Date(), by: 60)) { timeline in
+                    TimelineView(.periodic(from: Date(), by: 1)) { timeline in
                         Text(licenseTimeRemaining(until: expiry, now: timeline.date))
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .monospacedDigit()
@@ -372,6 +372,10 @@ struct ContentView: View {
                     Text("EXPIRES \(expiry.formatted(date: .abbreviated, time: .shortened))")
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.paper.opacity(0.56))
+                } else if licenseManager.hasExpiryInformation && licenseManager.expiryDateWasProvided {
+                    Text("EXPIRY DATE COULD NOT BE READ")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.paper.opacity(0.72))
                 } else if licenseManager.hasExpiryInformation {
                     Text("NO EXPIRATION DATE")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -396,9 +400,11 @@ struct ContentView: View {
         let days = seconds / 86_400
         let hours = (seconds % 86_400) / 3_600
         let minutes = (seconds % 3_600) / 60
-        if days > 0 { return "\(days)d \(hours)h \(minutes)m remaining" }
-        if hours > 0 { return "\(hours)h \(minutes)m remaining" }
-        return "\(max(minutes, 1))m remaining"
+        let remainingSeconds = seconds % 60
+        if days > 0 { return "\(days)d \(hours)h \(minutes)m \(remainingSeconds)s remaining" }
+        if hours > 0 { return "\(hours)h \(minutes)m \(remainingSeconds)s remaining" }
+        if minutes > 0 { return "\(minutes)m \(remainingSeconds)s remaining" }
+        return "\(remainingSeconds)s remaining"
     }
 
     private var supportedDeviceTab: some View {
