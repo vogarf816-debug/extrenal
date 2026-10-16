@@ -3,13 +3,17 @@
 import os
 import hashlib
 import hmac
+import io
+import json
 import shutil
 import sys
 import tempfile
 import time
+import urllib.error
 import unittest
 import uuid
 from pathlib import Path
+from unittest.mock import patch
 
 TEST_ROOT = Path(tempfile.mkdtemp(prefix="vesperdash-security-test-"))
 os.environ["VESPERDASH_DATA"] = str(TEST_ROOT / "data")
@@ -23,6 +27,7 @@ os.environ["VESPERDASH_M3SB_HMAC_SECRET"] = "test-server-hmac-secret"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import server  # noqa: E402
+real_m3sb_verifier = server.verify_subscription_license
 
 
 def fake_license_verification(license_key, device_id, body):
@@ -53,6 +58,107 @@ def fake_license_verification(license_key, device_id, body):
 
 server.verify_subscription_license = fake_license_verification
 server.app.config.update(TESTING=True)
+
+
+class M3SBRequestCompatibilityTests(unittest.TestCase):
+    def signed_response(self, device_id):
+        secret = os.environ["VESPERDASH_M3SB_HMAC_SECRET"]
+        payload = {
+            "valid": False,
+            "status": "invalid",
+            "license": "diagnostic-license",
+            "device_hash": hashlib.sha256(device_id.encode("utf-8")).hexdigest(),
+            "expires_at": None,
+            "devices_left": 0,
+            "allow_inject": False,
+            "ts": int(time.time()),
+        }
+        fields = ("valid", "status", "license", "device_hash", "expires_at", "devices_left", "allow_inject", "ts")
+        parts = []
+        for field in fields:
+            value = payload[field]
+            value_text = "true" if value is True else "false" if value is False else "" if value is None else str(value)
+            parts.append(f"{field}={value_text}")
+        payload["sig_v2"] = hmac.new(secret.encode(), "&".join(parts).encode(), hashlib.sha256).hexdigest()
+        return payload
+
+    def test_signed_upstream_body_matches_legacy_ios_gate(self):
+        device_id = "device-1234567890"
+        client_body = {
+            "device_name": "Test iPhone",
+            "system_info": "iOS 18.7.9",
+            "os_info": "18.7.9",
+            "dylibs": "2",
+        }
+        response_payload = self.signed_response(device_id)
+        captured = {}
+
+        class FakeResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def read(self, _limit):
+                return json.dumps(response_payload).encode("utf-8")
+
+        class FakeOpener:
+            def open(self, request, timeout):
+                captured["request"] = request
+                captured["timeout"] = timeout
+                return FakeResponse()
+
+        with patch.object(server.urllib.request, "build_opener", return_value=FakeOpener()):
+            result = real_m3sb_verifier("diagnostic-license", device_id, client_body)
+
+        request = captured["request"]
+        request_body = json.loads(request.data)
+        expected = {
+            "token": "test-server-token",
+            "key": "diagnostic-license",
+            "device_id": device_id,
+            "udid": hashlib.sha256(device_id.encode("utf-8")).hexdigest(),
+            "device_name": "Test iPhone",
+            "system_info": "iOS 18.7.9",
+            "os_info": "18.7.9",
+        }
+        self.assertEqual(request_body, expected)
+        self.assertNotIn("dylibs", request_body)
+        self.assertNotIn("device_hash", request_body)
+        self.assertEqual(captured["timeout"], 15)
+        self.assertEqual(result, response_payload)
+
+        headers = {name.lower(): value for name, value in request.header_items()}
+        body_hash = hashlib.sha256(request.data).hexdigest()
+        self.assertEqual(headers["x-m3sb-body-sha256"], body_hash)
+        canonical = "\n".join((
+            "M3SB-API-SIGNATURE-V3", "POST", "/api/sdk/verify",
+            headers["x-m3sb-timestamp"], headers["x-m3sb-nonce"], body_hash,
+            "test-server-token", "diagnostic-license", device_id,
+        ))
+        expected_signature = hmac.new(
+            os.environ["VESPERDASH_M3SB_HMAC_SECRET"].encode(), canonical.encode(), hashlib.sha256
+        ).hexdigest()
+        self.assertEqual(headers["x-m3sb-signature"], expected_signature)
+        self.assertNotIn("x-apon-client", headers)
+
+    def test_upstream_http_rejection_is_not_reported_as_network_outage(self):
+        class RejectingOpener:
+            def open(self, _request, timeout):
+                raise urllib.error.HTTPError(
+                    "https://api.m3sbapi.shop/api/sdk/verify",
+                    401,
+                    "Unauthorized",
+                    {},
+                    io.BytesIO(b"must not be logged or returned"),
+                )
+
+        with patch.object(server.urllib.request, "build_opener", return_value=RejectingOpener()):
+            with self.assertRaisesRegex(RuntimeError, "subscription service rejected the request \\(HTTP 401\\)"):
+                real_m3sb_verifier("diagnostic-license", "device-1234567890", {})
 
 
 class ClientSecurityTests(unittest.TestCase):

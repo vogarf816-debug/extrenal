@@ -423,14 +423,15 @@ def verify_subscription_license(license_key, device_id, body):
     ):
         raise RuntimeError("server-side license verification is not configured")
 
-    device_hash = hashlib.sha256(device_id.encode()).hexdigest()
+    device_hash = hashlib.sha256(device_id.encode("utf-8")).hexdigest()
     signed_body = {
         "token": package_token,
         "key": license_key,
         "device_id": device_id,
-        "dylibs": str(body.get("dylibs", "0")),
+        # Keep the exact request schema used by the previous working iOS gate.
+        # Extra signed fields can make the upstream license service reject the
+        # request even though the HMAC itself is correct.
         "udid": device_hash,
-        "device_hash": device_hash,
         "device_name": str(body.get("device_name", "iOS device"))[:120],
         "system_info": str(body.get("system_info", "iOS"))[:120],
         "os_info": str(body.get("os_info", ""))[:50],
@@ -443,7 +444,6 @@ def verify_subscription_license(license_key, device_id, body):
     signature = hmac.new(secret.encode(), canonical.encode(), hashlib.sha256).hexdigest()
     request_headers = {
         "Content-Type": "application/json",
-        "X-APON-Client": "APON/3.0 (iOS)",
         "X-M3SB-Signature-Version": "3",
         "X-M3SB-Timestamp": timestamp,
         "X-M3SB-Nonce": nonce,
@@ -463,7 +463,17 @@ def verify_subscription_license(license_key, device_id, body):
             if not 200 <= response.status < 300:
                 raise RuntimeError("subscription service rejected the request")
             payload = json.loads(response.read(128 * 1024))
+    except urllib.error.HTTPError as exc:
+        # HTTPError subclasses URLError; catch it first so credential/signature
+        # rejection is not mislabeled as a network outage. Never log response
+        # bodies, tokens, license keys, or signatures.
+        if exc.code == 429 or exc.code >= 500:
+            app.logger.warning("M3SB verification returned HTTP %s", exc.code)
+            raise RuntimeError(f"subscription service is unavailable (HTTP {exc.code})") from None
+        app.logger.warning("M3SB verification was rejected with HTTP %s", exc.code)
+        raise RuntimeError(f"subscription service rejected the request (HTTP {exc.code})") from None
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        app.logger.warning("M3SB verification transport/response failure (%s)", type(exc).__name__)
         raise RuntimeError("subscription service is unavailable") from exc
     if not isinstance(payload, dict) or not m3sb_response_is_trusted(payload, secret):
         raise RuntimeError("subscription response signature is invalid")
