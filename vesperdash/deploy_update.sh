@@ -68,6 +68,7 @@ done
 
 "$VENV_PYTHON" - "$ENV_FILE" <<'PY'
 import json
+import shlex
 import sys
 from pathlib import Path
 
@@ -77,8 +78,11 @@ for raw in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
     if not line or line.startswith("#") or not line.startswith("VESPERDASH_PACKAGE_PASSWORDS="):
         continue
     value = line.split("=", 1)[1].strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
-        value = value[1:-1]
+    try:
+        parsed_value = shlex.split(value, posix=True)
+    except ValueError:
+        parsed_value = []
+    value = parsed_value[0] if len(parsed_value) == 1 else None
     break
 try:
     passwords = json.loads(value) if value is not None else None

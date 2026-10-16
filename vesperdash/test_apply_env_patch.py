@@ -1,4 +1,5 @@
 import json
+import shlex
 import stat
 import tempfile
 import unittest
@@ -34,6 +35,10 @@ class EnvPatchTests(unittest.TestCase):
 
     def test_systemd_quote_escapes_quotes_and_backslashes(self):
         self.assertEqual(systemd_quote('abc\\def"ghi'), '"abc\\\\def\\"ghi"')
+
+    def test_systemd_quote_round_trips_package_password_json(self):
+        passwords = json.dumps(["x" * 32, "y" * 40])
+        self.assertEqual(shlex.split(systemd_quote(passwords), posix=True), [passwords])
 
     def test_update_preserves_unmanaged_settings_and_replaces_duplicates(self):
         with tempfile.TemporaryDirectory() as directory:

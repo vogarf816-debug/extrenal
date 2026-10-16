@@ -91,23 +91,23 @@ Admin credentials and M3SB credentials belong only in `/etc/vesperdash.env` or a
 4. Install/distribute the matching new IPA after the server update. Older app versions do not authenticate patch requests and will receive `401` once the API is protected.
 5. Remove old credentials from Git history only after coordinating a history rewrite/force-push for every branch and clone. Deleting the file in a new commit alone does not erase prior copies.
 
-## Update an existing VPS with GitHub Actions
+## Update an existing VPS directly
 
-The production deploy is manual only; it does not run on pushes. Merge the change to the repository's default branch, then create a GitHub Environment named `production` and add these **Environment secrets** under **Settings → Environments → production**:
+This is the simple interactive VPS route; it does not require GitHub Actions, SSH secrets in GitHub, or pasting credentials into a command.
 
-- `VESPERDASH_DEPLOY_HOST` — VPS hostname or IP.
-- `VESPERDASH_DEPLOY_USER` — SSH account with non-interactive `sudo -n` access for the deployment commands (root also works, but a dedicated deploy account is preferable).
-- `VESPERDASH_DEPLOY_SSH_PRIVATE_KEY` — dedicated unencrypted SSH private key authorized for that account (the runner is ephemeral; scope the key to this VPS and protect the `production` Environment).
-- `VESPERDASH_DEPLOY_KNOWN_HOSTS` — pinned SSH host-key line(s), verified against the VPS provider's fingerprint. Do not trust an unverified `ssh-keyscan` result.
-- `VESPERDASH_DEPLOY_PORT` — optional SSH port; defaults to `22`.
-- `VESPERDASH_M3SB_PACKAGE_TOKEN` and `VESPERDASH_M3SB_HMAC_SECRET` — newly rotated values from the provider.
-- `VESPERDASH_PACKAGE_PASSWORDS` — JSON array of the new strong package password(s), for example `[...]`; each must be at least 16 characters and must match the passwords used to encrypt the uploaded packages.
+1. Merge this pull request into `main`.
+2. Rotate the M3SB package token and HMAC secret with the provider.
+3. Create strong replacement package passwords (at least 16 characters; 32+ random characters is preferable), re-encrypt every `.3105` package with them, and upload the new packages in the dashboard.
+4. Open a terminal on the VPS and run this single command:
 
-Use a dedicated deploy key and enable required reviewers for the `production` Environment where available; the SSH key grants privileged access to the VPS. Never put these values in repository files, workflow logs, or chat. Re-encrypt and upload every `.3105` package before deploying.
+   ```bash
+   sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/vogarf816-debug/extrenal/main/vesperdash/deploy_from_vps.sh)"
+   ```
 
-After the secrets are configured, open **Actions → Deploy VesperDash production → Run workflow** on the default branch. Confirm both migration checkboxes and enter `DEPLOY`. The workflow pins the SSH host key, streams runtime secrets over SSH without logging them, atomically merges only the allow-listed M3SB settings into `/etc/vesperdash.env`, backs up the app, runs tests, restarts the service, and waits up to 120 seconds for the API before checking that the patch API is protected. If a deployment fails after updating the environment, it stops the service rather than restarting the old public API; fix the cause and rerun the workflow. The workflow is not runnable until its file is merged into the default branch.
+5. Follow the prompts: type `ROTATED`, then `READY`, then `DEPLOY` only after each statement is true. The script then prompts for the new M3SB token, HMAC secret, and package-password JSON list. These entries are hidden as you type and sent directly to the server-side helper; do not paste them into chat or repository files.
+6. The script atomically updates only the relevant entries in `/etc/vesperdash.env`, runs the security tests, backs up and deploys the server, restarts it, then waits up to 120 seconds for the API and checks that the patch API is protected.
 
-The terminal-based alternative remains available at `vesperdash/deploy_update.sh`. It requires interactive confirmation and defaults to `main`; `VESPERDASH_DEPLOY_REF` can select another branch or a full commit SHA when intentionally needed. The deploy script validates the server-side environment and package-password lengths, runs the security tests, backs up the existing app under `/opt/vesperdash/backups`, preserves application data and the environment file, then checks `/health`, the protected patches endpoint, and the client-session route.
+The VPS must already have the current VesperDash installation, `/opt/vesperdash/venv`, and `curl`. The deployment script preserves the app data and keeps `/etc/vesperdash.env` protected. If a deployment fails after updating the environment, it leaves the service stopped rather than reopening the old public API. Fix the reported problem before retrying. For an intentional non-default ref, set `VESPERDASH_DEPLOY_REF` in the shell before running the command; the default is `main`.
 
 The server stores only hashes of client access tokens and binds each session to a device ID. The app stores its session and package passwords in device-only Keychain storage. This prevents unauthenticated scraping, but it cannot prevent a fully authorized or jailbroken device from extracting a package after decryption; no client-side encryption can guarantee that.
 
