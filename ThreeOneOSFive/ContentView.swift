@@ -994,18 +994,7 @@ private struct PatchOptionCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 14) {
             if let imageURL {
-                AsyncImage(url: imageURL) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFill()
-                    } else if phase.error != nil {
-                        Image(systemName: "photo").foregroundStyle(color)
-                    } else {
-                        ProgressView().tint(color)
-                    }
-                }
-                .frame(width: 48, height: 48)
-                .background(Color.black.opacity(0.28))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                AuthenticatedPatchImage(url: imageURL, color: color)
             } else {
                 Image(systemName: "bolt.fill")
                     .font(.system(size: 15, weight: .black))
@@ -1061,6 +1050,48 @@ private struct PatchOptionCard: View {
         .accessibilityLabel(statusText.isEmpty ? "\(name), \(target), \(isEnabled ? "On" : "Off")" : "\(name), \(target), \(statusText), \(isEnabled ? "On" : "Off")")
     }
 }
+
+private struct AuthenticatedPatchImage: View {
+    let url: URL
+    let color: Color
+    @State private var image: UIImage? = nil
+    @State private var failed = false
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else if failed {
+                Image(systemName: "photo").foregroundStyle(color)
+            } else {
+                ProgressView().tint(color)
+            }
+        }
+        .frame(width: 48, height: 48)
+        .background(Color.black.opacity(0.28))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .task(id: url) { await loadImage() }
+    }
+
+    @MainActor
+    private func loadImage() async {
+        do {
+            let request = try await VesperDashRemoteSync.authenticatedRequest(for: url, timeout: 20)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse,
+                  (200..<300).contains(http.statusCode),
+                  data.count <= 5 * 1024 * 1024,
+                  let decoded = UIImage(data: data) else {
+                failed = true
+                return
+            }
+            image = decoded
+        } catch {
+            failed = true
+        }
+    }
+}
+
 private enum PatchAudioFeedback {
     private static var player: AVAudioPlayer?
 

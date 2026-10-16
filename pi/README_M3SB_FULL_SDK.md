@@ -6,16 +6,16 @@
 - `M3SBV3TweakBridge.h` / `M3SBV3TweakBridge.m`: Signature v3 requests, Keychain Instance ID, response validation, and heartbeat.
 - `APONLicenseSDK.swift`: Swift integration layer.
 - `APONGate.m`: Objective-C integration layer.
-- `M3SB_API_Config.json`: package-specific configuration.
+- `M3SB_API_Config.example.json`: placeholder-only example. Create a real `M3SB_API_Config.json` locally from a protected secret store; never commit it.
 - `M3SB_Target_Info.plist`: target Bundle ID and package metadata.
 
 ## Integration
 
-Add the source files to the target and include the generated configuration files. The Bundle ID in `M3SB_Target_Info.plist` must match the target application.
+Add the source files to the target and provision configuration locally. The Bundle ID in `M3SB_Target_Info.plist` must match the target application. Do not copy server credentials into a public IPA.
 
 The SDK uses Signature v3, a Keychain-persistent Instance ID, device binding, license status checks, and a recurring heartbeat. The server remains authoritative for license validity, package status, device limits, expiry, and injection policy.
 
-Keep `M3SB_API_Config.json` and `M3SB_Target_Info.plist` private. Do not commit package credentials to a public repository.
+Keep real M3SB values out of Git and client bundles. The example files contain placeholders only. Credentials found in repository history or a distributed IPA must be treated as compromised and rotated with the provider.
 
 ## Package Policy
 

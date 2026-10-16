@@ -1,0 +1,11 @@
+{
+  "api_base_url": "https://api.m3sbapi.shop",
+  "token": "SERVER_ONLY_REPLACE_WITH_M3SB_PACKAGE_TOKEN",
+  "hmac_secret": "SERVER_ONLY_REPLACE_WITH_M3SB_HMAC_SECRET",
+  "package_id": 78,
+  "package_name": "EXTRENAL",
+  "sdk_version": "1.1.0",
+  "signature_version": 3,
+  "free_version": false,
+  "policy": "package-controlled"
+}

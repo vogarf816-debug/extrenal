@@ -152,8 +152,7 @@ final class PatchProjectStore: ObservableObject {
                         guard let url = VesperDashRemoteSync.validDownloadURL(for: remote) else {
                             throw PatchPackageError.remoteImportFailed
                         }
-                        var request = URLRequest(url: url)
-                        request.timeoutInterval = 60
+                        let request = try await VesperDashRemoteSync.authenticatedRequest(for: url, timeout: 60)
                         let (data, response) = try await session.data(for: request)
                         guard let http = response as? HTTPURLResponse,
                               (200..<300).contains(http.statusCode),
@@ -162,8 +161,11 @@ final class PatchProjectStore: ObservableObject {
                             throw PatchPackageError.remoteImportFailed
                         }
                         let summary = try PatchPackageCodec.inspect(data)
+                        guard summary.isPasswordProtected else {
+                            throw PatchPackageError.invalidPasswordOrCorruptedPackage
+                        }
                         var decoded: DecodedPatchPackage?
-                        for password in VesperStringVault.remotePackagePasswords {
+                        for password in VesperDashClientSession.packagePasswords {
                             if let candidate = try? PatchPackageCodec.decode(data, password: password) {
                                 decoded = candidate
                                 break
@@ -188,7 +190,7 @@ final class PatchProjectStore: ObservableObject {
                             filename: localFilename
                         )
                     } catch {
-                        log("patch: remote .3105 download failed for \(remote.name): \(error)")
+                        log("patch: remote .3105 download failed")
                     }
                     await self?.finishSyncFile(remote.name)
                 }
