@@ -1,0 +1,149 @@
+name: Deploy VesperDash production
+
+on:
+  workflow_dispatch:
+    inputs:
+      credentials_rotated:
+        description: Confirm the M3SB token and HMAC secret were rotated with the provider
+        type: boolean
+        required: true
+        default: false
+      packages_reencrypted:
+        description: Confirm all .3105 packages were re-encrypted and uploaded with the new password list
+        type: boolean
+        required: true
+        default: false
+      confirm_deploy:
+        description: Type DEPLOY to update the production VPS
+        type: string
+        required: true
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vesperdash-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy VesperDash to production VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: production
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Check deployment confirmations and required secrets
+        env:
+          CREDENTIALS_ROTATED: ${{ inputs.credentials_rotated }}
+          PACKAGES_REENCRYPTED: ${{ inputs.packages_reencrypted }}
+          CONFIRM_DEPLOY: ${{ inputs.confirm_deploy }}
+          DEPLOY_HOST: ${{ secrets.VESPERDASH_DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.VESPERDASH_DEPLOY_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.VESPERDASH_DEPLOY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.VESPERDASH_DEPLOY_KNOWN_HOSTS }}
+          M3SB_PACKAGE_TOKEN: ${{ secrets.VESPERDASH_M3SB_PACKAGE_TOKEN }}
+          M3SB_HMAC_SECRET: ${{ secrets.VESPERDASH_M3SB_HMAC_SECRET }}
+          PACKAGE_PASSWORDS: ${{ secrets.VESPERDASH_PACKAGE_PASSWORDS }}
+        run: |
+          set -euo pipefail
+          [[ "$CREDENTIALS_ROTATED" == "true" ]] || { echo "::error::Confirm M3SB credential rotation first."; exit 1; }
+          [[ "$PACKAGES_REENCRYPTED" == "true" ]] || { echo "::error::Confirm package re-encryption and upload first."; exit 1; }
+          [[ "$CONFIRM_DEPLOY" == "DEPLOY" ]] || { echo "::error::Type DEPLOY to confirm the production deployment."; exit 1; }
+          [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "::error::Missing or invalid VESPERDASH_DEPLOY_HOST."; exit 1; }
+          [[ "$DEPLOY_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || { echo "::error::Missing or invalid VESPERDASH_DEPLOY_USER."; exit 1; }
+          [[ -n "$SSH_PRIVATE_KEY" && -n "$SSH_KNOWN_HOSTS" ]] || { echo "::error::SSH key or pinned known_hosts secret is missing."; exit 1; }
+          [[ -n "$M3SB_PACKAGE_TOKEN" && -n "$M3SB_HMAC_SECRET" && -n "$PACKAGE_PASSWORDS" ]] || { echo "::error::One or more VesperDash runtime secrets are missing."; exit 1; }
+          python3 - <<'PY'
+          import json, os, sys
+          try:
+              passwords = json.loads(os.environ["PACKAGE_PASSWORDS"])
+          except (KeyError, json.JSONDecodeError):
+              print("::error::VESPERDASH_PACKAGE_PASSWORDS must be a JSON array.")
+              raise SystemExit(1)
+          if not isinstance(passwords, list) or not passwords or any(
+              not isinstance(value, str) or len(value.strip()) < 16 for value in passwords
+          ):
+              print("::error::Each package password must contain at least 16 characters.")
+              raise SystemExit(1)
+          PY
+
+      - name: Check out deployment code
+        uses: actions/checkout@v4
+
+      - name: Run server security and environment tests
+        run: python3 -m unittest vesperdash.test_security vesperdash.test_apply_env_patch -v
+
+      - name: Configure pinned SSH connection
+        id: ssh_setup
+        env:
+          DEPLOY_HOST: ${{ secrets.VESPERDASH_DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.VESPERDASH_DEPLOY_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.VESPERDASH_DEPLOY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.VESPERDASH_DEPLOY_KNOWN_HOSTS }}
+          SSH_PORT_INPUT: ${{ secrets.VESPERDASH_DEPLOY_PORT }}
+        run: |
+          set -euo pipefail
+          SSH_PORT="${SSH_PORT_INPUT:-22}"
+          [[ "$SSH_PORT" =~ ^[0-9]{1,5}$ ]] && (( SSH_PORT >= 1 && SSH_PORT <= 65535 )) || { echo "::error::Invalid SSH port."; exit 1; }
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/vesperdash_deploy_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/vesperdash_deploy_key" "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -P '' -f "$HOME/.ssh/vesperdash_deploy_key" >/dev/null
+          echo "SSH_PORT=$SSH_PORT" >> "$GITHUB_ENV"
+          echo "REMOTE_TARGET=${DEPLOY_USER}@${DEPLOY_HOST}" >> "$GITHUB_ENV"
+          echo "REMOTE_DIR=/tmp/vesperdash-gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      - name: Upload deployment helpers
+        run: |
+          set -euo pipefail
+          ssh_opts=(-i "$HOME/.ssh/vesperdash_deploy_key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -p "$SSH_PORT")
+          scp_opts=(-i "$HOME/.ssh/vesperdash_deploy_key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -P "$SSH_PORT")
+          ssh "${ssh_opts[@]}" "$REMOTE_TARGET" "install -d -m 700 '$REMOTE_DIR'"
+          scp "${scp_opts[@]}" vesperdash/deploy_update.sh vesperdash/apply_env_patch.py "$REMOTE_TARGET:$REMOTE_DIR/"
+
+      - name: Update protected server environment
+        id: update_env
+        env:
+          M3SB_PACKAGE_TOKEN: ${{ secrets.VESPERDASH_M3SB_PACKAGE_TOKEN }}
+          M3SB_HMAC_SECRET: ${{ secrets.VESPERDASH_M3SB_HMAC_SECRET }}
+          PACKAGE_PASSWORDS: ${{ secrets.VESPERDASH_PACKAGE_PASSWORDS }}
+        run: |
+          set -euo pipefail
+          ssh_opts=(-i "$HOME/.ssh/vesperdash_deploy_key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -p "$SSH_PORT")
+          python3 - <<'PY' | ssh "${ssh_opts[@]}" "$REMOTE_TARGET" "sudo -n python3 '$REMOTE_DIR/apply_env_patch.py'"
+          import json, os, sys
+          json.dump({
+              "VESPERDASH_M3SB_API_BASE_URL": "https://api.m3sbapi.shop",
+              "VESPERDASH_M3SB_PACKAGE_TOKEN": os.environ["M3SB_PACKAGE_TOKEN"],
+              "VESPERDASH_M3SB_HMAC_SECRET": os.environ["M3SB_HMAC_SECRET"],
+              "VESPERDASH_PACKAGE_PASSWORDS": os.environ["PACKAGE_PASSWORDS"],
+          }, sys.stdout)
+          PY
+
+      - name: Deploy and verify protected API
+        id: deploy
+        run: |
+          set -euo pipefail
+          ssh_opts=(-i "$HOME/.ssh/vesperdash_deploy_key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -p "$SSH_PORT")
+          [[ "$GITHUB_REF" == "refs/heads/main" && "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Deployment must run from main at a full commit SHA."; exit 1; }
+          ssh "${ssh_opts[@]}" "$REMOTE_TARGET" \
+            "sudo -n env VESPERDASH_NONINTERACTIVE=1 VESPERDASH_M3SB_ROTATED_ACK=ROTATED VESPERDASH_PACKAGES_REENCRYPTED_ACK=READY VESPERDASH_DEPLOY_CONFIRM=YES VESPERDASH_DEPLOY_REF='$GITHUB_SHA' bash '$REMOTE_DIR/deploy_update.sh'"
+
+      - name: Fail closed if deployment did not complete
+        if: ${{ always() && steps.update_env.outcome == 'success' && steps.deploy.outcome != 'success' }}
+        run: |
+          set -euo pipefail
+          ssh_opts=(-i "$HOME/.ssh/vesperdash_deploy_key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -p "$SSH_PORT")
+          ssh "${ssh_opts[@]}" "$REMOTE_TARGET" 'sudo -n systemctl stop vesperdash' || echo "::warning::Could not stop the service automatically; check the VPS immediately."
+
+      - name: Remove remote helper files
+        if: ${{ always() && steps.ssh_setup.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          ssh_opts=(-i "$HOME/.ssh/vesperdash_deploy_key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -p "$SSH_PORT")
+          ssh "${ssh_opts[@]}" "$REMOTE_TARGET" "rm -rf '$REMOTE_DIR'" || true
+          rm -f "$HOME/.ssh/vesperdash_deploy_key" "$HOME/.ssh/known_hosts"

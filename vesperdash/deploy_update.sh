@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 REPO="vogarf816-debug/extrenal"
-DEFAULT_REF="feat/baba-external-redesign"
+DEFAULT_REF="main"
 REF="${VESPERDASH_DEPLOY_REF:-$DEFAULT_REF}"
 APP_DIR="/opt/vesperdash/app"
 VENV_PYTHON="/opt/vesperdash/venv/bin/python"
@@ -25,7 +25,7 @@ cleanup() {
   if [[ -d "$STAGE_DIR" ]]; then rm -rf "$STAGE_DIR"; fi
 }
 rollback() {
-  printf 'Health check failed; restoring the previous application code.\n' >&2
+  printf 'Health check failed; restoring the previous code but leaving the service stopped to avoid reopening the public legacy API.\n' >&2
   systemctl stop "$SERVICE" >/dev/null 2>&1 || true
   if [[ -d "$APP_DIR" ]]; then
     mv "$APP_DIR" "/opt/vesperdash/app.failed-$TIMESTAMP" || true
@@ -35,8 +35,7 @@ rollback() {
   elif [[ -d "$BACKUP_DIR" ]]; then
     cp -a "$BACKUP_DIR" "$APP_DIR"
   fi
-  systemctl start "$SERVICE" >/dev/null 2>&1 || true
-  SERVICE_STOPPED=0
+  SERVICE_STOPPED=1
   OLD_MOVED=0
   SWAPPED=0
 }
@@ -49,7 +48,7 @@ handle_error() {
     if [[ "$OLD_MOVED" -eq 1 && ! -d "$APP_DIR" && -d "$ROLLBACK_DIR" ]]; then
       mv "$ROLLBACK_DIR" "$APP_DIR" || true
     fi
-    systemctl start "$SERVICE" >/dev/null 2>&1 || true
+    printf 'Service remains stopped; rerun the deployment after fixing the failure.\n' >&2
   fi
   exit "$status"
 }
@@ -57,7 +56,7 @@ trap cleanup EXIT
 trap handle_error ERR
 
 [[ "$(id -u)" -eq 0 ]] || fail "Run with sudo/root: sudo bash deploy_update.sh"
-[[ "$REF" =~ ^[A-Za-z0-9._/-]+$ ]] || fail "Invalid VESPERDASH_DEPLOY_REF"
+[[ "$REF" =~ ^([A-Za-z0-9._/-]+|[0-9a-fA-F]{40})$ ]] || fail "Invalid VESPERDASH_DEPLOY_REF"
 [[ -d "$APP_DIR" ]] || fail "Missing $APP_DIR; this script updates an existing VesperDash installation"
 [[ -x "$VENV_PYTHON" ]] || fail "Missing VesperDash virtualenv at /opt/vesperdash/venv"
 [[ -f "$ENV_FILE" ]] || fail "Missing $ENV_FILE; keep credentials in this protected server-side file"
@@ -104,15 +103,25 @@ the protected patches endpoint, and the client-session route.
 New rotated M3SB credentials and new package passwords must already be configured;
 re-encrypt/re-upload old .3105 packages before activation.
 NOTICE
-read -r -p 'Have you rotated the M3SB token and HMAC secret with the provider? Type ROTATED to continue: ' rotated_answer
-[[ "$rotated_answer" == "ROTATED" ]] || fail "Rotate the exposed M3SB credentials first; no files were changed"
-read -r -p 'Have all old .3105 packages been re-encrypted and re-uploaded? Type READY to continue: ' packages_answer
-[[ "$packages_answer" == "READY" ]] || fail "Re-encrypt/re-upload the packages first; no application files were changed"
-read -r -p 'Proceed with deployment? [y/N] ' answer
-[[ "${answer,,}" == "y" || "${answer,,}" == "yes" ]] || { echo 'Cancelled; no changes made.'; exit 0; }
+if [[ "${VESPERDASH_NONINTERACTIVE:-0}" == "1" ]]; then
+  [[ "${VESPERDASH_M3SB_ROTATED_ACK:-}" == "ROTATED" ]] || fail "M3SB rotation acknowledgement missing"
+  [[ "${VESPERDASH_PACKAGES_REENCRYPTED_ACK:-}" == "READY" ]] || fail "Package re-encryption acknowledgement missing"
+  [[ "${VESPERDASH_DEPLOY_CONFIRM:-}" == "YES" ]] || fail "Deployment confirmation missing"
+else
+  read -r -p 'Have you rotated the M3SB token and HMAC secret with the provider? Type ROTATED to continue: ' rotated_answer
+  [[ "$rotated_answer" == "ROTATED" ]] || fail "Rotate the exposed M3SB credentials first; no files were changed"
+  read -r -p 'Have all old .3105 packages been re-encrypted and re-uploaded? Type READY to continue: ' packages_answer
+  [[ "$packages_answer" == "READY" ]] || fail "Re-encrypt/re-upload the packages first; no application files were changed"
+  read -r -p 'Proceed with deployment? [y/N] ' answer
+  [[ "${answer,,}" == "y" || "${answer,,}" == "yes" ]] || { echo 'Cancelled; no changes made.'; exit 0; }
+fi
 
 ARCHIVE="$TMP_DIR/source.tar.gz"
-SOURCE_URL="https://github.com/$REPO/archive/refs/heads/$REF.tar.gz"
+if [[ "$REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+  SOURCE_URL="https://github.com/$REPO/archive/$REF.tar.gz"
+else
+  SOURCE_URL="https://github.com/$REPO/archive/refs/heads/$REF.tar.gz"
+fi
 curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 --max-time 120 -o "$ARCHIVE" "$SOURCE_URL"
 mkdir -p "$TMP_DIR/source"
 tar -xzf "$ARCHIVE" --strip-components=1 -C "$TMP_DIR/source"
@@ -123,7 +132,7 @@ SOURCE_DIR="$TMP_DIR/source/vesperdash"
 "$VENV_PYTHON" -m pip install --disable-pip-version-check -r "$SOURCE_DIR/requirements.txt"
 (
   cd "$TMP_DIR/source"
-  "$VENV_PYTHON" -m unittest vesperdash.test_security -v
+  "$VENV_PYTHON" -m unittest vesperdash.test_security vesperdash.test_apply_env_patch -v
 )
 
 install -d -m 0750 "$BACKUP_ROOT"
@@ -139,7 +148,6 @@ if [[ -d "$APP_DIR/data" ]]; then cp -a "$APP_DIR/data" "$STAGE_DIR/data"; fi
 chown -R vesperdash:www-data "$STAGE_DIR"
 
 if ! systemctl stop "$SERVICE"; then
-  systemctl start "$SERVICE" >/dev/null 2>&1 || true
   fail "Could not stop $SERVICE; no application files were changed"
 fi
 SERVICE_STOPPED=1
@@ -156,11 +164,15 @@ SERVICE_STOPPED=0
 health_code=""
 patches_code=""
 auth_route_code=""
-for _ in $(seq 1 12); do
-  health_code="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "$LOCAL_BASE/health" || true)"
-  patches_code="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "$LOCAL_BASE/api/patches" || true)"
-  auth_route_code="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "$LOCAL_BASE/api/auth/client-session" || true)"
-  if [[ "$health_code" == "200" && "$patches_code" == "401" && "$auth_route_code" == "405" ]]; then break; fi
+deadline=$((SECONDS + 120))
+printf 'Waiting up to 120 seconds for the API to become ready...\n'
+while (( SECONDS <= deadline )); do
+  health_code="$(curl -sS --max-time 3 -o /dev/null -w '%{http_code}' "$LOCAL_BASE/health" || true)"
+  if [[ "$health_code" == "200" ]]; then
+    patches_code="$(curl -sS --max-time 3 -o /dev/null -w '%{http_code}' "$LOCAL_BASE/api/patches" || true)"
+    auth_route_code="$(curl -sS --max-time 3 -o /dev/null -w '%{http_code}' "$LOCAL_BASE/api/auth/client-session" || true)"
+    if [[ "$patches_code" == "401" && "$auth_route_code" == "405" ]]; then break; fi
+  fi
   sleep 2
 done
 
