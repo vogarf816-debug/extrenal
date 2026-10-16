@@ -127,16 +127,16 @@ struct VesperAppSettings: Decodable {
     let footerText: String
 
     static let fallback = VesperAppSettings(
-        appName: "Baba External",
+        appName: "Vesper",
         developerName: "Yagami",
-        developerSubtitle: "Baba Panel Developer",
-        channelName: "Baba Panel Telegram",
-        channelHandle: "@BABAPANELSTOREonlybaba18",
-        channelURL: "https://t.me/BABAPANELSTOREonlybaba18",
-        ownerName: "Baba Panel",
-        ownerHandle: "@onlybaba18",
-        ownerURL: "https://www.tiktok.com/@onlybaba18?_r=1&_t=ZS-9AWocG5ZtUm",
-        footerText: "BABA PANEL • READY"
+        developerSubtitle: "Vesper Developer",
+        channelName: "Vesper Telegram",
+        channelHandle: "@VesperExternal",
+        channelURL: "https://t.me/VesperExternal",
+        ownerName: "Yagami",
+        ownerHandle: "@YAGAMIxIOS",
+        ownerURL: "https://t.me/YAGAMIxIOS",
+        footerText: "VESPER • READY"
     )
 
     init(appName: String, developerName: String, developerSubtitle: String, channelName: String, channelHandle: String, channelURL: String, ownerName: String, ownerHandle: String, ownerURL: String, footerText: String) {

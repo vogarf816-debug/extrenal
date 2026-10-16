@@ -1,13 +1,13 @@
 import SwiftUI
 
 enum AppTheme {
-    static let accent = Color(red: 0.96, green: 0.08, blue: 0.13)
-    static let secondaryAccent = Color(red: 1.00, green: 0.35, blue: 0.39)
-    static let pageBackground = Color(red: 0.055, green: 0.012, blue: 0.018)
-    static let consoleBackground = Color(red: 0.012, green: 0.006, blue: 0.010)
-    static let referenceCard = Color(red: 0.105, green: 0.025, blue: 0.032).opacity(0.98)
-    static let paper = Color(red: 0.96, green: 0.94, blue: 0.94)
-    static let ink = Color(red: 0.012, green: 0.006, blue: 0.010)
+    static let accent = Color(white: 0.38)
+    static let secondaryAccent = Color(white: 0.70)
+    static let pageBackground = Color(white: 0.035)
+    static let consoleBackground = Color(white: 0.010)
+    static let referenceCard = Color(white: 0.075).opacity(0.98)
+    static let paper = Color(white: 0.96)
+    static let ink = Color(white: 0.012)
     static let pageInset: CGFloat = 16
     static let rowIconSize: CGFloat = 17
     static let rowIconFrame: CGFloat = 28
@@ -85,7 +85,7 @@ struct AppLogo: View {
 
     var body: some View {
         Group {
-            if let icon = UIImage(named: "BabaPanelBranding")
+            if let icon = UIImage(named: "VesperEmblem")
                 ?? UIImage(named: "VesperLogo")
                 ?? UIImage(named: "AppIcon60x60")
                 ?? Bundle.main.path(forResource: "AppIcon60x60@2x", ofType: "png").flatMap(UIImage.init(contentsOfFile:))

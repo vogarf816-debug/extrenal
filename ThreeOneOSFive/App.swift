@@ -13,7 +13,7 @@ struct ThreeOneOSFiveApp: App {
 
     init() {
         setupLogCapture()
-        log("app: 3105 launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
+        log("app: VESPER launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
     }
 
     private var language: AppLanguage {
@@ -178,12 +178,12 @@ private struct WelcomeView: View {
         ZStack {
             AnimatedHyperBackdrop().ignoresSafeArea()
             VStack(spacing: 16) {
-                Image("BabaPanelBranding")
+                Image("VesperEmblem")
                     .resizable()
                     .scaledToFit()
                     .frame(height: 132)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                Text("WELCOME TO BABA EXTERNAL")
+                Text("WELCOME TO VESPER")
                     .font(.system(size: 21, weight: .black, design: .rounded))
                     .tracking(1.2)
                     .foregroundStyle(.white)

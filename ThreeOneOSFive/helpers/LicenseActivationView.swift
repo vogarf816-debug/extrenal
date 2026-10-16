@@ -26,7 +26,7 @@ struct LicenseActivationView: View {
                                 .padding(.bottom, 18)
 
                             VStack(spacing: 6) {
-                                Text("BABA EXTERNAL")
+                                Text("VESPER")
                                     .font(.system(size: 26, weight: .black, design: .rounded))
                                     .tracking(1.1)
                                     .foregroundStyle(.white)
@@ -38,7 +38,7 @@ struct LicenseActivationView: View {
                                     .tracking(2.2)
                                     .foregroundStyle(AppTheme.secondaryAccent)
 
-                                Text("BABA PANEL • OFFICIAL ACCESS")
+                                Text("VESPER • OFFICIAL ACCESS")
                                     .font(.system(size: 10, weight: .bold, design: .rounded))
                                     .tracking(0.8)
                                     .foregroundStyle(.white.opacity(0.50))
@@ -55,7 +55,7 @@ struct LicenseActivationView: View {
                                 .offset(y: introVisible ? 0 : 20)
                                 .id("activation-card")
 
-                            Text("BABA EXTERNAL • SECURE LICENSE CHECK")
+                            Text("VESPER • SECURE LICENSE CHECK")
                                 .font(.system(size: 9, weight: .bold, design: .rounded))
                                 .tracking(0.7)
                                 .foregroundStyle(.white.opacity(0.38))
@@ -108,7 +108,7 @@ struct LicenseActivationView: View {
                 .rotationEffect(.degrees(ringRotating ? 360 : 0))
                 .animation(.linear(duration: 14).repeatForever(autoreverses: false), value: ringRotating)
 
-            Image("BabaPanelBranding")
+            Image("VesperEmblem")
                 .resizable()
                 .scaledToFill()
                 .frame(width: 86, height: 86)
@@ -119,7 +119,7 @@ struct LicenseActivationView: View {
         .scaleEffect(logoBreathing ? 1.02 : 0.96)
         .animation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true), value: logoBreathing)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Baba Panel")
+        .accessibilityLabel("Vesper")
     }
 
     private var activationCard: some View {
@@ -138,7 +138,7 @@ struct LicenseActivationView: View {
                         .font(.system(size: 14, weight: .black, design: .rounded))
                         .tracking(0.4)
                         .foregroundStyle(.white)
-                    Text("EXT • BABA PANEL")
+                    Text("VESPER • LICENSE")
                         .font(.system(size: 9, weight: .bold, design: .rounded))
                         .tracking(1.2)
                         .foregroundStyle(AppTheme.secondaryAccent)
@@ -149,7 +149,7 @@ struct LicenseActivationView: View {
                     .font(.system(size: 18))
             }
 
-            Text("Enter your Baba External license key to unlock the panel.")
+            Text("Enter your Vesper license key to unlock the panel.")
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.66))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -205,7 +205,7 @@ struct LicenseActivationView: View {
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity, minHeight: 54)
                 .background(
-                    LinearGradient(colors: [AppTheme.accent, Color(red: 0.54, green: 0.015, blue: 0.05)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    LinearGradient(colors: [AppTheme.accent, Color(white: 0.22)], startPoint: .topLeading, endPoint: .bottomTrailing),
                     in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                 )
                 .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(.white.opacity(0.16), lineWidth: 1))
@@ -247,7 +247,7 @@ struct LicenseActivationView: View {
         }
         .padding(20)
         .background(.ultraThinMaterial.opacity(0.78), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .background(Color(red: 0.07, green: 0.008, blue: 0.015).opacity(0.82), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(Color(white: 0.045).opacity(0.92), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(LinearGradient(colors: [AppTheme.accent.opacity(0.62), .white.opacity(0.10), AppTheme.accent.opacity(0.20)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
@@ -280,7 +280,7 @@ struct LoginBackdrop: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color(red: 0.018, green: 0.004, blue: 0.008), Color(red: 0.12, green: 0.008, blue: 0.025), Color(red: 0.018, green: 0.004, blue: 0.008)],
+                colors: [Color(white: 0.012), Color(white: 0.075), Color(white: 0.012)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )

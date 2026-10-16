@@ -111,7 +111,7 @@ struct ContentView: View {
         var body: some View {
             ZStack {
                 LinearGradient(
-                    colors: [Color(red: 0.96, green: 0.10, blue: 0.16).opacity(0.96), Color(red: 0.08, green: 0.005, blue: 0.012)],
+                    colors: [AppTheme.referenceCard, AppTheme.consoleBackground],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
@@ -254,7 +254,7 @@ struct ContentView: View {
             HStack {
                 panelTitle("PATCH FILES", icon: "checkmark.shield.fill")
                 Spacer()
-                Text("BABA PANEL")
+                Text("VESPER")
                     .font(.system(size: 9, weight: .black, design: .rounded))
                     .foregroundStyle(AppTheme.secondaryAccent)
             }
@@ -327,7 +327,7 @@ struct ContentView: View {
                 }
             }
 
-            Text("STATUS IS MANAGED BY BABA PANEL")
+            Text("STATUS IS MANAGED BY VESPER")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.paper.opacity(0.52))
                 .padding(.top, 5)
@@ -341,7 +341,7 @@ struct ContentView: View {
         VStack(spacing: 16) {
             developerCard
             telegramCard
-            tiktokCard
+            ownerCard
         }
     }
 
@@ -404,20 +404,20 @@ struct ContentView: View {
 
     private var brandHeader: some View {
         HStack(spacing: 14) {
-            Image("BabaPanelBranding")
+            Image("VesperEmblem")
                 .resizable()
                 .scaledToFill()
                 .frame(width: 48, height: 48)
                 .clipShape(Circle())
                 .overlay(Circle().stroke(AppTheme.accent.opacity(0.65), lineWidth: 1))
             VStack(alignment: .leading, spacing: 3) {
-                Text("BABA EXTERNAL")
+                Text("VESPER")
                     .font(.system(size: 18, weight: .black, design: .rounded))
                     .tracking(0.5)
                     .foregroundStyle(AppTheme.paper)
                     .lineLimit(1)
                     .minimumScaleFactor(0.68)
-                Text("BABA PANEL • OFFICIAL INFO")
+                Text("VESPER • OFFICIAL INFO")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .tracking(0.6)
                     .foregroundStyle(AppTheme.accent)
@@ -509,7 +509,7 @@ struct ContentView: View {
                     }
                 }
             } else {
-                Text("NO \(category.uppercased()) PATCHES — ADD FILES FROM BABA PANEL")
+                Text("NO \(category.uppercased()) PATCHES — ADD FILES FROM VESPER")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.5))
                     .padding(.vertical, 10)
@@ -599,7 +599,7 @@ struct ContentView: View {
                 .tracking(1.2)
                 .foregroundStyle(.white.opacity(0.72))
             Spacer()
-            Text("BABA PANEL • READY")
+            Text("VESPER • READY")
                 .font(.system(size: 9, weight: .bold, design: .rounded))
                 .foregroundStyle(AppTheme.accent.opacity(0.8))
         }
@@ -611,7 +611,7 @@ struct ContentView: View {
 
     private var developerCard: some View {
         VStack(spacing: 12) {
-            Image("BabaPanelBranding")
+            Image("VesperEmblem")
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: .infinity)
@@ -619,7 +619,7 @@ struct ContentView: View {
                 .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             VStack(spacing: 4) {
-                Text("BABA EXTERNAL")
+                Text("VESPER")
                     .font(.system(size: 16, weight: .black, design: .rounded))
                     .tracking(0.6)
                     .foregroundStyle(AppTheme.paper)
@@ -643,7 +643,7 @@ struct ContentView: View {
 
     private var telegramCard: some View {
         Button {
-            guard let url = URL(string: "https://t.me/BABAPANELSTOREonlybaba18") else { return }
+            guard let url = URL(string: "https://t.me/VesperExternal") else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 14) {
@@ -653,13 +653,13 @@ struct ContentView: View {
                     .frame(width: 48, height: 48)
                     .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("OFFICIAL CHANNEL")
+                    Text("OFFICIAL TELEGRAM CHANNEL")
                         .font(.system(size: 9, weight: .black, design: .rounded))
                         .tracking(0.8)
                         .foregroundStyle(AppTheme.secondaryAccent)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
-                    Text("BABA PANEL • TELEGRAM")
+                    Text("VESPER • TELEGRAM")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.paper)
                         .lineLimit(1)
@@ -675,28 +675,28 @@ struct ContentView: View {
             .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.accent.opacity(0.55), lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open Baba Panel on Telegram")
+        .accessibilityLabel("Open Vesper Telegram channel")
     }
 
-    private var tiktokCard: some View {
+    private var ownerCard: some View {
         Button {
-            guard let url = URL(string: "https://www.tiktok.com/@onlybaba18?_r=1&_t=ZS-9AWocG5ZtUm") else { return }
+            guard let url = URL(string: "https://t.me/YAGAMIxIOS") else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 14) {
-                Image(systemName: "music.note")
+                Image(systemName: "person.crop.circle.fill")
                     .font(.system(size: 20, weight: .black))
                     .foregroundStyle(AppTheme.paper)
                     .frame(width: 48, height: 48)
                     .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("OFFICIAL TIKTOK PROFILE")
+                    Text("OWNER CONTACT")
                         .font(.system(size: 9, weight: .black, design: .rounded))
                         .tracking(0.8)
                         .foregroundStyle(AppTheme.secondaryAccent)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
-                    Text("BABA PANEL • VIDEOS")
+                    Text("OWNER • TELEGRAM")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.paper)
                         .lineLimit(1)
@@ -712,7 +712,7 @@ struct ContentView: View {
             .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.accent.opacity(0.45), lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open Baba Panel on TikTok")
+        .accessibilityLabel("Open Vesper owner Telegram")
     }
 
     private func channelButton(title: String, url: String) -> some View {
@@ -1114,7 +1114,7 @@ struct AnimatedHyperBackdrop: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [AppTheme.pageBackground, Color(red: 0.14, green: 0.018, blue: 0.028), AppTheme.consoleBackground],
+                colors: [AppTheme.pageBackground, Color(white: 0.075), AppTheme.consoleBackground],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
