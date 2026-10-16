@@ -41,7 +41,8 @@ case "$secret_mode" in
     ;;
   NEW)
     echo "Enter the new values below. Typing is hidden; values are not printed."
-    python3 - "$SOURCE_ROOT/vesperdash" <<'PY' | python3 "$SOURCE_ROOT/vesperdash/apply_env_patch.py"
+    PAYLOAD_FILE="$TMP_DIR/secrets.json"
+    (umask 077; python3 - "$SOURCE_ROOT/vesperdash" > "$PAYLOAD_FILE" <<'PY'
 import getpass
 import json
 import sys
@@ -49,9 +50,9 @@ import sys
 sys.path.insert(0, sys.argv[1])
 from apply_env_patch import validate
 
-with open('/dev/tty', 'r', encoding='utf-8') as terminal:
-    print('Number of DIFFERENT package passwords (1-10): ', end='', file=terminal, flush=True)
-    raw_count = terminal.readline().strip()
+with open('/dev/tty', 'r', encoding='utf-8') as tty_in, open('/dev/tty', 'w', encoding='utf-8') as tty_out:
+    print('Number of DIFFERENT package passwords (1-10): ', end='', file=tty_out, flush=True)
+    raw_count = tty_in.readline().strip()
 try:
     count = int(raw_count)
     if not 1 <= count <= 10:
@@ -80,6 +81,9 @@ except ValueError as error:
     raise SystemExit(2)
 json.dump(payload, sys.stdout)
 PY
+    )
+    python3 "$SOURCE_ROOT/vesperdash/apply_env_patch.py" < "$PAYLOAD_FILE"
+    rm -f "$PAYLOAD_FILE"
     ;;
   *)
     echo "Type exactly EXISTING or NEW." >&2
