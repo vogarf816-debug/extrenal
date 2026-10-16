@@ -1,13 +1,13 @@
 import SwiftUI
 
 enum AppTheme {
-    static let accent = Color(red: 1.00, green: 0.20, blue: 0.28)
-    static let secondaryAccent = Color(red: 1.00, green: 0.58, blue: 0.62)
-    static let pageBackground = Color(red: 0.012, green: 0.028, blue: 0.040)
-    static let consoleBackground = Color(red: 0.004, green: 0.010, blue: 0.016)
-    static let referenceCard = Color(red: 0.15, green: 0.025, blue: 0.04).opacity(0.98)
-    static let paper = Color(red: 0.86, green: 0.88, blue: 0.92)
-    static let ink = Color(red: 0.006, green: 0.010, blue: 0.020)
+    static let accent = Color.white
+    static let secondaryAccent = Color.white
+    static let pageBackground = Color.black
+    static let consoleBackground = Color.black
+    static let referenceCard = Color.black
+    static let paper = Color.white
+    static let ink = Color.black
     static let pageInset: CGFloat = 16
     static let rowIconSize: CGFloat = 17
     static let rowIconFrame: CGFloat = 28
@@ -85,7 +85,8 @@ struct AppLogo: View {
 
     var body: some View {
         Group {
-            if let icon = UIImage(named: "VesperLogo")
+            if let icon = UIImage(named: "VesperEmblem")
+                ?? UIImage(named: "VesperLogo")
                 ?? UIImage(named: "AppIcon60x60")
                 ?? Bundle.main.path(forResource: "AppIcon60x60@2x", ofType: "png").flatMap(UIImage.init(contentsOfFile:))
                 ?? UIImage(named: "AppIcon") {
@@ -97,7 +98,7 @@ struct AppLogo: View {
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(AppTheme.accent)
+                    .background(Color.black)
             }
         }
         .frame(width: size, height: size)

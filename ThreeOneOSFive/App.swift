@@ -13,7 +13,7 @@ struct ThreeOneOSFiveApp: App {
 
     init() {
         setupLogCapture()
-        log("app: 3105 launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
+        log("app: VESPER launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
     }
 
     private var language: AppLanguage {
@@ -174,18 +174,16 @@ class AppState: ObservableObject {
 
 
 private struct WelcomeView: View {
-    @State private var glow = false
-
     var body: some View {
         ZStack {
             AnimatedHyperBackdrop().ignoresSafeArea()
             VStack(spacing: 16) {
-                Image(systemName: "checkmark.shield.fill")
-                    .font(.system(size: 56, weight: .black))
-                    .foregroundStyle(AppTheme.secondaryAccent)
-                    .shadow(color: AppTheme.secondaryAccent.opacity(0.65), radius: glow ? 28 : 10)
-                    .scaleEffect(glow ? 1.06 : 0.94)
-                Text("WELCOME TO VESPER EXTERNAL")
+                Image("VesperEmblem")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 132)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                Text("WELCOME TO VESPER")
                     .font(.system(size: 21, weight: .black, design: .rounded))
                     .tracking(1.2)
                     .foregroundStyle(.white)
@@ -199,9 +197,6 @@ private struct WelcomeView: View {
             .background(.ultraThinMaterial.opacity(0.72), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.42), lineWidth: 1))
             .padding(24)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { glow = true }
-            }
         }
         .preferredColorScheme(.dark)
     }

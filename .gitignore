@@ -1,0 +1,6 @@
+# Local M3SB credentials — never commit real package tokens or HMAC secrets.
+pi/M3SB_API_Config.json
+
+# Python test/runtime artifacts.
+__pycache__/
+*.py[cod]

@@ -5,8 +5,12 @@ import os
 import secrets
 import sqlite3
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from functools import wraps
+from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 from flask import Flask, jsonify, request, send_from_directory, abort, make_response
 from werkzeug.utils import secure_filename
@@ -25,11 +29,24 @@ JEFRY_USERNAME = os.environ.get("VESPERDASH_JEFRY_USERNAME", "jefry")
 JEFRY_PASSWORD = os.environ.get("VESPERDASH_JEFRY_PASSWORD", "")
 SESSION_TTL = int(os.environ.get("VESPERDASH_SESSION_TTL", str(7 * 24 * 60 * 60)))
 MAX_UPLOAD = int(os.environ.get("VESPERDASH_MAX_UPLOAD", str(80 * 1024 * 1024)))
+M3SB_API_BASE_URL = os.environ.get("VESPERDASH_M3SB_API_BASE_URL", "https://api.m3sbapi.shop").rstrip("/")
+CLIENT_SESSION_TTL = max(300, min(int(os.environ.get("VESPERDASH_CLIENT_SESSION_TTL", "3600")), 24 * 60 * 60))
+CLIENT_AUTH_WINDOW = max(60, int(os.environ.get("VESPERDASH_CLIENT_AUTH_WINDOW", "300")))
+CLIENT_AUTH_MAX_ATTEMPTS = max(3, int(os.environ.get("VESPERDASH_CLIENT_AUTH_MAX_ATTEMPTS", "10")))
 ALLOWED_BUNDLES = {"com.dts.freefireth", "com.dts.freefiremax"}
 ALLOWED_CATEGORIES = {"aim", "esp", "hologram", "skin"}
 
 app = Flask(__name__, static_folder=str(ROOT / "static"), static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD
+
+
+@app.after_request
+def api_security_headers(response):
+    if request.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+    return response
 
 
 def db():
@@ -64,6 +81,13 @@ def db():
     conn.execute("""CREATE TABLE IF NOT EXISTS sessions (
         token_hash TEXT PRIMARY KEY, username TEXT NOT NULL, expires_at INTEGER NOT NULL
     )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS client_sessions (
+        token_hash TEXT PRIMARY KEY, license_hash TEXT NOT NULL, device_id TEXT NOT NULL,
+        owner TEXT NOT NULL DEFAULT 'vesper', expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL
+    )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS client_auth_attempts (
+        ip_hash TEXT PRIMARY KEY, window_started INTEGER NOT NULL, attempts INTEGER NOT NULL
+    )""")
     session_columns = {row["name"] for row in conn.execute("PRAGMA table_info(sessions)")}
     if "owner" not in session_columns:
         conn.execute("ALTER TABLE sessions ADD COLUMN owner TEXT NOT NULL DEFAULT 'vesper'")
@@ -71,6 +95,7 @@ def db():
     conn.execute("INSERT OR IGNORE INTO settings(key, value) SELECT 'global_paused_vesper', value FROM settings WHERE key='global_paused'")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_patches_owner_order ON patches(owner, category, game, sort_order, name)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_client_sessions_expires ON client_sessions(expires_at)")
     conn.commit()
     return conn
 
@@ -96,6 +121,52 @@ def auth_required(fn):
             abort(503, "admin login is not configured")
         abort(401, "unauthorized")
     return wrapped
+
+
+def client_session_scope():
+    authorization = request.headers.get("Authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    device_id = request.headers.get("X-Device-ID", "").strip()
+    if scheme.lower() != "bearer" or not 32 <= len(token) <= 256 or not 16 <= len(device_id) <= 128:
+        return None
+    digest = hashlib.sha256(token.encode()).hexdigest()
+    conn = db()
+    row = conn.execute(
+        "SELECT owner, device_id, expires_at FROM client_sessions WHERE token_hash=?",
+        (digest,),
+    ).fetchone()
+    if row and int(row["expires_at"]) <= int(time.time()):
+        conn.execute("DELETE FROM client_sessions WHERE token_hash=?", (digest,))
+        conn.commit()
+        row = None
+    conn.close()
+    if not row or not hmac.compare_digest(str(row["device_id"]), device_id):
+        return None
+    request.environ["vesper_client_session"] = True
+    return str(row["owner"])
+
+
+def client_auth_required(fn):
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        scope = client_session_scope()
+        if not scope:
+            abort(401, "client authorization required")
+        request.environ["vesper_scope"] = scope
+        return fn(*args, **kwargs)
+    return wrapped
+
+
+def client_or_admin_auth_required(fn):
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        scope = client_session_scope()
+        if scope:
+            request.environ["vesper_scope"] = scope
+            return fn(*args, **kwargs)
+        return auth_required(fn)(*args, **kwargs)
+    return wrapped
+
 
 def auth_scope():
     return request.environ.get("vesper_scope")
@@ -272,6 +343,233 @@ def health():
     return jsonify(ok=True, service="vesperdash", time=int(time.time()))
 
 
+def package_passwords_from_environment():
+    try:
+        values = json.loads(os.environ.get("VESPERDASH_PACKAGE_PASSWORDS", "[]"))
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(values, list) or not 1 <= len(values) <= 16:
+        return []
+    if any(not isinstance(value, str) or len(value) < 16 or len(value) > 256 for value in values):
+        return []
+    return values
+
+
+def allow_client_auth_attempt(device_id=""):
+    ip = request.remote_addr or "unknown"
+    ip_hash = hashlib.sha256((ip + "\0" + device_id).encode()).hexdigest()
+    now = int(time.time())
+    conn = db()
+    row = conn.execute("SELECT window_started, attempts FROM client_auth_attempts WHERE ip_hash=?", (ip_hash,)).fetchone()
+    if not row or now - int(row["window_started"]) >= CLIENT_AUTH_WINDOW:
+        conn.execute(
+            "INSERT OR REPLACE INTO client_auth_attempts(ip_hash, window_started, attempts) VALUES(?,?,1)",
+            (ip_hash, now),
+        )
+        allowed = True
+    elif int(row["attempts"]) >= CLIENT_AUTH_MAX_ATTEMPTS:
+        allowed = False
+    else:
+        conn.execute("UPDATE client_auth_attempts SET attempts=attempts+1 WHERE ip_hash=?", (ip_hash,))
+        allowed = True
+    conn.commit()
+    conn.close()
+    return allowed
+
+
+def m3sb_response_is_trusted(payload, secret):
+    signature = payload.get("sig_v2")
+    raw_timestamp = payload.get("ts")
+    if not isinstance(signature, str) or not signature or isinstance(raw_timestamp, bool):
+        return False
+    try:
+        timestamp = float(raw_timestamp)
+    except (TypeError, ValueError):
+        return False
+    if timestamp > 10_000_000_000:
+        timestamp /= 1000.0
+    if abs(time.time() - timestamp) > 300:
+        return False
+    fields = ("valid", "status", "license", "device_hash", "expires_at", "devices_left", "allow_inject", "ts")
+    parts = []
+    for field in fields:
+        value = payload.get(field)
+        if isinstance(value, bool):
+            value_text = "true" if value else "false"
+        elif value is None:
+            value_text = ""
+        elif isinstance(value, float) and value.is_integer():
+            value_text = str(int(value))
+        else:
+            value_text = str(value)
+        parts.append(f"{field}={value_text}")
+    expected = hmac.new(secret.encode(), "&".join(parts).encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+
+def verify_subscription_license(license_key, device_id, body):
+    package_token = os.environ.get("VESPERDASH_M3SB_PACKAGE_TOKEN", "")
+    secret = os.environ.get("VESPERDASH_M3SB_HMAC_SECRET", "")
+    base_url = os.environ.get("VESPERDASH_M3SB_API_BASE_URL", M3SB_API_BASE_URL).rstrip("/")
+    parsed_base = urlsplit(base_url)
+    if (
+        not package_token
+        or not secret
+        or parsed_base.scheme != "https"
+        or parsed_base.hostname != "api.m3sbapi.shop"
+        or parsed_base.path not in ("", "/")
+        or parsed_base.query
+        or parsed_base.fragment
+    ):
+        raise RuntimeError("server-side license verification is not configured")
+
+    device_hash = hashlib.sha256(device_id.encode()).hexdigest()
+    signed_body = {
+        "token": package_token,
+        "key": license_key,
+        "device_id": device_id,
+        "dylibs": str(body.get("dylibs", "0")),
+        "udid": device_hash,
+        "device_hash": device_hash,
+        "device_name": str(body.get("device_name", "iOS device"))[:120],
+        "system_info": str(body.get("system_info", "iOS"))[:120],
+        "os_info": str(body.get("os_info", ""))[:50],
+    }
+    body_data = json.dumps(signed_body, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    timestamp = str(int(time.time()))
+    nonce = secrets.token_urlsafe(18)
+    body_hash = hashlib.sha256(body_data).hexdigest()
+    canonical = "\n".join(("M3SB-API-SIGNATURE-V3", "POST", "/api/sdk/verify", timestamp, nonce, body_hash, package_token, license_key, device_id))
+    signature = hmac.new(secret.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+    request_headers = {
+        "Content-Type": "application/json",
+        "X-APON-Client": "APON/3.0 (iOS)",
+        "X-M3SB-Signature-Version": "3",
+        "X-M3SB-Timestamp": timestamp,
+        "X-M3SB-Nonce": nonce,
+        "X-M3SB-Body-SHA256": body_hash,
+        "X-M3SB-Signature": signature,
+    }
+    upstream_request = urllib.request.Request(
+        base_url + "/api/sdk/verify", data=body_data, headers=request_headers, method="POST"
+    )
+    class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    try:
+        opener = urllib.request.build_opener(NoRedirectHandler())
+        with opener.open(upstream_request, timeout=15) as response:
+            if not 200 <= response.status < 300:
+                raise RuntimeError("subscription service rejected the request")
+            payload = json.loads(response.read(128 * 1024))
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise RuntimeError("subscription service is unavailable") from exc
+    if not isinstance(payload, dict) or not m3sb_response_is_trusted(payload, secret):
+        raise RuntimeError("subscription response signature is invalid")
+    return payload
+
+
+def expiration_timestamp(value):
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        result = float(value)
+        return result / 1000.0 if result > 10_000_000_000 else result
+    if isinstance(value, str) and value:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.timestamp()
+        except ValueError:
+            return None
+    return None
+
+
+@app.post("/api/auth/client-session")
+def create_client_session():
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify(ok=False, valid=False, message="Invalid request"), 400
+    license_key = str(body.get("key", "")).strip()
+    device_id = str(body.get("device_id", "")).strip()
+    if not 1 <= len(license_key) <= 256 or not 16 <= len(device_id) <= 128:
+        return jsonify(ok=False, valid=False, message="A valid license key and device ID are required"), 400
+    if not allow_client_auth_attempt(device_id):
+        return jsonify(ok=False, valid=False, message="Too many attempts; try again later"), 429
+    passwords = package_passwords_from_environment()
+    if not passwords:
+        return jsonify(ok=False, valid=False, message="Secure package configuration is missing"), 503
+    try:
+        license_state = verify_subscription_license(license_key, device_id, body)
+    except RuntimeError as exc:
+        message = str(exc)
+        status_code = 503 if "not configured" in message else 502
+        return jsonify(ok=False, valid=False, message=message), status_code
+
+    status = str(license_state.get("status") or "invalid")
+    valid = license_state.get("valid") is True and status.lower() not in {"expired", "banned", "invalid"}
+    if not valid:
+        return jsonify(
+            ok=False,
+            valid=False,
+            status=status,
+            expires_at=license_state.get("expires_at"),
+            contact_owner=license_state.get("telegram_username"),
+            message=str(license_state.get("message") or "License is not active")[:240],
+        ), 401
+
+    now = int(time.time())
+    raw_license_expiry = license_state.get("expires_at")
+    license_expiry = expiration_timestamp(raw_license_expiry)
+    if raw_license_expiry not in (None, "") and license_expiry is None:
+        return jsonify(ok=False, valid=False, message="Subscription service returned an invalid expiry"), 502
+    expires_at = now + CLIENT_SESSION_TTL
+    if license_expiry is not None:
+        if license_expiry <= now:
+            return jsonify(ok=False, valid=False, status="expired", message="License has expired"), 401
+        expires_at = min(expires_at, int(license_expiry))
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    license_hash = hashlib.sha256(license_key.encode()).hexdigest()
+    conn = db()
+    conn.execute("DELETE FROM client_sessions WHERE expires_at<=?", (now,))
+    conn.execute(
+        "INSERT INTO client_sessions(token_hash,license_hash,device_id,owner,expires_at,created_at) VALUES(?,?,?,?,?,?)",
+        (token_hash, license_hash, device_id, "vesper", expires_at, now),
+    )
+    old_sessions = conn.execute(
+        "SELECT token_hash FROM client_sessions WHERE license_hash=? AND device_id=? ORDER BY created_at DESC LIMIT -1 OFFSET 8",
+        (license_hash, device_id),
+    ).fetchall()
+    conn.executemany("DELETE FROM client_sessions WHERE token_hash=?", [(row["token_hash"],) for row in old_sessions])
+    conn.commit()
+    conn.close()
+    return jsonify(
+        ok=True,
+        valid=True,
+        status=status,
+        expires_at=license_state.get("expires_at"),
+        contact_owner=license_state.get("telegram_username"),
+        message=str(license_state.get("message") or "Activated successfully")[:240],
+        access_token=raw_token,
+        access_expires_at=expires_at,
+        package_passwords=passwords,
+    )
+
+
+@app.post("/api/auth/client-session/logout")
+@client_auth_required
+def revoke_client_session():
+    authorization = request.headers.get("Authorization", "")
+    _, _, token = authorization.partition(" ")
+    digest = hashlib.sha256(token.encode()).hexdigest()
+    conn = db()
+    conn.execute("DELETE FROM client_sessions WHERE token_hash=?", (digest,))
+    conn.commit()
+    conn.close()
+    return jsonify(ok=True)
+
+
 @app.post("/api/auth/login")
 def login():
     body = request.get_json(silent=True) or {}
@@ -314,6 +612,7 @@ def auth_me():
 
 
 @app.get("/api/patches")
+@client_auth_required
 def list_patches():
     conn = db(); scope = requested_tenant(); paused = global_paused(conn, scope)
     if is_superuser() and request.args.get("tenant") is None:
@@ -328,6 +627,7 @@ def list_patches():
 
 
 @app.get("/api/patches/<patch_id>/download")
+@client_auth_required
 def download_patch(patch_id):
     conn = db(); scope = requested_tenant(); paused = global_paused(conn, scope); row = conn.execute("SELECT * FROM patches WHERE id=? AND owner=?", (patch_id, scope)).fetchone(); conn.close()
     if paused or not row or not row["enabled"] or row["paused"]:
@@ -338,6 +638,7 @@ def download_patch(patch_id):
 
 
 @app.get("/api/patches/<patch_id>/image")
+@client_or_admin_auth_required
 def patch_image(patch_id):
     conn = db(); row = conn.execute("SELECT * FROM patches WHERE id=? AND owner=?", (patch_id, requested_tenant())).fetchone(); conn.close()
     if not row or not row["enabled"] or row["paused"] or not row["image_filename"]:

@@ -1,6 +1,6 @@
 # VesperDash
 
-A small private patch-management server for the IPA integration. It stores encrypted `.3105` packages, exposes an IPA manifest, and provides an authenticated dashboard for upload, replacement, enable/disable, pause/resume, and deletion.
+A private patch-management server for the IPA integration. It stores encrypted `.3105` packages and provides an authenticated dashboard. The app manifest, patch downloads, and patch images require a short-lived, device-bound client session; license verification and package-password delivery happen on the server.
 
 ## Accounts and tenant isolation
 
@@ -30,8 +30,14 @@ export VESPERDASH_ADMIN_USERNAME='admin'
 export VESPERDASH_ADMIN_PASSWORD='use-a-long-password'
 export VESPERDASH_JEFRY_USERNAME='jefry'
 export VESPERDASH_JEFRY_PASSWORD='use-a-different-long-password'
+export VESPERDASH_M3SB_API_BASE_URL='https://api.m3sbapi.shop'
+export VESPERDASH_M3SB_PACKAGE_TOKEN='load-this-from-a-private-secret-store'
+export VESPERDASH_M3SB_HMAC_SECRET='load-this-from-a-private-secret-store'
+export VESPERDASH_PACKAGE_PASSWORDS='["replace-with-a-new-random-password-at-least-16-characters"]'
 python server.py
 ```
+
+`VESPERDASH_PACKAGE_PASSWORDS` must be a JSON array of one or more strong package passwords (minimum 16 characters each; use 32+ random characters). These passwords are returned only after a valid license check and are stored on-device in Keychain. Re-encrypt and re-upload packages that used the old short passwords before enabling the protected app flow.
 
 ## VPS install
 
@@ -47,6 +53,12 @@ TOKEN=$(openssl rand -hex 32)
 JEFRY_PASSWORD=$(openssl rand -base64 24)
 printf 'VESPERDASH_ADMIN_TOKEN=%s\nVESPERDASH_ADMIN_USERNAME=admin\nVESPERDASH_ADMIN_PASSWORD=CHANGE_ME_TO_A_LONG_PASSWORD\nVESPERDASH_JEFRY_USERNAME=jefry\nVESPERDASH_JEFRY_PASSWORD=%s\n' "$TOKEN" "$JEFRY_PASSWORD" > /etc/vesperdash.env
 chmod 600 /etc/vesperdash.env
+# Add the following values to /etc/vesperdash.env from your secret manager/editor,
+# then keep the file mode at 600 and restart the service:
+# VESPERDASH_M3SB_API_BASE_URL=https://api.m3sbapi.shop
+# VESPERDASH_M3SB_PACKAGE_TOKEN=<rotated server-side package token>
+# VESPERDASH_M3SB_HMAC_SECRET=<rotated server-side HMAC secret>
+# VESPERDASH_PACKAGE_PASSWORDS='["<new 32+ character random package password>"]'
 cat >/etc/systemd/system/vesperdash.service <<'UNIT'
 [Unit]
 Description=VesperDash patch API
@@ -69,10 +81,38 @@ chown -R vesperdash:www-data /opt/vesperdash
 systemctl daemon-reload && systemctl enable --now vesperdash
 ```
 
-The admin token is stored only in `/etc/vesperdash.env`. The dashboard asks for it in the browser and sends it as `X-Admin-Token`; do not put it in the IPA or publish it.
+Admin credentials and M3SB credentials belong only in `/etc/vesperdash.env` or a protected secret manager. Never put them in an IPA, Git, or build artifacts. `VESPERDASH_CLIENT_SESSION_TTL` defaults to one hour; it may be lowered to reduce the exposure window.
+
+## Security migration (required)
+
+1. The previous repository revision and distributed IPA exposed M3SB credentials and short shared package passwords. Treat both as compromised. Rotate the M3SB package token and HMAC secret with the provider; do not send replacement values in chat.
+2. Re-encrypt every `.3105` package using new strong passwords (at least 16 characters; prefer 32+ random characters), then upload the new files in the dashboard. Do not keep the old short passwords in `VESPERDASH_PACKAGE_PASSWORDS`.
+3. Add the rotated M3SB credentials and new package password list to the server environment file with mode `0600`, deploy this server revision, and restart VesperDash.
+4. Install/distribute the matching new IPA after the server update. Older app versions do not authenticate patch requests and will receive `401` once the API is protected.
+5. Remove old credentials from Git history only after coordinating a history rewrite/force-push for every branch and clone. Deleting the file in a new commit alone does not erase prior copies.
+
+## Update an existing VPS directly
+
+This is the simple interactive VPS route; it does not require GitHub Actions, SSH secrets in GitHub, or pasting credentials into a command.
+
+1. Merge this pull request into `main`.
+2. Rotate the M3SB package token and HMAC secret with the provider.
+3. Create strong replacement package passwords (at least 16 characters; 32+ random characters is preferable), re-encrypt every `.3105` package with them, and upload the new packages in the dashboard.
+4. Open a terminal on the VPS and run this single command:
+
+   ```bash
+   sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/vogarf816-debug/extrenal/main/vesperdash/deploy_from_vps.sh)"
+   ```
+
+5. Follow the prompts: type `ROTATED`, then `READY`, then `DEPLOY` only after each statement is true. The script then prompts for the new M3SB token, HMAC secret, and package-password JSON list. These entries are hidden as you type and sent directly to the server-side helper; do not paste them into chat or repository files.
+6. The script atomically updates only the relevant entries in `/etc/vesperdash.env`, runs the security tests, backs up and deploys the server, restarts it, then waits up to 120 seconds for the API and checks that the patch API is protected.
+
+The VPS must already have the current VesperDash installation, `/opt/vesperdash/venv`, and `curl`. The deployment script preserves the app data and keeps `/etc/vesperdash.env` protected. If a deployment fails after updating the environment, it leaves the service stopped rather than reopening the old public API. Fix the reported problem before retrying. For an intentional non-default ref, set `VESPERDASH_DEPLOY_REF` in the shell before running the command; the default is `main`.
+
+The server stores only hashes of client access tokens and binds each session to a device ID. The app stores its session and package passwords in device-only Keychain storage. This prevents unauthenticated scraping, but it cannot prevent a fully authorized or jailbroken device from extracting a package after decryption; no client-side encryption can guarantee that.
 
 ## API
 
-`GET /health` is public. `GET /api/patches` returns enabled, non-paused patches for the requested tenant. The dashboard supports username/password login through `POST /api/auth/login` and an HttpOnly session cookie; the legacy `X-Admin-Token` header remains supported. Admin endpoints are `GET /api/admin/patches`, `POST /api/admin/patches` (multipart upload), `POST /api/admin/patches/:id/state`, and `DELETE /api/admin/patches/:id`.
+`GET /health` and public branding endpoints remain public. `POST /api/auth/client-session` validates the license through M3SB server-to-server and issues a short-lived device-bound session; `POST /api/auth/client-session/logout` revokes it. `GET /api/patches`, patch downloads, and patch images require `Authorization: Bearer <access_token>` plus `X-Device-ID` (images also accept authenticated dashboard sessions); client sessions are pinned to the Vesper tenant and cannot select another tenant with a query parameter. The dashboard continues to use username/password login through `POST /api/auth/login` and an HttpOnly session cookie; the legacy `X-Admin-Token` remains an owner-level maintenance credential. Admin endpoints are `GET /api/admin/patches`, `POST /api/admin/patches` (multipart upload), `POST /api/admin/patches/:id/state`, and `DELETE /api/admin/patches/:id`.
 
 Each uploaded patch may optionally provide `target_path` and `target_path_2`. If both are empty, the IPA uses the target paths embedded in the `.3105` package, matching the legacy `DevicePatchService.apply(project:)` behavior. The API keeps `target_path` for older clients and also returns `target_paths` as an array. Existing catalog rows continue to work unchanged.

@@ -68,7 +68,6 @@ final class PatchProjectStore: ObservableObject {
 
     init() {
         PatchProjectLibrary.removeBundledPackagesIfNeeded()
-        removeLegacyRemotePackages()
         reload()
         hasCompletedInitialSync = UserDefaults.standard.bool(forKey: Self.initialSyncCompletedKey)
         let defaults = UserDefaults.standard
@@ -84,13 +83,14 @@ final class PatchProjectStore: ObservableObject {
     }
 
     func reload() {
+        digestCache = [:]
         items = PatchProjectLibrary.load()
     }
 
     /// Reconcile bundled resources with Application Support after an app
     /// upgrade, then rebuild the in-memory package list.
     func refreshBundledPackages() {
-        // Remote packages are intentionally never copied into the app sandbox.
+        // Refresh the local package catalog after remote .3105 downloads.
         reload()
     }
 
@@ -111,13 +111,14 @@ final class PatchProjectStore: ObservableObject {
             do {
                 let manifest = try await VesperDashRemoteSync.fetchManifest()
                 let fingerprint = await self?.manifestFingerprint(for: manifest) ?? ""
-                guard await self?.shouldProcessManifest(fingerprint) == true else {
+                guard await self?.shouldProcessManifest(fingerprint, patches: manifest.patches) == true else {
                     return
                 }
                 await self?.applyRemoteState(paused: manifest.global_paused)
                 await self?.applyRemoteEntries(manifest.all_patches ?? manifest.patches)
-                let hasNewFiles = await self?.hasNewRemoteFiles(manifest.patches) ?? false
-                await self?.setRemoteSyncing(showProgress || hasNewFiles)
+                // Show the API manifest as soon as it arrives. Package downloads
+                // continue in the background and must not hide the remote catalog.
+                await self?.setRemoteSyncing(false)
                 await self?.beginSyncFiles(manifest.patches.map(\.name))
                 guard !manifest.global_paused else {
                     await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: 0)
@@ -126,7 +127,8 @@ final class PatchProjectStore: ObservableObject {
                 var metadataByDigest: [String: (category: String, imageURL: URL?, statusText: String, sortOrder: Int)] = [:]
                 for remote in manifest.patches {
                     let digest = remote.sha256.lowercased()
-                    if metadataByDigest[digest] == nil {
+                    let current = metadataByDigest[digest]
+                    if current == nil || (remote.normalizedCategory == "hologram" && current?.category != "hologram") {
                         metadataByDigest[digest] = (
                             remote.normalizedCategory,
                             VesperDashRemoteSync.validImageURL(for: remote),
@@ -135,10 +137,64 @@ final class PatchProjectStore: ObservableObject {
                         )
                     }
                 }
-                // Remote-only mode: package bytes are fetched only when a user
-                // activates one card. Nothing from the remote catalog is
-                // persisted as a .3105 file here.
-                await self?.beginSyncFiles([])
+                let session = URLSession(configuration: .ephemeral)
+                defer { session.invalidateAndCancel() }
+                for remote in manifest.patches {
+                    await self?.beginSyncFile(remote.name)
+                    do {
+                        if let localURL = await self?.existingPackageURL(matchingDigest: remote.sha256) {
+                            await self?.recordRemoteBundleID(
+                                remoteBundleID: remote.bundle_id,
+                                filename: localURL.lastPathComponent
+                            )
+                            await self?.finishSyncFile(remote.name)
+                            continue
+                        }
+                        guard let url = VesperDashRemoteSync.validDownloadURL(for: remote) else {
+                            throw PatchPackageError.remoteImportFailed
+                        }
+                        let request = try await VesperDashRemoteSync.authenticatedRequest(for: url, timeout: 60)
+                        let (data, response) = try await session.data(for: request)
+                        guard let http = response as? HTTPURLResponse,
+                              (200..<300).contains(http.statusCode),
+                              data.starts(with: Data("3105PATCH\0".utf8)),
+                              VesperDashDigest.hex(data).caseInsensitiveCompare(remote.sha256) == .orderedSame else {
+                            throw PatchPackageError.remoteImportFailed
+                        }
+                        let summary = try PatchPackageCodec.inspect(data)
+                        guard summary.isPasswordProtected else {
+                            throw PatchPackageError.invalidPasswordOrCorruptedPackage
+                        }
+                        var decoded: DecodedPatchPackage?
+                        for password in VesperDashClientSession.packagePasswords {
+                            if let candidate = try? PatchPackageCodec.decode(data, password: password) {
+                                decoded = candidate
+                                break
+                            }
+                        }
+                        guard let decoded else {
+                            throw PatchPackageError.invalidPasswordOrCorruptedPackage
+                        }
+                        let existingURL = await self?.existingPackageURL(matchingDigest: remote.sha256)
+                        try PatchKeyStore.store(decoded.contentKey, for: summary)
+                        try PatchProjectLibrary.installImportedPackage(
+                            data: data,
+                            decoded: decoded,
+                            summary: summary,
+                            existingURL: existingURL
+                        )
+                        await self?.reload()
+                        let localFilename = existingURL?.lastPathComponent
+                            ?? PatchProjectLibrary.sanitizedPackageFilename(decoded.project.name)
+                        await self?.recordRemoteBundleID(
+                            remoteBundleID: remote.bundle_id,
+                            filename: localFilename
+                        )
+                    } catch {
+                        log("patch: remote .3105 download failed")
+                    }
+                    await self?.finishSyncFile(remote.name)
+                }
                 await self?.reconcileRemotePackages(metadataByDigest: metadataByDigest)
                 await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: manifest.patches.count)
             } catch {
@@ -148,8 +204,7 @@ final class PatchProjectStore: ObservableObject {
     }
 
     private func hasNewRemoteFiles(_ patches: [RemotePatch]) -> Bool {
-        // Remote-only mode has no local package cache to reconcile.
-        false
+        patches.contains { existingPackageURL(matchingDigest: $0.sha256) == nil }
     }
 
     private func setRemoteSyncing(_ value: Bool) {
@@ -157,16 +212,17 @@ final class PatchProjectStore: ObservableObject {
     }
 
     private func manifestFingerprint(for manifest: VesperDashManifest) -> String {
-        manifest.patches.map {
+        (manifest.all_patches ?? manifest.patches).map {
             [$0.id, $0.name, $0.filename, $0.sha256, $0.bundle_id, $0.target_path,
              $0.normalizedTargetPaths.joined(separator: "\u{1F}"),
-             $0.category ?? "", $0.version, $0.download_url, $0.enabled.description,
+             $0.category ?? "", $0.version, $0.download_url, $0.image_url ?? "",
+             $0.status_text ?? "", $0.sort_order?.description ?? "", $0.enabled.description,
              $0.paused.description].joined(separator: "|")
         }.joined(separator: "\n")
     }
 
-    private func shouldProcessManifest(_ fingerprint: String) -> Bool {
-        if lastManifestFingerprint == fingerprint && hasCompletedInitialSync {
+    private func shouldProcessManifest(_ fingerprint: String, patches: [RemotePatch]) -> Bool {
+        if lastManifestFingerprint == fingerprint && hasCompletedInitialSync && !hasNewRemoteFiles(patches) {
             isBusy = false
             isRemoteSyncing = false
             return false
@@ -186,24 +242,6 @@ final class PatchProjectStore: ObservableObject {
 
     private func finishSyncFile(_ name: String) {
         syncFinishedFileNames.insert(name)
-    }
-
-    /// The remote catalog is authoritative. This one-time migration removes
-    /// packages/workspaces from older builds before the current manifest is
-    /// downloaded, so stale UUIDs and metadata cannot win lookup.
-    private func removeLegacyRemotePackages() {
-        let defaults = UserDefaults.standard
-        guard let data = defaults.data(forKey: Self.remoteEntriesKey),
-              let oldEntries = try? JSONDecoder().decode([RemotePatch].self, from: data),
-              !oldEntries.isEmpty else { return }
-        let remoteDigests = Set(oldEntries.map { $0.sha256.lowercased() })
-        for item in PatchProjectLibrary.load() {
-            let digest = self.digest(for: item).lowercased()
-            if remoteDigests.contains(digest) {
-                try? PatchProjectLibrary.delete(item)
-            }
-        }
-        defaults.removeObject(forKey: Self.remoteEntriesKey)
     }
 
     private func performAuthoritativeResetIfNeeded() {
@@ -254,42 +292,21 @@ final class PatchProjectStore: ObservableObject {
     }
 
     private func applyRemoteEntries(_ entries: [RemotePatch]) {
-        var seenDigests = Set<String>()
+        var seenEntries = Set<String>()
         remoteEntries = entries.filter { entry in
-            seenDigests.insert(entry.sha256.lowercased()).inserted
+            // The same .3105 payload may intentionally appear in more than
+            // one tab (for example ESP and Hologram). Deduplicate only within
+            // the same category and target bundle, not by digest alone.
+            let key = [
+                entry.normalizedCategory,
+                entry.bundle_id.lowercased(),
+                entry.sha256.lowercased()
+            ].joined(separator: "|")
+            return seenEntries.insert(key).inserted
         }
         if let data = try? JSONEncoder().encode(remoteEntries) {
             UserDefaults.standard.set(data, forKey: Self.remoteEntriesKey)
         }
-    }
-
-    func applyRemotePatch(_ remote: RemotePatch) async throws -> PatchTransactionReceipt {
-        guard let url = VesperDashRemoteSync.validDownloadURL(for: remote) else {
-            throw PatchPackageError.remoteImportFailed
-        }
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 60
-        configuration.timeoutIntervalForResource = 120
-        let session = URLSession(configuration: configuration)
-        defer { session.invalidateAndCancel() }
-        let (data, response) = try await session.data(from: url)
-        guard let http = response as? HTTPURLResponse,
-              (200..<300).contains(http.statusCode),
-              data.starts(with: Data("3105PATCH\0".utf8)),
-              VesperDashDigest.hex(data).caseInsensitiveCompare(remote.sha256) == .orderedSame else {
-            throw PatchPackageError.remoteImportFailed
-        }
-        var decoded: DecodedPatchPackage?
-        for password in VesperStringVault.remotePackagePasswords {
-            if let candidate = try? PatchPackageCodec.decode(data, password: password) {
-                decoded = candidate
-                break
-            }
-        }
-        guard let decoded else { throw PatchPackageError.invalidPasswordOrCorruptedPackage }
-        return try await Task.detached(priority: .userInitiated) {
-            try DevicePatchService.apply(project: decoded.project)
-        }.value
     }
 
     func remoteEntries(category: String, bundleID: String) -> [RemotePatch] {
@@ -380,7 +397,7 @@ final class PatchProjectStore: ObservableObject {
                 orders[path] = metadata.sortOrder
             } else {
                 // Do not delete user-imported local packages during remote sync.
-                // Remote packages are no longer persisted by this store.
+                // Remote packages remain cached in the local package library.
             }
         }
         remoteCategories = categories
