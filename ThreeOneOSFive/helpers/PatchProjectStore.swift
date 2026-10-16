@@ -209,10 +209,11 @@ final class PatchProjectStore: ObservableObject {
     }
 
     private func manifestFingerprint(for manifest: VesperDashManifest) -> String {
-        manifest.patches.map {
+        (manifest.all_patches ?? manifest.patches).map {
             [$0.id, $0.name, $0.filename, $0.sha256, $0.bundle_id, $0.target_path,
              $0.normalizedTargetPaths.joined(separator: "\u{1F}"),
-             $0.category ?? "", $0.version, $0.download_url, $0.enabled.description,
+             $0.category ?? "", $0.version, $0.download_url, $0.image_url ?? "",
+             $0.status_text ?? "", $0.sort_order?.description ?? "", $0.enabled.description,
              $0.paused.description].joined(separator: "|")
         }.joined(separator: "\n")
     }

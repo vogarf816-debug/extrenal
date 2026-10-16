@@ -51,7 +51,12 @@ struct RemotePatch: Codable, Identifiable {
 
     var normalizedStatus: String {
         let value = status_text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return value.isEmpty ? "NO STATUS" : value
+        return value.isEmpty ? "NO STATUS" : String(value.prefix(180))
+    }
+
+    var displayStatusText: String {
+        let value = status_text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return String(value.prefix(180))
     }
 
     var normalizedOrder: Int {

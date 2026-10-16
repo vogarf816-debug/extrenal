@@ -488,6 +488,7 @@ struct ContentView: View {
                                 package: package,
                                 color: index.isMultiple(of: 2) ? AppTheme.accent : AppTheme.secondaryAccent,
                                 imageURL: VesperDashRemoteSync.validImageURL(for: remote),
+                                statusText: remote.displayStatusText,
                                 state: patchBinding(for: package, targetBundleID: targetBundleID),
                                 targetBundleID: targetBundleID
                             )
@@ -495,9 +496,17 @@ struct ContentView: View {
                             HStack(spacing: 10) {
                                 Image(systemName: "arrow.down.circle.fill")
                                     .foregroundStyle(AppTheme.secondaryAccent)
-                                Text(remote.name)
-                                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                                    .foregroundStyle(AppTheme.paper)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(remote.name)
+                                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                                        .foregroundStyle(AppTheme.paper)
+                                    if !remote.displayStatusText.isEmpty {
+                                        Text(remote.displayStatusText)
+                                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                                            .foregroundStyle(AppTheme.secondaryAccent.opacity(0.82))
+                                            .lineLimit(2)
+                                    }
+                                }
                                 Spacer()
                                 Text("PACKAGE NOT READY")
                                     .font(.system(size: 8, weight: .black, design: .rounded))
@@ -523,11 +532,12 @@ struct ContentView: View {
         target: String,
         package: String,
         color: Color,
-        imageURL: URL? = nil,
+        imageURL: URL?,
+        statusText: String,
         state: Binding<Bool>,
         targetBundleID: String
     ) -> some View {
-        PatchOptionCard(name: name, target: target, color: color, imageURL: imageURL, isEnabled: state, isBusy: patchOperationBusy) {
+        PatchOptionCard(name: name, target: target, color: color, imageURL: imageURL, statusText: statusText, isEnabled: state, isBusy: patchOperationBusy) {
             togglePatch(
                 packageFilename: package,
                 displayName: name,
@@ -649,7 +659,7 @@ struct ContentView: View {
             HStack(spacing: 14) {
                 Image(systemName: "paperplane.fill")
                     .font(.system(size: 20, weight: .black))
-                    .foregroundStyle(AppTheme.paper)
+                    .foregroundStyle(AppTheme.ink)
                     .frame(width: 48, height: 48)
                     .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
@@ -686,7 +696,7 @@ struct ContentView: View {
             HStack(spacing: 14) {
                 Image(systemName: "person.crop.circle.fill")
                     .font(.system(size: 20, weight: .black))
-                    .foregroundStyle(AppTheme.paper)
+                    .foregroundStyle(AppTheme.ink)
                     .frame(width: 48, height: 48)
                     .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
@@ -975,6 +985,7 @@ private struct PatchOptionCard: View {
     let target: String
     let color: Color
     let imageURL: URL?
+    let statusText: String
     @Binding var isEnabled: Bool
     let isBusy: Bool
     let action: () -> Void
@@ -1010,6 +1021,12 @@ private struct PatchOptionCard: View {
                     .font(.system(size: 9, weight: .bold, design: .rounded))
                     .tracking(0.8)
                     .foregroundStyle(color.opacity(0.9))
+                if !statusText.isEmpty {
+                    Text(statusText)
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryAccent.opacity(0.82))
+                        .lineLimit(2)
+                }
             }
 
             Spacer(minLength: 8)
@@ -1041,7 +1058,7 @@ private struct PatchOptionCard: View {
         }
         .opacity(isBusy ? 0.55 : 1)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(name), \(target), \(isEnabled ? "On" : "Off")")
+        .accessibilityLabel(statusText.isEmpty ? "\(name), \(target), \(isEnabled ? "On" : "Off")" : "\(name), \(target), \(statusText), \(isEnabled ? "On" : "Off")")
     }
 }
 private enum PatchAudioFeedback {
@@ -1114,7 +1131,7 @@ struct AnimatedHyperBackdrop: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [AppTheme.pageBackground, Color(white: 0.075), AppTheme.consoleBackground],
+                colors: [AppTheme.pageBackground, Color.black, AppTheme.consoleBackground],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )

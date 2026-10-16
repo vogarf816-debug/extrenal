@@ -127,7 +127,7 @@ struct LicenseActivationView: View {
             HStack(spacing: 12) {
                 Image(systemName: manager.isBusy ? "arrow.triangle.2.circlepath" : "lock.shield.fill")
                     .font(.system(size: 17, weight: .black))
-                    .foregroundStyle(AppTheme.paper)
+                    .foregroundStyle(AppTheme.ink)
                     .frame(width: 44, height: 44)
                     .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .rotationEffect(.degrees(manager.isBusy ? 180 : 0))
@@ -194,7 +194,7 @@ struct LicenseActivationView: View {
             Button(action: activate) {
                 HStack(spacing: 9) {
                     if manager.isBusy {
-                        ProgressView().tint(.white)
+                        ProgressView().tint(AppTheme.ink)
                     } else {
                         Image(systemName: "arrow.right.circle.fill")
                     }
@@ -202,10 +202,10 @@ struct LicenseActivationView: View {
                 }
                 .font(.system(size: 13, weight: .black, design: .rounded))
                 .tracking(0.4)
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.ink)
                 .frame(maxWidth: .infinity, minHeight: 54)
                 .background(
-                    LinearGradient(colors: [AppTheme.accent, Color(white: 0.22)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    LinearGradient(colors: [Color.white, Color.white], startPoint: .topLeading, endPoint: .bottomTrailing),
                     in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                 )
                 .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(.white.opacity(0.16), lineWidth: 1))
@@ -247,7 +247,7 @@ struct LicenseActivationView: View {
         }
         .padding(20)
         .background(.ultraThinMaterial.opacity(0.78), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .background(Color(white: 0.045).opacity(0.92), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(Color.black.opacity(0.92), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(LinearGradient(colors: [AppTheme.accent.opacity(0.62), .white.opacity(0.10), AppTheme.accent.opacity(0.20)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
@@ -280,7 +280,7 @@ struct LoginBackdrop: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color(white: 0.012), Color(white: 0.075), Color(white: 0.012)],
+                colors: [Color.black, Color.black, Color.black],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
