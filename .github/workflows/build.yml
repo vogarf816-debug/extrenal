@@ -16,15 +16,24 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Install server test dependencies
+        run: python3 -m pip install -r vesperdash/requirements.txt
+
+      - name: Test legacy public API contract
+        run: python3 -m unittest vesperdash.test_legacy_api -v
+
       - name: Build unsigned IPA
         run: |
           chmod +x build_unsigned.sh build_esign_ready_ipa.sh
           ./build_unsigned.sh
+        env:
+          M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
+          M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - name: Prepare IPA
         run: ./build_esign_ready_ipa.sh build/HYper-Regedit-Key-Enabled-unsigned.ipa
 
-      - name: Verify server secrets are absent from IPA
+      - name: Verify API configuration in IPA
         run: |
           set -euo pipefail
           rm -rf /tmp/hyper-ipa-check
@@ -32,18 +41,13 @@ jobs:
           unzip -q build/HYper-Regedit-Key-Enabled-unsigned.ipa -d /tmp/hyper-ipa-check
           APP_PLIST="$(find /tmp/hyper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)/Info.plist"
           test -f "$APP_PLIST"
-          APP_DIR="$(dirname "$APP_PLIST")"
-          for key in M3SB_PACKAGE_TOKEN M3SB_HMAC_SECRET; do
-            if /usr/libexec/PlistBuddy -c "Print :$key" "$APP_PLIST" >/dev/null 2>&1; then
-              echo "Refusing to publish IPA containing server secret key $key" >&2
-              exit 1
-            fi
-          done
-          if grep -R -a -E 'M3SB_PACKAGE_TOKEN|M3SB_HMAC_SECRET' "$APP_DIR" >/dev/null; then
-            echo "Refusing to publish IPA containing M3SB credential references" >&2
-            exit 1
-          fi
-          echo "Verified no M3SB server credentials are embedded in the IPA"
+          TOKEN="$(/usr/libexec/PlistBuddy -c 'Print :M3SB_PACKAGE_TOKEN' "$APP_PLIST")"
+          SECRET="$(/usr/libexec/PlistBuddy -c 'Print :M3SB_HMAC_SECRET' "$APP_PLIST")"
+          test "${#TOKEN}" -gt 10 || { echo 'M3SB_PACKAGE_TOKEN missing from IPA' >&2; exit 1; }
+          test "${#SECRET}" -gt 10 || { echo 'M3SB_HMAC_SECRET missing from IPA' >&2; exit 1; }
+          test "$TOKEN" != '$(M3SB_PACKAGE_TOKEN)' || { echo 'M3SB_PACKAGE_TOKEN is still a placeholder' >&2; exit 1; }
+          test "$SECRET" != '$(M3SB_HMAC_SECRET)' || { echo 'M3SB_HMAC_SECRET is still a placeholder' >&2; exit 1; }
+          echo "License configuration embedded successfully"
 
       - uses: actions/upload-artifact@v4
         with:

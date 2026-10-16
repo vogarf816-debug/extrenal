@@ -106,7 +106,7 @@ final class PatchProjectStore: ObservableObject {
         remoteSyncMessage = "REMOTE DATA: CHECKING…"
         syncFileNames = []
         syncFinishedFileNames = []
-        syncCurrentFile = "CONNECTING TO VESPERDASH"
+        syncCurrentFile = "WAITING FOR API"
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let manifest = try await VesperDashRemoteSync.fetchManifest()
@@ -116,8 +116,8 @@ final class PatchProjectStore: ObservableObject {
                 }
                 await self?.applyRemoteState(paused: manifest.global_paused)
                 await self?.applyRemoteEntries(manifest.all_patches ?? manifest.patches)
-                // Show the API manifest as soon as it arrives. Package downloads
-                // continue in the background and must not hide the remote catalog.
+                // The API catalog is ready now. Reveal the app immediately;
+                // package downloads continue in the background.
                 await self?.setRemoteSyncing(false)
                 await self?.beginSyncFiles(manifest.patches.map(\.name))
                 guard !manifest.global_paused else {
@@ -153,7 +153,8 @@ final class PatchProjectStore: ObservableObject {
                         guard let url = VesperDashRemoteSync.validDownloadURL(for: remote) else {
                             throw PatchPackageError.remoteImportFailed
                         }
-                        let request = try await VesperDashRemoteSync.authenticatedRequest(for: url, timeout: 60)
+                        var request = URLRequest(url: url)
+                        request.timeoutInterval = 60
                         let (data, response) = try await session.data(for: request)
                         guard let http = response as? HTTPURLResponse,
                               (200..<300).contains(http.statusCode),
@@ -162,11 +163,10 @@ final class PatchProjectStore: ObservableObject {
                             throw PatchPackageError.remoteImportFailed
                         }
                         let summary = try PatchPackageCodec.inspect(data)
-                        guard summary.isPasswordProtected else {
-                            throw PatchPackageError.invalidPasswordOrCorruptedPackage
-                        }
                         var decoded: DecodedPatchPackage?
-                        for password in VesperDashClientSession.packagePasswords {
+                        let serverPasswords = (manifest.package_passwords ?? []).filter { !$0.isEmpty }
+                        let candidatePasswords = serverPasswords + VesperStringVault.remotePackagePasswords
+                        for password in candidatePasswords {
                             if let candidate = try? PatchPackageCodec.decode(data, password: password) {
                                 decoded = candidate
                                 break
@@ -191,7 +191,7 @@ final class PatchProjectStore: ObservableObject {
                             filename: localFilename
                         )
                     } catch {
-                        log("patch: remote .3105 download failed")
+                        log("patch: remote .3105 download failed for \(remote.name): \(error)")
                     }
                     await self?.finishSyncFile(remote.name)
                 }

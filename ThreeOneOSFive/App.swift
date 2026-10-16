@@ -44,6 +44,7 @@ struct ThreeOneOSFiveApp: App {
                 .environment(\.locale, language.locale)
             .onChange(of: licenseManager.isActive) { active in
                 guard active else { return }
+                appState.detectSupport()
                 withAnimation(.easeIn(duration: 0.22)) { showWelcome = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
                     withAnimation(.easeOut(duration: 0.28)) { showWelcome = false }
@@ -51,12 +52,10 @@ struct ThreeOneOSFiveApp: App {
             }
             .onAppear {
                 licenseManager.beginLaunchSession()
-                appState.detectSupport()
             }
             .onChange(of: scenePhase) { phase in
                 guard phase == .active else { return }
                 licenseManager.beginLaunchSession()
-                appState.detectSupport()
             }
             .onOpenURL { url in
                 patchDraftCoordinator.presentImport(url)

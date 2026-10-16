@@ -1,118 +1,49 @@
 # VesperDash
 
-A private patch-management server for the IPA integration. It stores encrypted `.3105` packages and provides an authenticated dashboard. The app manifest, patch downloads, and patch images require a short-lived, device-bound client session; license verification and package-password delivery happen on the server.
+Flask patch server used by the VESPER iOS app. It stores `.3105` packages and serves the public patch manifest and downloads. The dashboard remains protected by its existing admin/session credentials.
 
-## Accounts and tenant isolation
+## Legacy public API behavior
 
-The dashboard supports two isolated workspaces:
+The VESPER client has been returned to the legacy license/API flow at the owner's request. **Anyone who can reach the API can list enabled patches and download their `.3105` files.** To keep packages re-encrypted with the current passwords usable by the restored client, `GET /api/patches` also returns the configured `VESPERDASH_PACKAGE_PASSWORDS` list for the default `vesper` tenant. This intentionally makes those package passwords public too. Do not deploy this mode if that exposure is not acceptable.
 
-- `vesper` — the existing Vesper workspace.
-- `jefry` — the Jefry External workspace.
+License activation is performed directly by the iOS app using its M3SB configuration. Build secrets are supplied to GitHub Actions; do not paste them into chat or commit them as plain text.
 
-Set the Jefry password only on the server environment; never put it in the repository or in an IPA:
+## One-command VPS deployment
 
-```bash
-sudo sh -c 'printf "\\nVESPERDASH_JEFRY_USERNAME=jefry\\nVESPERDASH_JEFRY_PASSWORD=REPLACE_WITH_A_LONG_RANDOM_PASSWORD\\n" >> /etc/vesperdash.env'
-sudo chmod 600 /etc/vesperdash.env
-sudo systemctl restart vesperdash
-```
-
-Jefry sessions can only list, upload, edit, pause, or delete Jefry-owned catalog entries. Jefry settings and resellers are stored separately in `app_settings_jefry.json` and `resellers_jefry.json`; existing Vesper data remains in the original files. The legacy `X-Admin-Token` remains an owner-level maintenance credential and must stay private.
-
-## Local run
+After the required package-password JSON is already present in `/etc/vesperdash.env`, run this from the VPS's interactive terminal as root:
 
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install flask gunicorn
-export VESPERDASH_ADMIN_TOKEN='use-a-long-random-token'
-export VESPERDASH_ADMIN_USERNAME='admin'
-export VESPERDASH_ADMIN_PASSWORD='use-a-long-password'
-export VESPERDASH_JEFRY_USERNAME='jefry'
-export VESPERDASH_JEFRY_PASSWORD='use-a-different-long-password'
-export VESPERDASH_M3SB_API_BASE_URL='https://api.m3sbapi.shop'
-export VESPERDASH_M3SB_PACKAGE_TOKEN='load-this-from-a-private-secret-store'
-export VESPERDASH_M3SB_HMAC_SECRET='load-this-from-a-private-secret-store'
-export VESPERDASH_PACKAGE_PASSWORDS='["replace-with-a-new-random-password-at-least-16-characters"]'
-python server.py
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/vogarf816-debug/extrenal/main/vesperdash/deploy_from_vps.sh)"
 ```
 
-`VESPERDASH_PACKAGE_PASSWORDS` must be a JSON array of one or more strong package passwords (minimum 16 characters each; use 32+ random characters). These passwords are returned only after a valid license check and are stored on-device in Keychain. Re-encrypt and re-upload packages that used the old short passwords before enabling the protected app flow.
+The script asks you to type `PUBLIC` to acknowledge that the manifest, package files, and package passwords are public, then `DEPLOY` to proceed. It:
 
-## VPS install
+- validates the existing `VESPERDASH_PACKAGE_PASSWORDS` without printing values;
+- backs up `/opt/vesperdash/app` under `/opt/vesperdash/backups/`;
+- leaves `/opt/vesperdash/data` and `/etc/vesperdash.env` unchanged;
+- runs the legacy API tests, swaps the server code, restarts systemd, and waits up to 120 seconds for readiness;
+- checks that the manifest is public, includes package passwords, and the download route does not demand a client session; and
+- restores the previous app if deployment or health checks fail.
 
-Run as `root` on the Ubuntu VPS:
+Do not run the command with `bash -c` from a non-interactive process: the script needs the VPS terminal for its two acknowledgements.
 
-```bash
-apt update && apt install -y python3-venv nginx
-mkdir -p /opt/vesperdash/app
-# Copy the `vesperdash/` directory here, including server.py and static/index.html.
-python3 -m venv /opt/vesperdash/venv
-/opt/vesperdash/venv/bin/pip install --upgrade pip flask gunicorn
-TOKEN=$(openssl rand -hex 32)
-JEFRY_PASSWORD=$(openssl rand -base64 24)
-printf 'VESPERDASH_ADMIN_TOKEN=%s\nVESPERDASH_ADMIN_USERNAME=admin\nVESPERDASH_ADMIN_PASSWORD=CHANGE_ME_TO_A_LONG_PASSWORD\nVESPERDASH_JEFRY_USERNAME=jefry\nVESPERDASH_JEFRY_PASSWORD=%s\n' "$TOKEN" "$JEFRY_PASSWORD" > /etc/vesperdash.env
-chmod 600 /etc/vesperdash.env
-# Add the following values to /etc/vesperdash.env from your secret manager/editor,
-# then keep the file mode at 600 and restart the service:
-# VESPERDASH_M3SB_API_BASE_URL=https://api.m3sbapi.shop
-# VESPERDASH_M3SB_PACKAGE_TOKEN=<rotated server-side package token>
-# VESPERDASH_M3SB_HMAC_SECRET=<rotated server-side HMAC secret>
-# VESPERDASH_PACKAGE_PASSWORDS='["<new 32+ character random package password>"]'
-cat >/etc/systemd/system/vesperdash.service <<'UNIT'
-[Unit]
-Description=VesperDash patch API
-After=network-online.target
+## Build the iOS IPA
 
-[Service]
-User=vesperdash
-Group=www-data
-WorkingDirectory=/opt/vesperdash/app
-EnvironmentFile=/etc/vesperdash.env
-Environment=VESPERDASH_DATA=/opt/vesperdash/data
-ExecStart=/opt/vesperdash/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8080 server:app
-Restart=always
-RestartSec=3
+The GitHub Actions workflow `.github/workflows/build.yml` builds the unsigned IPA on `main`. It requires these **repository Actions secrets**:
 
-[Install]
-WantedBy=multi-user.target
-UNIT
-chown -R vesperdash:www-data /opt/vesperdash
-systemctl daemon-reload && systemctl enable --now vesperdash
-```
+- `M3SB_PACKAGE_TOKEN`
+- `M3SB_HMAC_SECRET`
 
-Admin credentials and M3SB credentials belong only in `/etc/vesperdash.env` or a protected secret manager. Never put them in an IPA, Git, or build artifacts. `VESPERDASH_CLIENT_SESSION_TTL` defaults to one hour; it may be lowered to reduce the exposure window.
+Open **GitHub → vogarf816-debug/extrenal → Settings → Secrets and variables → Actions** and add/update them there. The values must be the working M3SB credentials used by the pre-security app version. Download the artifact named `HYper-Regedit-Key-Enabled-unsigned-ipa` after the workflow succeeds.
 
-## Security migration (required)
-
-1. The previous repository revision and distributed IPA exposed M3SB credentials and short shared package passwords. Treat both as compromised. Rotate the M3SB package token and HMAC secret with the provider; do not send replacement values in chat.
-2. Re-encrypt every `.3105` package using new strong passwords (at least 16 characters; prefer 32+ random characters), then upload the new files in the dashboard. Do not keep the old short passwords in `VESPERDASH_PACKAGE_PASSWORDS`.
-3. Add the rotated M3SB credentials and new package password list to the server environment file with mode `0600`, deploy this server revision, and restart VesperDash.
-4. Install/distribute the matching new IPA after the server update. Older app versions do not authenticate patch requests and will receive `401` once the API is protected.
-5. Remove old credentials from Git history only after coordinating a history rewrite/force-push for every branch and clone. Deleting the file in a new commit alone does not erase prior copies.
-
-## Update an existing VPS directly
-
-This is the interactive VPS route; it does not require GitHub Actions, SSH secrets in GitHub, or a computer. It can be run from the VPS provider's web terminal on a phone.
-
-1. Merge this pull request into `main`.
-2. Rotate the M3SB package token and HMAC secret with the provider.
-3. Create strong replacement package passwords (at least 16 characters; 32+ random characters is preferable), re-encrypt every `.3105` package with them, and upload the new packages in the dashboard.
-4. Open a terminal on the VPS and run this single command:
-
-   ```bash
-   sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/vogarf816-debug/extrenal/main/vesperdash/deploy_from_vps.sh)"
-   ```
-
-5. Follow the prompts: type `ROTATED`, then `READY`, then `DEPLOY` only after each statement is true. If the new secrets are already correctly saved in `/etc/vesperdash.env`, type `EXISTING`. Otherwise type `NEW`; the script asks for the number of different package passwords and then prompts for each secret separately. You do not need to type JSON. Secret inputs are hidden and are sent directly to the server-side helper; do not paste them into chat or repository files.
-6. The script atomically updates only the relevant entries in `/etc/vesperdash.env`, runs the security tests, backs up and deploys the server, restarts it, then waits up to 120 seconds for the API and checks that the patch API is protected.
-
-The VPS must already have the current VesperDash installation, `/opt/vesperdash/venv`, and `curl`. The deployment script preserves the app data and keeps `/etc/vesperdash.env` protected. If a deployment fails after updating the environment, it leaves the service stopped rather than reopening the old public API. Fix the reported problem before retrying. For an intentional non-default ref, set `VESPERDASH_DEPLOY_REF` in the shell before running the command; the default is `main`.
-
-The server stores only hashes of client access tokens and binds each session to a device ID. The app stores its session and package passwords in device-only Keychain storage. This prevents unauthenticated scraping, but it cannot prevent a fully authorized or jailbroken device from extracting a package after decryption; no client-side encryption can guarantee that.
+The app presents the license gate before the main interface; the activation screen has a Contact button linking to `https://t.me/YAGAMIxIOS`.
 
 ## API
 
-`GET /health` and public branding endpoints remain public. `POST /api/auth/client-session` validates the license through M3SB server-to-server and issues a short-lived device-bound session; `POST /api/auth/client-session/logout` revokes it. `GET /api/patches`, patch downloads, and patch images require `Authorization: Bearer <access_token>` plus `X-Device-ID` (images also accept authenticated dashboard sessions); client sessions are pinned to the Vesper tenant and cannot select another tenant with a query parameter. The dashboard continues to use username/password login through `POST /api/auth/login` and an HttpOnly session cookie; the legacy `X-Admin-Token` remains an owner-level maintenance credential. Admin endpoints are `GET /api/admin/patches`, `POST /api/admin/patches` (multipart upload), `POST /api/admin/patches/:id/state`, and `DELETE /api/admin/patches/:id`.
+- `GET /health` — service health.
+- `GET /api/patches` — public enabled manifest for the requested tenant (default: `vesper`); in legacy mode, the Vesper response includes package passwords.
+- `GET /api/patches/:id/download` — public download for an enabled patch.
+- `GET /api/patches/:id/image` — public image for an enabled patch.
+- `POST /api/auth/login` and the `/api/admin/*` endpoints — dashboard login and management.
 
-Each uploaded patch may optionally provide `target_path` and `target_path_2`. If both are empty, the IPA uses the target paths embedded in the `.3105` package, matching the legacy `DevicePatchService.apply(project:)` behavior. The API keeps `target_path` for older clients and also returns `target_paths` as an array. Existing catalog rows continue to work unchanged.
+Set `VESPERDASH_DATA=/opt/vesperdash/data` in the systemd service to keep database and uploaded files outside the replaceable application directory. Keep the admin credentials in the root-owned `/etc/vesperdash.env` file.

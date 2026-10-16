@@ -186,6 +186,21 @@ struct LicenseActivationView: View {
                 .animation(.easeOut(duration: 0.18), value: keyFocused)
             }
 
+            HStack(spacing: 5) {
+                Text("You Don't Have Key?")
+                    .foregroundStyle(.white.opacity(0.68))
+                Button("Contact") {
+                    if let url = URL(string: "https://t.me/YAGAMIxIOS") {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .fontWeight(.black)
+                .foregroundStyle(AppTheme.secondaryAccent)
+                .accessibilityIdentifier("license-contact-owner")
+            }
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .frame(maxWidth: .infinity, alignment: .center)
+
             Toggle("Remember key on this device", isOn: $manager.rememberKey)
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.72))
@@ -229,21 +244,6 @@ struct LicenseActivationView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            if let contactOwner = manager.contactOwner,
-               let contactURL = ownerURL(from: contactOwner) {
-                Button {
-                    UIApplication.shared.open(contactURL)
-                } label: {
-                    Label("CONTACT LICENSE OWNER", systemImage: "paperplane.fill")
-                        .font(.system(size: 10, weight: .black, design: .rounded))
-                        .tracking(0.7)
-                        .foregroundStyle(AppTheme.secondaryAccent)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 2)
-                }
-                .buttonStyle(.plain)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
         }
         .padding(20)
         .background(.ultraThinMaterial.opacity(0.78), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -254,7 +254,6 @@ struct LicenseActivationView: View {
         )
         .shadow(color: .black.opacity(0.28), radius: 20, y: 12)
         .animation(.easeOut(duration: 0.22), value: manager.message)
-        .animation(.easeOut(duration: 0.22), value: manager.contactOwner)
     }
 
     private func activate() {
@@ -262,16 +261,6 @@ struct LicenseActivationView: View {
         manager.activate(key: key)
     }
 
-    private func ownerURL(from value: String) -> URL? {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") {
-            return URL(string: trimmed)
-        }
-        if trimmed.hasPrefix("@") {
-            return URL(string: VesperStringVault.telegramBaseURL + String(trimmed.dropFirst()))
-        }
-        return URL(string: VesperStringVault.telegramBaseURL + trimmed)
-    }
 }
 
 struct LoginBackdrop: View {

@@ -22,7 +22,6 @@ struct ContentView: View {
             appTab(title: "HOLOGRAM", icon: "cube.transparent", showsPatchStatus: true) { hologramTab }
             appTab(title: "SKIN MOD", icon: "sparkles", showsPatchStatus: true) { skinModTab }
             appTab(title: "COMPATIBILITY", icon: "iphone") { supportedDeviceTab }
-            appTab(title: "FILE STATUS", icon: "doc.badge.gearshape") { fileStatusTab }
             appTab(title: "DEVELOPER", icon: "person.crop.circle") { developerTab }
         }
         .preferredColorScheme(.dark)
@@ -118,7 +117,7 @@ struct ContentView: View {
                 .ignoresSafeArea()
                 VStack(spacing: 18) {
                     VStack(spacing: 7) {
-                        Text("LOADING API CATALOG")
+                        Text("CONNECTING TO API")
                             .font(.system(size: 14, weight: .black, design: .rounded))
                             .multilineTextAlignment(.center)
                         Text(progressText)
@@ -508,18 +507,9 @@ struct ContentView: View {
                                     }
                                 }
                                 Spacer()
-                                if patchStore.isBusy {
-                                    HStack(spacing: 5) {
-                                        ProgressView().scaleEffect(0.7).tint(AppTheme.secondaryAccent)
-                                        Text("DOWNLOADING")
-                                    }
+                                Text(patchStore.syncCurrentFile == remote.name ? "DOWNLOADING…" : (patchStore.isBusy ? "WAITING…" : "PACKAGE NOT READY"))
                                     .font(.system(size: 8, weight: .black, design: .rounded))
                                     .foregroundStyle(AppTheme.secondaryAccent)
-                                } else {
-                                    Text("PACKAGE NOT READY")
-                                        .font(.system(size: 8, weight: .black, design: .rounded))
-                                        .foregroundStyle(AppTheme.secondaryAccent)
-                                }
                             }
                             .padding(14)
                             .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -1003,7 +993,18 @@ private struct PatchOptionCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 14) {
             if let imageURL {
-                AuthenticatedPatchImage(url: imageURL, color: color)
+                AsyncImage(url: imageURL) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFill()
+                    } else if phase.error != nil {
+                        Image(systemName: "photo").foregroundStyle(color)
+                    } else {
+                        ProgressView().tint(color)
+                    }
+                }
+                .frame(width: 48, height: 48)
+                .background(Color.black.opacity(0.28))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             } else {
                 Image(systemName: "bolt.fill")
                     .font(.system(size: 15, weight: .black))
@@ -1059,48 +1060,6 @@ private struct PatchOptionCard: View {
         .accessibilityLabel(statusText.isEmpty ? "\(name), \(target), \(isEnabled ? "On" : "Off")" : "\(name), \(target), \(statusText), \(isEnabled ? "On" : "Off")")
     }
 }
-
-private struct AuthenticatedPatchImage: View {
-    let url: URL
-    let color: Color
-    @State private var image: UIImage? = nil
-    @State private var failed = false
-
-    var body: some View {
-        Group {
-            if let image {
-                Image(uiImage: image).resizable().scaledToFill()
-            } else if failed {
-                Image(systemName: "photo").foregroundStyle(color)
-            } else {
-                ProgressView().tint(color)
-            }
-        }
-        .frame(width: 48, height: 48)
-        .background(Color.black.opacity(0.28))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .task(id: url) { await loadImage() }
-    }
-
-    @MainActor
-    private func loadImage() async {
-        do {
-            let request = try await VesperDashRemoteSync.authenticatedRequest(for: url, timeout: 20)
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse,
-                  (200..<300).contains(http.statusCode),
-                  data.count <= 5 * 1024 * 1024,
-                  let decoded = UIImage(data: data) else {
-                failed = true
-                return
-            }
-            image = decoded
-        } catch {
-            failed = true
-        }
-    }
-}
-
 private enum PatchAudioFeedback {
     private static var player: AVAudioPlayer?
 

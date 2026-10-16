@@ -20,6 +20,10 @@
     <string>1.1.1</string>
     <key>CFBundleVersion</key>
     <string>7</string>
+    <key>M3SB_PACKAGE_TOKEN</key>
+    <string>$(M3SB_PACKAGE_TOKEN)</string>
+    <key>M3SB_HMAC_SECRET</key>
+    <string>$(M3SB_HMAC_SECRET)</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>
