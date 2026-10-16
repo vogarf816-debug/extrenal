@@ -93,7 +93,7 @@ Admin credentials and M3SB credentials belong only in `/etc/vesperdash.env` or a
 
 ## Update an existing VPS directly
 
-This is the simple interactive VPS route; it does not require GitHub Actions, SSH secrets in GitHub, or pasting credentials into a command.
+This is the interactive VPS route; it does not require GitHub Actions, SSH secrets in GitHub, or a computer. It can be run from the VPS provider's web terminal on a phone.
 
 1. Merge this pull request into `main`.
 2. Rotate the M3SB package token and HMAC secret with the provider.
@@ -104,7 +104,7 @@ This is the simple interactive VPS route; it does not require GitHub Actions, SS
    sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/vogarf816-debug/extrenal/main/vesperdash/deploy_from_vps.sh)"
    ```
 
-5. Follow the prompts: type `ROTATED`, then `READY`, then `DEPLOY` only after each statement is true. The script then prompts for the new M3SB token, HMAC secret, and package-password JSON list. These entries are hidden as you type and sent directly to the server-side helper; do not paste them into chat or repository files.
+5. Follow the prompts: type `ROTATED`, then `READY`, then `DEPLOY` only after each statement is true. If the new secrets are already correctly saved in `/etc/vesperdash.env`, type `EXISTING`. Otherwise type `NEW`; the script asks for the number of different package passwords and then prompts for each secret separately. You do not need to type JSON. Secret inputs are hidden and are sent directly to the server-side helper; do not paste them into chat or repository files.
 6. The script atomically updates only the relevant entries in `/etc/vesperdash.env`, runs the security tests, backs up and deploys the server, restarts it, then waits up to 120 seconds for the API and checks that the patch API is protected.
 
 The VPS must already have the current VesperDash installation, `/opt/vesperdash/venv`, and `curl`. The deployment script preserves the app data and keeps `/etc/vesperdash.env` protected. If a deployment fails after updating the environment, it leaves the service stopped rather than reopening the old public API. Fix the reported problem before retrying. For an intentional non-default ref, set `VESPERDASH_DEPLOY_REF` in the shell before running the command; the default is `main`.

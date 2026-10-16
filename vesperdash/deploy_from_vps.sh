@@ -3,9 +3,10 @@ set -Eeuo pipefail
 
 REPO="vogarf816-debug/extrenal"
 REF="${VESPERDASH_DEPLOY_REF:-main}"
-[[ "$(id -u)" -eq 0 ]] || { echo "شغّل الأمر بصلاحية root عبر sudo." >&2; exit 1; }
-[[ "$REF" =~ ^([A-Za-z0-9._/-]+|[0-9a-fA-F]{40})$ ]] || { echo "مرجع Git غير صالح." >&2; exit 1; }
-[[ -r /dev/tty && -w /dev/tty ]] || { echo "خاص تشغيل الأمر من Terminal تفاعلي." >&2; exit 1; }
+ENV_FILE="/etc/vesperdash.env"
+[[ "$(id -u)" -eq 0 ]] || { echo "Run this in the VPS terminal as root (use sudo)." >&2; exit 1; }
+[[ "$REF" =~ ^([A-Za-z0-9._/-]+|[0-9a-fA-F]{40})$ ]] || { echo "Invalid Git ref." >&2; exit 1; }
+[[ -r /dev/tty && -w /dev/tty ]] || { echo "Open the VPS interactive terminal and run this command there." >&2; exit 1; }
 
 TMP_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$TMP_DIR"; }
@@ -21,39 +22,70 @@ mkdir -p "$TMP_DIR/source"
 tar -xzf "$ARCHIVE" --strip-components=1 --no-same-owner --no-same-permissions -C "$TMP_DIR/source"
 SOURCE_ROOT="$TMP_DIR/source"
 [[ -f "$SOURCE_ROOT/vesperdash/apply_env_patch.py" && -f "$SOURCE_ROOT/vesperdash/deploy_update.sh" ]] || {
-  echo "نسخة المستودع ما فيهاش ملفات النشر المطلوبة." >&2
+  echo "The GitHub version is missing required deployment files." >&2
   exit 1
 }
 
-read -r -p 'واش دوّرت M3SB token و HMAC secret؟ كتب ROTATED: ' answer </dev/tty
-[[ "$answer" == "ROTATED" ]] || { echo "وقفنا: خاص تدوير أسرار M3SB أولاً."; exit 1; }
-read -r -p 'واش عاودت شفّرت ورفعت جميع ملفات .3105 بكلمات المرور الجديدة؟ كتب READY: ' answer </dev/tty
-[[ "$answer" == "READY" ]] || { echo "وقفنا: خاص إعادة تشفير ورفع الحزم أولاً."; exit 1; }
-read -r -p 'باش نحدّث السيرفر، كتب DEPLOY: ' answer </dev/tty
-[[ "$answer" == "DEPLOY" ]] || { echo "تلغى النشر بلا تغيير الإعدادات."; exit 0; }
+read -r -p 'Have you rotated the M3SB token and HMAC secret? Type ROTATED: ' answer </dev/tty
+[[ "$answer" == "ROTATED" ]] || { echo "Stopped. Rotate both M3SB secrets first."; exit 1; }
+read -r -p 'Have you re-encrypted and uploaded every .3105 package? Type READY: ' answer </dev/tty
+[[ "$answer" == "READY" ]] || { echo "Stopped. Re-encrypt and upload all packages first."; exit 1; }
+read -r -p 'To deploy the server update, type DEPLOY: ' answer </dev/tty
+[[ "$answer" == "DEPLOY" ]] || { echo "Cancelled; no deployment was made."; exit 0; }
 
-# Secrets are collected with terminal echo disabled and piped directly to the root-only atomic updater.
-python3 - "$SOURCE_ROOT/vesperdash" <<'PY' | python3 "$SOURCE_ROOT/vesperdash/apply_env_patch.py"
+read -r -p 'Are the NEW secrets already saved in /etc/vesperdash.env? Type EXISTING or NEW: ' secret_mode </dev/tty
+case "$secret_mode" in
+  EXISTING)
+    [[ -r "$ENV_FILE" ]] || { echo "Cannot read $ENV_FILE. Choose NEW to enter the secrets." >&2; exit 1; }
+    echo "Using the protected environment file already on this VPS."
+    ;;
+  NEW)
+    echo "Enter the new values below. Typing is hidden; values are not printed."
+    python3 - "$SOURCE_ROOT/vesperdash" <<'PY' | python3 "$SOURCE_ROOT/vesperdash/apply_env_patch.py"
 import getpass
 import json
 import sys
-from pathlib import Path
 
 sys.path.insert(0, sys.argv[1])
 from apply_env_patch import validate
 
-def secret(label):
-    return getpass.getpass(label)
+with open('/dev/tty', 'r', encoding='utf-8') as terminal:
+    print('Number of DIFFERENT package passwords (1-10): ', end='', file=terminal, flush=True)
+    raw_count = terminal.readline().strip()
+try:
+    count = int(raw_count)
+    if not 1 <= count <= 10:
+        raise ValueError
+except ValueError:
+    print('Enter a number from 1 to 10.', file=sys.stderr)
+    raise SystemExit(2)
 
 payload = {
-    "VESPERDASH_M3SB_API_BASE_URL": "https://api.m3sbapi.shop",
-    "VESPERDASH_M3SB_PACKAGE_TOKEN": secret("M3SB package token الجديد (الإدخال مخفي): "),
-    "VESPERDASH_M3SB_HMAC_SECRET": secret("M3SB HMAC secret الجديد (الإدخال مخفي): "),
-    "VESPERDASH_PACKAGE_PASSWORDS": secret("لائحة JSON ديال كلمات مرور .3105 الجديدة، الإدخال مخفي (مثال: [\"…\"]): "),
+    'VESPERDASH_M3SB_API_BASE_URL': 'https://api.m3sbapi.shop',
+    'VESPERDASH_M3SB_PACKAGE_TOKEN': getpass.getpass('New M3SB package token (hidden): '),
+    'VESPERDASH_M3SB_HMAC_SECRET': getpass.getpass('New M3SB HMAC secret (hidden): '),
 }
-validate(payload)
+passwords = []
+for index in range(count):
+    password = getpass.getpass(f'Package password {index + 1} (hidden): ')
+    if len(password.strip()) < 16:
+        print('Each package password must be at least 16 characters. No values were saved.', file=sys.stderr)
+        raise SystemExit(2)
+    passwords.append(password)
+payload['VESPERDASH_PACKAGE_PASSWORDS'] = json.dumps(passwords)
+try:
+    validate(payload)
+except ValueError as error:
+    print(f'Input check failed: {error}. No values were saved.', file=sys.stderr)
+    raise SystemExit(2)
 json.dump(payload, sys.stdout)
 PY
+    ;;
+  *)
+    echo "Type exactly EXISTING or NEW." >&2
+    exit 1
+    ;;
+esac
 
 VESPERDASH_NONINTERACTIVE=1 \
 VESPERDASH_M3SB_ROTATED_ACK=ROTATED \
