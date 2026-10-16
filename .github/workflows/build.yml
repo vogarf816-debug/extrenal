@@ -17,10 +17,12 @@ jobs:
           xcode-version: latest-stable
 
       - name: Install server test dependencies
-        run: python3 -m pip install -r vesperdash/requirements.txt
+        run: |
+          python3 -m venv .venv-server-tests
+          .venv-server-tests/bin/python -m pip install -r vesperdash/requirements.txt
 
       - name: Test legacy public API contract
-        run: python3 -m unittest vesperdash.test_legacy_api -v
+        run: .venv-server-tests/bin/python -m unittest vesperdash.test_legacy_api -v
 
       - name: Build unsigned IPA
         run: |
