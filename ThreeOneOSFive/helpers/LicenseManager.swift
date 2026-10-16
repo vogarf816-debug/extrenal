@@ -8,6 +8,7 @@ import UIKit
 @MainActor
 final class LicenseManager: ObservableObject {
     @Published private(set) var expirationDate: Date?
+    @Published private(set) var hasExpiryInformation = false
     @Published private(set) var isActive = false
     @Published private(set) var isBusy = false
     @Published private(set) var isLoadingScreen = true
@@ -16,14 +17,21 @@ final class LicenseManager: ObservableObject {
 
     private let service = "com.m3sb.external-ios.activation"
     private let keyAccount = "license-key"
+    private let expirationAccount = "license-expiration"
+    private let expiryKnownAccount = "license-expiry-known"
+    private let lastCheckAccount = "license-last-check"
     private let deviceService = "com.m3sb.api.instance.v1"
     private let deviceAccount = "default"
+    private let silentCheckInterval: TimeInterval = 6 * 60 * 60
     private var lastAttemptAt: Date?
 
     init() {
-        // A key accepted and stored in Keychain stays active on this device.
-        // The subscription API is called only when a key is entered.
+        // Keep the app available from the saved key while any revalidation runs silently.
         isActive = string(for: keyAccount) != nil
+        hasExpiryInformation = string(for: expiryKnownAccount) == "true"
+        if let value = string(for: expirationAccount), let timestamp = Double(value) {
+            expirationDate = Date(timeIntervalSince1970: timestamp)
+        }
         isLoadingScreen = false
     }
 
@@ -31,14 +39,20 @@ final class LicenseManager: ObservableObject {
 
     func beginLaunchSession() {
         guard !isBusy else { return }
-        if hasRememberedKey {
-            isActive = true
+        guard let key = string(for: keyAccount) else {
+            isActive = false
             isLoadingScreen = false
+            message = "Key required — enter your access key"
             return
         }
-        isActive = false
+        isActive = true
         isLoadingScreen = false
-        message = "Key required — enter your access key"
+        let now = Date()
+        let lastCheck = Double(string(for: lastCheckAccount) ?? "") ?? 0
+        guard now.timeIntervalSince1970 - lastCheck >= silentCheckInterval else { return }
+        save(String(now.timeIntervalSince1970), for: lastCheckAccount)
+        isBusy = true
+        verify(key: key, silent: true)
     }
 
     func activate(key: String) {
@@ -52,7 +66,7 @@ final class LicenseManager: ObservableObject {
         isBusy = true
         isLoadingScreen = true
         message = "Checking access key…"
-        verify(key: trimmed)
+        verify(key: trimmed, silent: false)
     }
 
     func rememberedKey() -> String? { string(for: keyAccount) }
@@ -63,6 +77,11 @@ final class LicenseManager: ObservableObject {
 
     func deactivate() {
         delete(keyAccount)
+        delete(expirationAccount)
+        delete(expiryKnownAccount)
+        delete(lastCheckAccount)
+        expirationDate = nil
+        hasExpiryInformation = false
         isActive = false
         isLoadingScreen = false
         message = "Activation removed from this device"
@@ -104,12 +123,14 @@ final class LicenseManager: ObservableObject {
         SecItemDelete(query as CFDictionary)
     }
 
-    private func verify(key: String) {
+    private func verify(key: String, silent: Bool) {
         guard let configuration = APIConfiguration.load() else {
             isBusy = false
-            isLoadingScreen = false
-            isActive = false
-            message = "Subscription API is not configured"
+            if !silent {
+                isLoadingScreen = false
+                isActive = false
+                message = "Subscription API is not configured"
+            }
             return
         }
 
@@ -128,9 +149,11 @@ final class LicenseManager: ObservableObject {
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes]),
               let url = URL(string: configuration.baseURL + "/api/sdk/verify") else {
             isBusy = false
-            isLoadingScreen = false
-            isActive = false
-            message = "Invalid subscription API configuration"
+            if !silent {
+                isLoadingScreen = false
+                isActive = false
+                message = "Invalid subscription API configuration"
+            }
             return
         }
 
@@ -155,23 +178,40 @@ final class LicenseManager: ObservableObject {
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.isBusy = false
-                self.isLoadingScreen = false
+                if !silent { self.isLoadingScreen = false }
                 switch result {
                 case .success(let state):
                     self.expirationDate = state.expiresAt
+                    self.hasExpiryInformation = true
+                    self.save("true", for: self.expiryKnownAccount)
+                    if let expirationDate = state.expiresAt {
+                        self.save(String(expirationDate.timeIntervalSince1970), for: self.expirationAccount)
+                    } else {
+                        self.delete(self.expirationAccount)
+                    }
                     self.contactOwner = state.contactOwner
-                    guard state.valid, state.status != "expired", state.status != "banned" else {
+                    let normalizedStatus = state.status?.lowercased()
+                    let hasNotExpired = state.expiresAt.map { $0 > Date() } ?? true
+                    guard state.valid, normalizedStatus != "expired", normalizedStatus != "banned", hasNotExpired else {
                         self.isActive = false
                         self.delete(self.keyAccount)
+                        self.delete(self.expirationAccount)
+                        self.delete(self.expiryKnownAccount)
+                        self.delete(self.lastCheckAccount)
+                        self.expirationDate = nil
+                        self.hasExpiryInformation = false
                         self.message = state.message ?? "License is not active"
                         return
                     }
                     self.save(key, for: self.keyAccount)
+                    self.save(String(Date().timeIntervalSince1970), for: self.lastCheckAccount)
                     self.isActive = true
-                    self.message = state.message ?? "Activated successfully"
+                    if !silent { self.message = state.message ?? "Activated successfully" }
                 case .failure(.message(let error)):
-                    self.isActive = false
-                    self.message = error
+                    if !silent {
+                        self.isActive = false
+                        self.message = error
+                    }
                 }
             }
         }.resume()
@@ -317,6 +357,17 @@ private struct APIState {
         status = json["status"] as? String
         contactOwner = json["telegram_username"] as? String
         message = json["message"] as? String
-        if let value = json["expires_at"] as? String { expiresAt = ISO8601DateFormatter().date(from: value) } else { expiresAt = nil }
+        if let timestamp = json["expires_at"] as? NSNumber {
+            let rawValue = timestamp.doubleValue
+            expiresAt = Date(timeIntervalSince1970: rawValue > 10_000_000_000 ? rawValue / 1000 : rawValue)
+        } else if let value = json["expires_at"] as? String {
+            let formatter = ISO8601DateFormatter()
+            expiresAt = formatter.date(from: value) ?? {
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                return formatter.date(from: value)
+            }()
+        } else {
+            expiresAt = nil
+        }
     }
 }

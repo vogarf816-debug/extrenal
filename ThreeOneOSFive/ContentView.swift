@@ -5,6 +5,7 @@ import AVFoundation
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var licenseManager: LicenseManager
     @State private var remoteSyncTask: Task<Void, Never>?
     @State private var fileSafety: [String: Bool] = [:]
     @StateObject private var patchStore = PatchProjectStore()
@@ -342,10 +343,62 @@ struct ContentView: View {
 
     private var developerTab: some View {
         VStack(spacing: 16) {
+            licenseStatusCard
             developerCard
             telegramCard
             ownerCard
         }
+    }
+
+    private var licenseStatusCard: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "clock.badge.checkmark")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(AppTheme.accent)
+                .frame(width: 42, height: 42)
+                .background(AppTheme.ink, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            VStack(alignment: .leading, spacing: 5) {
+                Text("LICENSE TIME LEFT")
+                    .font(.system(size: 10, weight: .black, design: .rounded))
+                    .tracking(1)
+                    .foregroundStyle(AppTheme.secondaryAccent)
+                if let expiry = licenseManager.expirationDate {
+                    TimelineView(.periodic(from: Date(), by: 60)) { timeline in
+                        Text(licenseTimeRemaining(until: expiry, now: timeline.date))
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(AppTheme.paper)
+                    }
+                    Text("EXPIRES \(expiry.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppTheme.paper.opacity(0.56))
+                } else if licenseManager.hasExpiryInformation {
+                    Text("NO EXPIRATION DATE")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.paper)
+                } else {
+                    Text(licenseManager.isBusy ? "CHECKING IN BACKGROUND" : "EXPIRY INFO UNAVAILABLE")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.paper.opacity(0.72))
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.28), lineWidth: 1))
+    }
+
+    private func licenseTimeRemaining(until expiry: Date, now: Date) -> String {
+        let seconds = Int(expiry.timeIntervalSince(now))
+        guard seconds > 0 else { return "EXPIRED" }
+        let days = seconds / 86_400
+        let hours = (seconds % 86_400) / 3_600
+        let minutes = (seconds % 3_600) / 60
+        if days > 0 { return "\(days)d \(hours)h \(minutes)m remaining" }
+        if hours > 0 { return "\(hours)h \(minutes)m remaining" }
+        return "\(max(minutes, 1))m remaining"
     }
 
     private var supportedDeviceTab: some View {

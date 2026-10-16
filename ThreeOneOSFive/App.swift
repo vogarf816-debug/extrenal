@@ -10,6 +10,7 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @AppStorage("vesperWelcomeShownOnce") private var hasShownWelcome = false
     @State private var showWelcome = false
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         setupLogCapture()
@@ -53,6 +54,10 @@ struct ThreeOneOSFiveApp: App {
                 } else {
                     licenseManager.beginLaunchSession()
                 }
+            }
+            .onChange(of: scenePhase) { phase in
+                guard phase == .active, licenseManager.hasRememberedKey else { return }
+                licenseManager.beginLaunchSession()
             }
             .onOpenURL { url in
                 patchDraftCoordinator.presentImport(url)
