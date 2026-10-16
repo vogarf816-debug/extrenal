@@ -116,8 +116,9 @@ final class PatchProjectStore: ObservableObject {
                 }
                 await self?.applyRemoteState(paused: manifest.global_paused)
                 await self?.applyRemoteEntries(manifest.all_patches ?? manifest.patches)
-                let hasNewFiles = await self?.hasNewRemoteFiles(manifest.patches) ?? false
-                await self?.setRemoteSyncing(showProgress || hasNewFiles)
+                // Show the API manifest as soon as it arrives. Package downloads
+                // continue in the background and must not hide the remote catalog.
+                await self?.setRemoteSyncing(false)
                 await self?.beginSyncFiles(manifest.patches.map(\.name))
                 guard !manifest.global_paused else {
                     await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: 0)

@@ -118,7 +118,7 @@ struct ContentView: View {
                 .ignoresSafeArea()
                 VStack(spacing: 18) {
                     VStack(spacing: 7) {
-                        Text("DOWNLOAD RESOURCE FROM SERVER")
+                        Text("LOADING API CATALOG")
                             .font(.system(size: 14, weight: .black, design: .rounded))
                             .multilineTextAlignment(.center)
                         Text(progressText)
@@ -508,9 +508,18 @@ struct ContentView: View {
                                     }
                                 }
                                 Spacer()
-                                Text("PACKAGE NOT READY")
+                                if patchStore.isBusy {
+                                    HStack(spacing: 5) {
+                                        ProgressView().scaleEffect(0.7).tint(AppTheme.secondaryAccent)
+                                        Text("DOWNLOADING")
+                                    }
                                     .font(.system(size: 8, weight: .black, design: .rounded))
                                     .foregroundStyle(AppTheme.secondaryAccent)
+                                } else {
+                                    Text("PACKAGE NOT READY")
+                                        .font(.system(size: 8, weight: .black, design: .rounded))
+                                        .foregroundStyle(AppTheme.secondaryAccent)
+                                }
                             }
                             .padding(14)
                             .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))

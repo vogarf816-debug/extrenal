@@ -235,14 +235,56 @@ enum VesperDashRemoteSync {
     }
 
     static func fetchManifest() async throws -> VesperDashManifest {
-        let request = try await authenticatedRequest(for: manifestURL)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              (200..<300).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
+        let deadline = Date().addingTimeInterval(120)
+        var retryDelay: TimeInterval = 2
+        var lastError: Error = URLError(.timedOut)
+
+        while Date() < deadline {
+            do {
+                let remaining = deadline.timeIntervalSinceNow
+                let request = try await authenticatedRequest(
+                    for: manifestURL,
+                    timeout: min(15, max(1, remaining))
+                )
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse else {
+                    throw URLError(.badServerResponse)
+                }
+                guard (200..<300).contains(http.statusCode) else {
+                    if http.statusCode == 408 || http.statusCode == 429 || http.statusCode >= 500 {
+                        lastError = URLError(.badServerResponse)
+                    } else {
+                        throw VesperDashClientError(message: "VesperDash API returned HTTP \(http.statusCode)")
+                    }
+                    throw ManifestRetrySignal.retry
+                }
+                return try JSONDecoder().decode(VesperDashManifest.self, from: data)
+            } catch is ManifestRetrySignal {
+                // The service is starting or temporarily unavailable; retry below.
+            } catch let error as URLError {
+                guard Self.isTransientManifestError(error.code) else { throw error }
+                lastError = error
+            }
+
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0 else { break }
+            try await Task.sleep(for: .seconds(min(retryDelay, remaining)))
+            retryDelay = min(retryDelay * 1.5, 8)
         }
-        let decoder = JSONDecoder()
-        return try decoder.decode(VesperDashManifest.self, from: data)
+        throw lastError
+    }
+
+    private enum ManifestRetrySignal: Error { case retry }
+
+    private static func isTransientManifestError(_ code: URLError.Code) -> Bool {
+        switch code {
+        case .timedOut, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed,
+             .networkConnectionLost, .notConnectedToInternet, .dataNotAllowed,
+             .resourceUnavailable:
+            return true
+        default:
+            return false
+        }
     }
 
     static func validDownloadURL(for patch: RemotePatch) -> URL? {
