@@ -51,13 +51,16 @@ struct ThreeOneOSFiveApp: App {
                 if licenseManager.isActive {
                     appState.detectSupport()
                     presentWelcomeOnce()
-                } else {
-                    licenseManager.beginLaunchSession()
                 }
+                licenseManager.beginLaunchSession()
             }
             .onChange(of: scenePhase) { phase in
-                guard phase == .active, licenseManager.hasRememberedKey else { return }
-                licenseManager.beginLaunchSession()
+                if phase == .active {
+                    guard licenseManager.hasRememberedKey else { return }
+                    licenseManager.beginLaunchSession()
+                } else {
+                    licenseManager.cancelPendingSilentCheck()
+                }
             }
             .onOpenURL { url in
                 patchDraftCoordinator.presentImport(url)

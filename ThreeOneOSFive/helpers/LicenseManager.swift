@@ -24,8 +24,9 @@ final class LicenseManager: ObservableObject {
     private let lastCheckAccount = "license-last-check-expiry-v2"
     private let deviceService = "com.m3sb.api.instance.v1"
     private let deviceAccount = "default"
-    private let silentCheckInterval: TimeInterval = 6 * 60 * 60
     private var lastAttemptAt: Date?
+    private var silentCheckWorkItem: DispatchWorkItem?
+    private var silentCheckID: UUID?
 
     init() {
         // Keep the app available from the saved key while any revalidation runs silently.
@@ -42,7 +43,7 @@ final class LicenseManager: ObservableObject {
 
     func beginLaunchSession() {
         guard !isBusy else { return }
-        guard let key = string(for: keyAccount) else {
+        guard string(for: keyAccount) != nil else {
             isActive = false
             isLoadingScreen = false
             message = "Key required — enter your access key"
@@ -50,17 +51,31 @@ final class LicenseManager: ObservableObject {
         }
         isActive = true
         isLoadingScreen = false
-        let now = Date()
-        let lastCheck = Double(string(for: lastCheckAccount) ?? "") ?? 0
-        guard now.timeIntervalSince1970 - lastCheck >= silentCheckInterval else { return }
-        save(String(now.timeIntervalSince1970), for: lastCheckAccount)
-        isBusy = true
-        verify(key: key, silent: true)
+        guard silentCheckID == nil else { return }
+        let checkID = UUID()
+        silentCheckID = checkID
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.silentCheckID == checkID else { return }
+            self.silentCheckID = nil
+            self.silentCheckWorkItem = nil
+            guard !self.isBusy, let key = self.string(for: self.keyAccount) else { return }
+            self.isBusy = true
+            self.verify(key: key, silent: true)
+        }
+        silentCheckWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: workItem)
+    }
+
+    func cancelPendingSilentCheck() {
+        silentCheckID = nil
+        silentCheckWorkItem?.cancel()
+        silentCheckWorkItem = nil
     }
 
     func activate(key: String) {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isBusy else { return }
+        cancelPendingSilentCheck()
         if let lastAttemptAt, Date().timeIntervalSince(lastAttemptAt) < 1 {
             message = "Please wait a moment before trying again"
             return
@@ -79,6 +94,7 @@ final class LicenseManager: ObservableObject {
     }
 
     func deactivate() {
+        cancelPendingSilentCheck()
         delete(keyAccount)
         delete(expirationAccount)
         delete(expiryKnownAccount)
@@ -205,7 +221,6 @@ final class LicenseManager: ObservableObject {
                         self.delete(self.expirationAccount)
                         self.delete(self.expiryKnownAccount)
                         self.delete(self.expiryPresentAccount)
-                        self.delete(self.lastCheckAccount)
                         self.expirationDate = nil
                         self.hasExpiryInformation = false
                         self.expiryDateWasProvided = false
@@ -213,7 +228,6 @@ final class LicenseManager: ObservableObject {
                         return
                     }
                     self.save(key, for: self.keyAccount)
-                    self.save(String(Date().timeIntervalSince1970), for: self.lastCheckAccount)
                     self.isActive = true
                     if !silent { self.message = state.message ?? "Activated successfully" }
                 case .failure(.message(let error)):
