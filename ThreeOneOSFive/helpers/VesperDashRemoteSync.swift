@@ -2,7 +2,7 @@ enum VesperStringVault {
     private static func decode(_ bytes: [UInt8]) -> String {
         String(decoding: bytes.map { $0 ^ 0x5A }, as: UTF8.self)
     }
-    static let m3sbAPIBaseURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 55, 105, 41, 56, 59, 42, 51, 116, 41, 50, 53, 42])
+    static let vesperDashClientSessionURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 44, 63, 41, 42, 63, 40, 62, 59, 41, 50, 116, 57, 53, 55, 117, 59, 42, 51, 117, 57, 54, 51, 63, 52, 46, 117, 41, 63, 41, 41, 51, 53, 52])
     static let vesperDashPatchesURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 44, 63, 41, 42, 63, 40, 62, 59, 41, 50, 116, 57, 53, 55, 117, 59, 42, 51, 117, 42, 59, 46, 57, 50, 63, 41])
     static let vesperDashSettingsURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 44, 63, 41, 42, 63, 40, 62, 59, 41, 50, 116, 57, 53, 55, 117, 59, 42, 51, 117, 41, 63, 46, 46, 51, 52, 61, 41])
     static let vesperChannelURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 46, 116, 55, 63, 117, 12, 63, 41, 42, 63, 40, 31, 34, 46, 40, 63, 52, 59, 54])
@@ -10,12 +10,6 @@ enum VesperStringVault {
     static let nullzthChannelURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 46, 116, 55, 63, 117, 113, 111, 18, 18, 59, 0, 47, 40, 18, 10, 27, 99, 50, 21, 13, 23, 98])
     static let tiktokURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 45, 45, 45, 116, 46, 51, 49, 46, 53, 49, 116, 57, 53, 55, 117, 26, 63, 54, 5, 48, 63, 60, 40, 35, 5, 5, 5, 101, 5, 40, 103, 107, 124, 5, 46, 103, 0, 14, 119, 99, 99, 49, 109, 43, 25, 35, 42, 31, 51, 108, 45])
     static let telegramBaseURL = decode([46, 46, 42, 42, 117, 117, 46, 55, 117])
-    // Remote packages are decoded only after download; keep the protocol
-    // compatibility value out of plaintext strings in the client source.
-    static let remotePackagePasswords = [
-        decode([2, 8, 31]), // XRE
-        decode([9, 17, 27, 23]) // SKAM
-    ]
 }
 import Foundation
 
@@ -78,7 +72,7 @@ private struct ManifestHTTPError: LocalizedError {
 enum VesperDashRemoteSync {
     static let manifestURL = URL(string: VesperStringVault.vesperDashPatchesURL)!
 
-    static func fetchManifest() async throws -> VesperDashManifest {
+    static func fetchManifest(sessionToken: String) async throws -> VesperDashManifest {
         let deadline = Date().addingTimeInterval(120)
         var lastError: Error = URLError(.timedOut)
         while Date() < deadline {
@@ -86,6 +80,7 @@ enum VesperDashRemoteSync {
                 var request = URLRequest(url: manifestURL)
                 request.timeoutInterval = 15
                 request.cachePolicy = .reloadIgnoringLocalCacheData
+                request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
                 let (data, response) = try await URLSession.shared.data(for: request)
                 guard let http = response as? HTTPURLResponse else {
                     throw URLError(.badServerResponse)

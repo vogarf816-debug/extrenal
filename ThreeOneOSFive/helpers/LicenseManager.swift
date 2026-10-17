@@ -1,5 +1,4 @@
 import Combine
-import CryptoKit
 import Foundation
 import MachO
 import Security
@@ -14,11 +13,13 @@ final class LicenseManager: ObservableObject {
     @Published private(set) var isActive = false
     @Published private(set) var isBusy = false
     @Published private(set) var isLoadingScreen = true
+    @Published private(set) var clientSessionRevision = 0
     @Published private(set) var message: String?
     @Published private(set) var contactOwner: String?
 
     private let service = "com.m3sb.external-ios.activation"
     private let keyAccount = "license-key"
+    private let clientSessionAccount = "vesperdash-client-session"
     private let expirationAccount = "license-expiration"
     private let expiryKnownAccount = "license-expiry-known"
     private let expiryPresentAccount = "license-expiry-present"
@@ -40,10 +41,13 @@ final class LicenseManager: ObservableObject {
         if let value = string(for: lastCheckAccount), let timestamp = Double(value) {
             lastCheckAttemptAt = Date(timeIntervalSince1970: timestamp)
         }
+        if string(for: clientSessionAccount) != nil { clientSessionRevision = 1 }
         isLoadingScreen = false
     }
 
     var hasRememberedKey: Bool { string(for: keyAccount) != nil }
+
+    func clientSessionToken() -> String? { string(for: clientSessionAccount) }
 
     func beginLaunchSession() {
         guard !isBusy else { return }
@@ -101,7 +105,9 @@ final class LicenseManager: ObservableObject {
 
     func deactivate() {
         cancelPendingSilentCheck()
+        revokeClientSession()
         delete(keyAccount)
+        delete(clientSessionAccount)
         delete(expirationAccount)
         delete(expiryKnownAccount)
         delete(expiryPresentAccount)
@@ -157,58 +163,45 @@ final class LicenseManager: ObservableObject {
         SecItemDelete(query as CFDictionary)
     }
 
-    private func verify(key: String, silent: Bool) {
-        guard let configuration = APIConfiguration.load() else {
-            isBusy = false
-            if !silent {
-                isLoadingScreen = false
-                isActive = false
-                message = "Subscription API is not configured"
-            }
-            return
-        }
+    private func revokeClientSession() {
+        guard let token = string(for: clientSessionAccount),
+              let url = URL(string: VesperStringVault.vesperDashClientSessionURL + "/logout") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 8
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        URLSession.shared.dataTask(with: request).resume()
+    }
 
+    private func verify(key: String, silent: Bool) {
         let deviceID = deviceIdentifier()
-        let body: [String: String] = [
-            "token": configuration.token,
+        let body: [String: Any] = [
             "key": key,
             "device_id": deviceID,
-            "dylibs": String(injectedDylibCount()),
-            "udid": sha256(deviceID),
-            "device_hash": sha256(deviceID),
+            "dylibs": injectedDylibCount(),
             "device_name": UIDevice.current.name,
             "system_info": "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)",
             "os_info": UIDevice.current.systemVersion
         ]
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes]),
-              let url = URL(string: configuration.baseURL + "/api/sdk/verify") else {
+              let url = URL(string: VesperStringVault.vesperDashClientSessionURL) else {
             isBusy = false
             if !silent {
                 isLoadingScreen = false
                 isActive = false
-                message = "Invalid subscription API configuration"
+                message = "Activation service is not configured"
             }
             return
         }
 
-        let timestamp = String(Int(Date().timeIntervalSince1970))
-        let nonce = UUID().uuidString.replacingOccurrences(of: "-", with: "")
-        let bodyHash = sha256(bodyData)
-        let canonical = ["M3SB-API-SIGNATURE-V3", "POST", "/api/sdk/verify", timestamp, nonce, bodyHash, configuration.token, key, deviceID].joined(separator: "\n")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.httpBody = bodyData
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("APON/3.0 (iOS)", forHTTPHeaderField: "X-APON-Client")
-        request.setValue("3", forHTTPHeaderField: "X-M3SB-Signature-Version")
-        request.setValue(timestamp, forHTTPHeaderField: "X-M3SB-Timestamp")
-        request.setValue(nonce, forHTTPHeaderField: "X-M3SB-Nonce")
-        request.setValue(bodyHash, forHTTPHeaderField: "X-M3SB-Body-SHA256")
-        request.setValue(Self.hmac(canonical, secret: configuration.secret), forHTTPHeaderField: "X-M3SB-Signature")
 
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            let result = Self.parseResponse(data: data, response: response, error: error, secret: configuration.secret)
+            let result = Self.parseResponse(data: data, response: response, error: error)
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.isBusy = false
@@ -231,6 +224,7 @@ final class LicenseManager: ObservableObject {
                     guard state.valid, normalizedStatus != "expired", normalizedStatus != "banned", hasNotExpired else {
                         self.isActive = false
                         self.delete(self.keyAccount)
+                        self.delete(self.clientSessionAccount)
                         self.delete(self.expirationAccount)
                         self.delete(self.expiryKnownAccount)
                         self.delete(self.expiryPresentAccount)
@@ -241,6 +235,10 @@ final class LicenseManager: ObservableObject {
                         return
                     }
                     self.save(key, for: self.keyAccount)
+                    if let sessionToken = state.sessionToken {
+                        self.save(sessionToken, for: self.clientSessionAccount)
+                        self.clientSessionRevision += 1
+                    }
                     self.isActive = true
                     if !silent { self.message = state.message ?? "Activated successfully" }
                 case .failure(.message(let error)):
@@ -248,6 +246,17 @@ final class LicenseManager: ObservableObject {
                         self.isActive = false
                         self.message = error
                     }
+                case .failure(.revoked(let error)):
+                    self.isActive = false
+                    self.delete(self.keyAccount)
+                    self.delete(self.clientSessionAccount)
+                    self.delete(self.expirationAccount)
+                    self.delete(self.expiryKnownAccount)
+                    self.delete(self.expiryPresentAccount)
+                    self.expirationDate = nil
+                    self.hasExpiryInformation = false
+                    self.expiryDateWasProvided = false
+                    self.message = error
                 }
             }
         }.resume()
@@ -270,50 +279,26 @@ final class LicenseManager: ObservableObject {
         return count
     }
 
-    private static func parseResponse(data: Data?, response: URLResponse?, error: Error?, secret: String) -> Result<APIState, APIError> {
+    private static func parseResponse(data: Data?, response: URLResponse?, error: Error?) -> Result<APIState, APIError> {
         if let error { return .failure(.message("Connection failed: \(error.localizedDescription)")) }
         guard let http = response as? HTTPURLResponse, let data,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return .failure(.message("Subscription server returned an invalid response"))
+            return .failure(.message("Activation server returned an invalid response"))
         }
         if !(200..<300).contains(http.statusCode) {
             let status = json["status"] as? String
             let serverMessage = json["message"] as? String
-            return .failure(.message("Subscription server rejected the request: \(serverMessage ?? status ?? "HTTP \(http.statusCode)")"))
+            let message = serverMessage ?? status ?? "HTTP \(http.statusCode)"
+            if http.statusCode == 403 && (json["valid"] as? Bool == false) {
+                return .failure(.revoked(message))
+            }
+            return .failure(.message("Activation server rejected the request: \(message)"))
         }
         let state = APIState(json: json)
-        guard !state.valid || verifyResponse(json: json, secret: secret) else {
-            return .failure(.message("Subscription response could not be trusted"))
+        guard state.valid, state.sessionToken != nil else {
+            return .failure(.message("Activation server returned an incomplete session"))
         }
         return .success(state)
-    }
-
-    private static func verifyResponse(json: [String: Any], secret: String) -> Bool {
-        guard let signature = json["sig_v2"] as? String, !signature.isEmpty,
-              let rawTimestamp = json["ts"] as? NSNumber else { return false }
-
-        // Accept seconds or milliseconds, while still enforcing a short freshness window.
-        let rawTime = rawTimestamp.doubleValue
-        let timestamp = rawTime > 10_000_000_000 ? rawTime / 1000.0 : rawTime
-        guard abs(Date().timeIntervalSince1970 - timestamp) <= 300 else { return false }
-
-        let fields = ["valid", "status", "license", "device_hash", "expires_at", "devices_left", "allow_inject", "ts"]
-        let payload = fields.map { field -> String in
-            guard let value = json[field], !(value is NSNull) else { return "\(field)=" }
-            if CFGetTypeID(value as CFTypeRef) == CFBooleanGetTypeID() {
-                return "\(field)=\(((value as? Bool) ?? false) ? "true" : "false")"
-            }
-            if let value = value as? NSNumber { return "\(field)=\(value.stringValue)" }
-            return "\(field)=\(value)"
-        }.joined(separator: "&")
-
-        let expected = Self.hmac(payload, secret: secret)
-        let actualBytes = Array(signature.utf8)
-        let expectedBytes = Array(expected.utf8)
-        guard actualBytes.count == expectedBytes.count else { return false }
-        var difference: UInt8 = 0
-        for index in actualBytes.indices { difference |= actualBytes[index] ^ expectedBytes[index] }
-        return difference == 0
     }
 
     private func deviceIdentifier() -> String {
@@ -321,17 +306,6 @@ final class LicenseManager: ObservableObject {
         let value = UUID().uuidString
         save(value, for: deviceAccount, service: deviceService)
         return value
-    }
-
-    private func sha256(_ value: String) -> String { sha256(Data(value.utf8)) }
-
-    private func sha256(_ data: Data) -> String {
-        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    }
-
-    private static func hmac(_ value: String, secret: String) -> String {
-        let key = SymmetricKey(data: Data(secret.utf8))
-        return HMAC<SHA256>.authenticationCode(for: Data(value.utf8), using: key).map { String(format: "%02x", $0) }.joined()
     }
 
     private func string(for account: String, service: String) -> String? {
@@ -364,21 +338,7 @@ final class LicenseManager: ObservableObject {
 
 private enum APIError: Error {
     case message(String)
-}
-
-private struct APIConfiguration {
-    let baseURL: String
-    let token: String
-    let secret: String
-
-    static func load() -> APIConfiguration? {
-        guard let token = Bundle.main.object(forInfoDictionaryKey: "M3SB_PACKAGE_TOKEN") as? String,
-              let secret = Bundle.main.object(forInfoDictionaryKey: "M3SB_HMAC_SECRET") as? String,
-              !token.isEmpty, !secret.isEmpty, !token.hasPrefix("$("), !secret.hasPrefix("$(") else { return nil }
-        let baseURL = VesperStringVault.m3sbAPIBaseURL
-        guard let url = URL(string: baseURL), url.scheme == "https", url.host != nil else { return nil }
-        return APIConfiguration(baseURL: baseURL, token: token, secret: secret)
-    }
+    case revoked(String)
 }
 
 private struct APIState {
@@ -388,12 +348,14 @@ private struct APIState {
     let hasExpiryField: Bool
     let contactOwner: String?
     let message: String?
+    let sessionToken: String?
 
     init(json: [String: Any]) {
         valid = json["valid"] as? Bool ?? false
         status = json["status"] as? String
         contactOwner = json["telegram_username"] as? String
         message = json["message"] as? String
+        sessionToken = (json["client_session"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         let rawExpiry = json["expires_at"]
         hasExpiryField = rawExpiry != nil && !(rawExpiry is NSNull) && !((rawExpiry as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? false)
         if let timestamp = rawExpiry as? NSNumber {

@@ -1,4 +1,4 @@
-"""Regression tests for the explicitly restored public legacy API."""
+"""Regression tests that ensure the legacy public client API stays disabled."""
 
 import json
 import os
@@ -25,19 +25,14 @@ class LegacyPublicAPITests(unittest.TestCase):
         shutil.rmtree(TEST_ROOT / "data", ignore_errors=True)
         self.client = server.app.test_client()
 
-    def test_patch_manifest_is_public_and_includes_package_passwords(self):
+    def test_patch_manifest_is_not_public(self):
         response = self.client.get("/api/patches")
-        self.assertEqual(response.status_code, 200)
-        manifest = response.get_json()
-        self.assertEqual(
-            manifest["package_passwords"],
-            ["test-package-password-00000001", "test-package-password-00000002"],
-        )
-        self.assertIn("no-store", response.headers.get("Cache-Control", ""))
+        self.assertEqual(response.status_code, 401)
+        self.assertNotIn(b"test-package-password", response.data)
 
-    def test_download_route_does_not_require_a_client_session(self):
+    def test_download_route_requires_a_client_session(self):
         response = self.client.get("/api/patches/legacy-public-probe/download")
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 401)
 
 
 def tearDownModule():

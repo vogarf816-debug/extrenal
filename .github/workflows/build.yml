@@ -1,4 +1,4 @@
-name: Build HYper key-enabled IPA
+name: Build secure VESPER IPA
 
 on:
   workflow_dispatch:
@@ -21,37 +21,35 @@ jobs:
           python3 -m venv .venv-server-tests
           .venv-server-tests/bin/python -m pip install -r vesperdash/requirements.txt
 
-      - name: Test legacy public API contract
-        run: .venv-server-tests/bin/python -m unittest vesperdash.test_legacy_api -v
+      - name: Test authenticated client API
+        run: .venv-server-tests/bin/python -m unittest discover -s vesperdash -v
 
       - name: Build unsigned IPA
         run: |
           chmod +x build_unsigned.sh build_esign_ready_ipa.sh
           ./build_unsigned.sh
-        env:
-          M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
-          M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - name: Prepare IPA
-        run: ./build_esign_ready_ipa.sh build/HYper-Regedit-Key-Enabled-unsigned.ipa
+        run: ./build_esign_ready_ipa.sh build/VESPER-Build-9-unsigned.ipa
 
-      - name: Verify API configuration in IPA
+      - name: Verify IPA contains no M3SB credentials
         run: |
           set -euo pipefail
-          rm -rf /tmp/hyper-ipa-check
-          mkdir -p /tmp/hyper-ipa-check
-          unzip -q build/HYper-Regedit-Key-Enabled-unsigned.ipa -d /tmp/hyper-ipa-check
-          APP_PLIST="$(find /tmp/hyper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)/Info.plist"
+          rm -rf /tmp/vesper-ipa-check
+          mkdir -p /tmp/vesper-ipa-check
+          unzip -q build/VESPER-Build-9-unsigned.ipa -d /tmp/vesper-ipa-check
+          APP_PLIST="$(find /tmp/vesper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)/Info.plist"
           test -f "$APP_PLIST"
-          TOKEN="$(/usr/libexec/PlistBuddy -c 'Print :M3SB_PACKAGE_TOKEN' "$APP_PLIST")"
-          SECRET="$(/usr/libexec/PlistBuddy -c 'Print :M3SB_HMAC_SECRET' "$APP_PLIST")"
-          test "${#TOKEN}" -gt 10 || { echo 'M3SB_PACKAGE_TOKEN missing from IPA' >&2; exit 1; }
-          test "${#SECRET}" -gt 10 || { echo 'M3SB_HMAC_SECRET missing from IPA' >&2; exit 1; }
-          test "$TOKEN" != '$(M3SB_PACKAGE_TOKEN)' || { echo 'M3SB_PACKAGE_TOKEN is still a placeholder' >&2; exit 1; }
-          test "$SECRET" != '$(M3SB_HMAC_SECRET)' || { echo 'M3SB_HMAC_SECRET is still a placeholder' >&2; exit 1; }
-          echo "License configuration embedded successfully"
+          APP_EXECUTABLE="$(dirname "$APP_PLIST")/3105"
+          test -f "$APP_EXECUTABLE"
+          EXECUTABLE_BYTES="$(wc -c < "$APP_EXECUTABLE" | tr -d ' ')"
+          test "$EXECUTABLE_BYTES" -ge 150000000 || { echo 'Executable padding is missing' >&2; exit 1; }
+          if /usr/libexec/PlistBuddy -c 'Print :M3SB_PACKAGE_TOKEN' "$APP_PLIST" >/dev/null 2>&1; then echo 'M3SB_PACKAGE_TOKEN must not be embedded' >&2; exit 1; fi
+          if /usr/libexec/PlistBuddy -c 'Print :M3SB_HMAC_SECRET' "$APP_PLIST" >/dev/null 2>&1; then echo 'M3SB_HMAC_SECRET must not be embedded' >&2; exit 1; fi
+          IPA_BYTES="$(wc -c < build/VESPER-Build-9-unsigned.ipa | tr -d ' ')"
+          echo "Verified: no M3SB credentials; executable=${EXECUTABLE_BYTES} bytes; compressed IPA=${IPA_BYTES} bytes"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: HYper-Regedit-Key-Enabled-unsigned-ipa
-          path: build/HYper-Regedit-Key-Enabled-unsigned.ipa
+          name: VESPER-Build-9-unsigned-ipa
+          path: build/VESPER-Build-9-unsigned.ipa

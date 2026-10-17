@@ -97,8 +97,8 @@ final class PatchProjectStore: ObservableObject {
     /// Pull enabled, non-paused packages from VesperDash and install them
     /// locally. The package is still decoded by PatchPackageCodec, and the
     /// server-provided digest is checked before anything is persisted.
-    func syncVesperDash(showCompletionAlert: Bool = true, showProgress: Bool = true) {
-        guard !isBusy else { return }
+    func syncVesperDash(sessionToken: String?, showCompletionAlert: Bool = true, showProgress: Bool = true) {
+        guard !isBusy, let sessionToken, !sessionToken.isEmpty else { return }
         isBusy = true
         isRemoteSyncing = showProgress
         performAuthoritativeResetIfNeeded()
@@ -109,7 +109,7 @@ final class PatchProjectStore: ObservableObject {
         syncCurrentFile = "PREPARING DOWNLOADS"
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
-                let manifest = try await VesperDashRemoteSync.fetchManifest()
+                let manifest = try await VesperDashRemoteSync.fetchManifest(sessionToken: sessionToken)
                 let fingerprint = await self?.manifestFingerprint(for: manifest) ?? ""
                 guard await self?.shouldProcessManifest(fingerprint, patches: manifest.patches) == true else {
                     return
@@ -154,6 +154,7 @@ final class PatchProjectStore: ObservableObject {
                         }
                         var request = URLRequest(url: url)
                         request.timeoutInterval = 60
+                        request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
                         let (data, response) = try await session.data(for: request)
                         guard let http = response as? HTTPURLResponse,
                               (200..<300).contains(http.statusCode),
@@ -164,7 +165,7 @@ final class PatchProjectStore: ObservableObject {
                         let summary = try PatchPackageCodec.inspect(data)
                         var decoded: DecodedPatchPackage?
                         let serverPasswords = (manifest.package_passwords ?? []).filter { !$0.isEmpty }
-                        let candidatePasswords = serverPasswords + VesperStringVault.remotePackagePasswords
+                        let candidatePasswords = serverPasswords
                         for password in candidatePasswords {
                             if let candidate = try? PatchPackageCodec.decode(data, password: password) {
                                 decoded = candidate

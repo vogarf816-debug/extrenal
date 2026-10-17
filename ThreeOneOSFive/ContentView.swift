@@ -50,11 +50,14 @@ struct ContentView: View {
         }
         .onAppear {
             syncPatchStates()
-            patchStore.syncVesperDash(showCompletionAlert: false, showProgress: true)
+            patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false, showProgress: true)
             startRemoteStateChecks()
         }
         .onChange(of: patchStore.isBusy) { isBusy in
             if !isBusy { syncPatchStates() }
+        }
+        .onChange(of: licenseManager.clientSessionRevision) { _ in
+            patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false, showProgress: true)
         }
         .onDisappear {
             remoteSyncTask?.cancel()
@@ -73,7 +76,7 @@ struct ContentView: View {
             guard phase == .active, !patchOperationBusy else { return }
             syncPatchStates()
             patchMessage = "READY — SELECT A PATCH"
-            patchStore.syncVesperDash(showCompletionAlert: false, showProgress: true)
+            patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false, showProgress: true)
         }
     }
 
@@ -84,7 +87,7 @@ struct ContentView: View {
                 try? await Task.sleep(for: .seconds(20))
                 guard !Task.isCancelled else { return }
                 guard scenePhase == .active, !patchOperationBusy else { continue }
-                patchStore.syncVesperDash(showCompletionAlert: false, showProgress: false)
+                patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false, showProgress: false)
             }
         }
     }

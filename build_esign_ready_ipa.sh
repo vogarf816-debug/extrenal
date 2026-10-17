@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-IPA="${1:-$ROOT/build/HYper-Regedit-Key-Enabled-unsigned.ipa}"
+IPA="${1:-$ROOT/build/VESPER-Build-9-unsigned.ipa}"
 
 if ! command -v unzip >/dev/null 2>&1; then
   echo "Error: unzip is required." >&2
@@ -36,6 +36,11 @@ if [[ ! -x "$APP/3105" ]]; then
   echo "Error: expected original executable 3105 was not found in the app bundle." >&2
   exit 1
 fi
+EXECUTABLE_BYTES="$(wc -c < "$APP/3105" | tr -d ' ')"
+if [[ "$EXECUTABLE_BYTES" -lt 150000000 ]]; then
+  echo "Error: expected at least 150 MB of executable padding; found $EXECUTABLE_BYTES bytes." >&2
+  exit 1
+fi
 
 if [[ ! -f "$APP/Info.plist" ]]; then
   echo "Error: the app bundle is missing Info.plist." >&2
@@ -44,4 +49,5 @@ fi
 
 echo "eSign-ready IPA verified: $IPA"
 echo "App bundle: $APP"
+echo "Executable size: $EXECUTABLE_BYTES bytes"
 echo "The IPA is unsigned and contains no embedded provisioning profile."

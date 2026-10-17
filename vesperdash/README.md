@@ -1,49 +1,52 @@
 # VesperDash
 
-Flask patch server used by the VESPER iOS app. It stores `.3105` packages and serves the public patch manifest and downloads. The dashboard remains protected by its existing admin/session credentials.
+Flask API used by the VESPER iOS client and admin dashboard. Patch files, database state and runtime secrets are kept outside the replaceable application directory.
 
-## Legacy public API behavior
+## Client security model
 
-The VESPER client has been returned to the legacy license/API flow at the owner's request. **Anyone who can reach the API can list enabled patches and download their `.3105` files.** To keep packages re-encrypted with the current passwords usable by the restored client, `GET /api/patches` also returns the configured `VESPERDASH_PACKAGE_PASSWORDS` list for the default `vesper` tenant. This intentionally makes those package passwords public too. Do not deploy this mode if that exposure is not acceptable.
+- The iOS application contains no M3SB package token or HMAC secret. The M3SB request is signed and sent by the VPS only.
+- `POST /api/client/session` verifies the license with M3SB, checks the signed response against the requested license and device, then issues a random, short-lived client session. Only a SHA-256 digest of that session is stored in SQLite.
+- The patch manifest, package-password list and `.3105` downloads require `Authorization: Bearer <client_session>`. Logging out revokes the session.
+- Client session lifetime is controlled by `VESPERDASH_CLIENT_SESSION_TTL` (default: one hour) and is capped at the license expiration time.
+- Obfuscating an API URL in an iOS binary is not a security boundary: a client can discover its network destinations. Access control, TLS and server-side secrets provide the security.
 
-License activation is performed directly by the iOS app using its M3SB configuration. Build secrets are supplied to GitHub Actions; do not paste them into chat or commit them as plain text.
+## VPS runtime configuration
 
-## One-command VPS deployment
+Keep these values only in the root-owned `/etc/vesperdash.env` (or the systemd service's equivalent `EnvironmentFile`):
 
-After the required package-password JSON is already present in `/etc/vesperdash.env`, run this from the VPS's interactive terminal as root:
+- `VESPERDASH_M3SB_API_BASE_URL` — HTTPS M3SB API base URL.
+- `VESPERDASH_M3SB_PACKAGE_TOKEN` — M3SB package token.
+- `VESPERDASH_M3SB_HMAC_SECRET` — M3SB HMAC secret.
+- `VESPERDASH_PACKAGE_PASSWORDS` — JSON array of `.3105` package passwords.
+- `VESPERDASH_DATA=/opt/vesperdash/data` — persistent database and uploaded files.
+
+Do not paste credentials into chat, source code, Xcode settings or GitHub Actions secrets. Because prior IPA artifacts contained M3SB credentials, revoke/rotate both M3SB credentials before enabling the secure server code; deleting an artifact does not invalidate credentials that were already copied.
+
+## Deploying the server update
+
+The server code change is **not deployed automatically** by the iOS build workflow. After rotating credentials and verifying that the new values are present in `/etc/vesperdash.env`, update the existing VPS through its interactive terminal:
 
 ```bash
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/vogarf816-debug/extrenal/main/vesperdash/deploy_from_vps.sh)"
 ```
 
-The script asks you to type `PUBLIC` to acknowledge that the manifest, package files, and package passwords are public, then `DEPLOY` to proceed. It:
+The deployment script asks for explicit confirmation, backs up the current application, preserves `/opt/vesperdash/data` and `/etc/vesperdash.env`, runs tests, restarts the service and checks that the health endpoint is available while the patch manifest is no longer public. It does not print secret values. Do not run it until both M3SB credentials have been rotated and configured on the VPS.
 
-- validates the existing `VESPERDASH_PACKAGE_PASSWORDS` without printing values;
-- backs up `/opt/vesperdash/app` under `/opt/vesperdash/backups/`;
-- leaves `/opt/vesperdash/data` and `/etc/vesperdash.env` unchanged;
-- runs the legacy API tests, swaps the server code, restarts systemd, and waits up to 120 seconds for readiness;
-- checks that the manifest is public, includes package passwords, and the download route does not demand a client session; and
-- restores the previous app if deployment or health checks fail.
+## Building the iOS IPA
 
-Do not run the command with `bash -c` from a non-interactive process: the script needs the VPS terminal for its two acknowledgements.
+GitHub Actions builds an **unsigned** IPA on `main` and runs the server security tests. It does not need M3SB Actions secrets. After a successful run, download the artifact named `VESPER-Build-9-unsigned-ipa` and sign it using the usual process. The app requires the secure server update above; the legacy public API is intentionally rejected.
 
-## Build the iOS IPA
-
-The GitHub Actions workflow `.github/workflows/build.yml` builds the unsigned IPA on `main`. It requires these **repository Actions secrets**:
-
-- `M3SB_PACKAGE_TOKEN`
-- `M3SB_HMAC_SECRET`
-
-Open **GitHub → vogarf816-debug/extrenal → Settings → Secrets and variables → Actions** and add/update them there. The values must be the working M3SB credentials used by the pre-security app version. Download the artifact named `HYper-Regedit-Key-Enabled-unsigned-ipa` after the workflow succeeds.
-
-The app presents the license gate before the main interface; the activation screen has a Contact button linking to `https://t.me/YAGAMIxIOS`.
-
-## API
+## API routes
 
 - `GET /health` — service health.
-- `GET /api/patches` — public enabled manifest for the requested tenant (default: `vesper`); in legacy mode, the Vesper response includes package passwords.
-- `GET /api/patches/:id/download` — public download for an enabled patch.
-- `GET /api/patches/:id/image` — public image for an enabled patch.
-- `POST /api/auth/login` and the `/api/admin/*` endpoints — dashboard login and management.
+- `POST /api/client/session` — verify a license through M3SB and issue a client session.
+- `POST /api/client/session/logout` — revoke the authenticated client session.
+- `GET /api/patches` and `GET /api/patches/:id/download` — require a valid client Bearer session.
+- `GET /api/patches/:id/image`, `/api/settings`, and `/api/resellers` — public display metadata only.
+- `POST /api/auth/login` and `/api/admin/*` — existing dashboard authentication and management.
 
-Set `VESPERDASH_DATA=/opt/vesperdash/data` in the systemd service to keep database and uploaded files outside the replaceable application directory. Keep the admin credentials in the root-owned `/etc/vesperdash.env` file.
+Run the security checks locally with:
+
+```bash
+python3 -m unittest vesperdash.test_security vesperdash.test_legacy_api -v
+```
