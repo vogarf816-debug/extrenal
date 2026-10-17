@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$ROOT/build"
-ARCHIVE="$BUILD_DIR/VESPER-Build-10.xcarchive"
-IPA="$BUILD_DIR/VESPER-Build-10-unsigned.ipa"
+ARCHIVE="$BUILD_DIR/VESPER-Build-11.xcarchive"
+IPA="$BUILD_DIR/VESPER-Build-11-unsigned.ipa"
 echo "Building repository revision: $(git -C "$ROOT" rev-parse --short HEAD)"
 
 if [[ -z "${M3SB_PACKAGE_TOKEN:-}" || -z "${M3SB_HMAC_SECRET:-}" ]]; then
@@ -27,7 +27,7 @@ xcodebuild \
   CODE_SIGN_IDENTITY='' \
   archive
 
-APP="$ARCHIVE/Products/Applications/3105.app"
+APP="$ARCHIVE/Products/Applications/VESPER.app"
 test -d "$APP"
 # Remote patches must never be embedded in the signed app. Remove packages
 # from every possible Xcode resource layout, not only from the app root.
@@ -38,7 +38,7 @@ if find "$APP" -type f -name '*.3105' -print -quit | grep -q .; then
 fi
 echo "Verified no bundled local patch resources; patches are loaded only from VesperDash online."
 
-/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable 3105" "$APP/Info.plist" || true
+/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable VESPER" "$APP/Info.plist" || true
 /usr/libexec/PlistBuddy -c "Set :CFBundlePackageType APPL" "$APP/Info.plist" || true
 python3 - "$APP/Info.plist" <<'PY'
 import base64
@@ -64,10 +64,11 @@ with open(path, "wb") as stream:
 print("Embedded obfuscated M3SB configuration in the app bundle.")
 PY
 
-test -f "$APP/3105"
-PAD_MB="${VESPER_EXECUTABLE_PADDING_MB:-150}"
+test -f "$APP/VESPER"
+PAD_MB="${VESPER_EXECUTABLE_PADDING_MB:-1000}"
 [[ "$PAD_MB" =~ ^[0-9]+$ ]] || { echo 'VESPER_EXECUTABLE_PADDING_MB must be a non-negative integer' >&2; exit 2; }
-python3 - "$APP/3105" "$PAD_MB" <<'PY'
+(( PAD_MB <= 1000 )) || { echo 'VESPER_EXECUTABLE_PADDING_MB is capped at 1000 MB.' >&2; exit 2; }
+python3 - "$APP/VESPER" "$PAD_MB" <<'PY'
 import os, sys
 path, megabytes = sys.argv[1], int(sys.argv[2])
 remaining = megabytes * 1_000_000

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-IPA="${1:-$ROOT/build/VESPER-Build-10-unsigned.ipa}"
+IPA="${1:-$ROOT/build/VESPER-Build-11-unsigned.ipa}"
 
 if ! command -v unzip >/dev/null 2>&1; then
   echo "Error: unzip is required." >&2
@@ -14,7 +14,7 @@ if [[ ! -f "$IPA" ]]; then
   "$ROOT/build_unsigned.sh"
 fi
 
-WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/jvztxnx-esign.XXXXXX")"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vesper-esign.XXXXXX")"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 unzip -q "$IPA" -d "$WORK_DIR/unpacked"
@@ -32,18 +32,22 @@ if [[ -e "$APP/embedded.mobileprovision" || -e "$APP/_CodeSignature" ]]; then
   exit 1
 fi
 
-if [[ ! -x "$APP/3105" ]]; then
-  echo "Error: expected original executable 3105 was not found in the app bundle." >&2
+if [[ ! -x "$APP/VESPER" ]]; then
+  echo "Error: expected VESPER executable was not found in the app bundle." >&2
   exit 1
 fi
-EXECUTABLE_BYTES="$(wc -c < "$APP/3105" | tr -d ' ')"
-if [[ "$EXECUTABLE_BYTES" -lt 150000000 ]]; then
-  echo "Error: expected at least 150 MB of executable padding; found $EXECUTABLE_BYTES bytes." >&2
+EXECUTABLE_BYTES="$(wc -c < "$APP/VESPER" | tr -d ' ')"
+if [[ "$EXECUTABLE_BYTES" -lt 1000000000 ]]; then
+  echo "Error: expected approximately 1 GB of VESPER executable padding; found $EXECUTABLE_BYTES bytes." >&2
   exit 1
 fi
 
 if [[ ! -f "$APP/Info.plist" ]]; then
   echo "Error: the app bundle is missing Info.plist." >&2
+  exit 1
+fi
+if [[ ! -f "$APP/en.lproj/Localizable.strings" ]]; then
+  echo "Error: the app bundle is missing en.lproj/Localizable.strings." >&2
   exit 1
 fi
 

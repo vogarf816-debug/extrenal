@@ -15,8 +15,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "E00000000000000000000001"
-               BuildableName = "3105.app"
-               BlueprintName = "3105"
+               BuildableName = "VESPER.app"
+               BlueprintName = "VESPER"
                ReferencedContainer = "container:ThreeOneOSFive.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -37,8 +37,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "E00000000000000000000001"
-            BuildableName = "3105.app"
-            BlueprintName = "3105"
+            BuildableName = "VESPER.app"
+            BlueprintName = "VESPER"
             ReferencedContainer = "container:ThreeOneOSFive.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -53,8 +53,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "3105A500"
-            BuildableName = "3105.app"
-            BlueprintName = "3105"
+            BuildableName = "VESPER.app"
+            BlueprintName = "VESPER"
             ReferencedContainer = "container:ThreeOneOSFive.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

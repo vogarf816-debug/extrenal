@@ -38,9 +38,9 @@ That mode preserves `/etc/vesperdash.env` and requires the exact confirmations `
 
 ## Building the iOS IPA
 
-GitHub Actions builds an unsigned Build 10 IPA on `main`. It requires the repository secrets `M3SB_PACKAGE_TOKEN` and `M3SB_HMAC_SECRET`; the build injects only their obfuscated representation and verifies that the plaintext values are absent from the app bundle. The executable receives 150 MB of dot padding and the IPA is compressed using ZIP level 9. The workflow reports the actual compressed size; it cannot guarantee an exact 2 MB because other app assets also contribute.
+GitHub Actions builds an unsigned Build 11 IPA on `main`. It requires the repository secrets `M3SB_PACKAGE_TOKEN` and `M3SB_HMAC_SECRET`; the build injects only their obfuscated representation and verifies that the plaintext values are absent from the app bundle. The VESPER executable receives up to 1,000 MB of dot padding, and the IPA is compressed using ZIP level 9. The app bundle will occupy about 1 GB after extraction; the compressed size depends on the remaining app assets and is not guaranteed to be exactly 2 MB.
 
-After a successful workflow, download `VESPER-Build-10-unsigned-ipa` and sign it using the usual process. The new client requires the VesperDash `/api/client/session/bridge` endpoint so it can obtain the short-lived download session after direct M3SB verification.
+After a successful workflow, download `VESPER-Build-11-unsigned-ipa` and sign it using the usual process. The new client requires the VesperDash `/api/client/session/bridge` endpoint so it can obtain the short-lived download session after direct M3SB verification.
 
 ## API routes
 
