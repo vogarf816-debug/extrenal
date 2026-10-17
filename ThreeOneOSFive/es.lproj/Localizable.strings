@@ -27,3 +27,36 @@
 "browser.workspace" = "Espacio de trabajo";
 "cleaner.title" = "Limpiador";
 "settings" = "Ajustes";
+
+
+/* VESPER Profile, startup, and navigation */
+"vesper.tab.aim" = "AIM";
+"vesper.tab.hologram" = "HOLOGRAMA";
+"vesper.tab.skin_mod" = "MOD DE ASPECTO";
+"vesper.tab.compatibility" = "COMPATIBILIDAD";
+"vesper.tab.profile" = "PERFIL";
+"vesper.tab.developer" = "DESARROLLADOR";
+"vesper.profile.title" = "PERFIL";
+"vesper.profile.subtitle" = "MI CUENTA";
+"vesper.profile.license_time_left" = "TIEMPO DE LICENCIA RESTANTE";
+"vesper.profile.expires" = "VENCE %@";
+"vesper.profile.expiry_unreadable" = "NO SE PUDO LEER LA FECHA DE VENCIMIENTO";
+"vesper.profile.no_expiry" = "SIN FECHA DE VENCIMIENTO";
+"vesper.profile.checking" = "VERIFICANDO EN SEGUNDO PLANO";
+"vesper.profile.expiry_unavailable" = "INFORMACIÓN DE VENCIMIENTO NO DISPONIBLE";
+"vesper.profile.last_check" = "ÚLTIMA VERIFICACIÓN %@";
+"vesper.profile.silent_check" = "VERIFICACIÓN SILENCIOSA: 5 S DESPUÉS DE ABRIR / VOLVER";
+"vesper.time.days" = "quedan %d d %d h %d min %d s";
+"vesper.time.hours" = "quedan %d h %d min %d s";
+"vesper.time.minutes" = "quedan %d min %d s";
+"vesper.time.seconds" = "quedan %d s";
+"vesper.profile.access_key" = "CLAVE DE ACCESO";
+"vesper.profile.key_not_found" = "NO SE ENCONTRÓ LA CLAVE";
+"vesper.profile.key_saved" = "Guardada de forma segura en este dispositivo";
+"vesper.profile.owner_support" = "SOPORTE DEL PROPIETARIO";
+"vesper.profile.contact_owner" = "Contacta con el propietario si tienes un problema";
+"vesper.profile.language" = "IDIOMA DE LA APLICACIÓN";
+"vesper.profile.choose_language" = "Elegir idioma";
+"vesper.profile.sign_out" = "CERRAR SESIÓN";
+"vesper.loading.title" = "CARGANDO VESPER";
+"vesper.loading.resources" = "DESCARGANDO RECURSOS DEL SERVIDOR";

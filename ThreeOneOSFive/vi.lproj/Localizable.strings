@@ -511,3 +511,36 @@
 "wallpaper.error.install" = "Cài đặt thất bại và mọi descriptor đã thêm trong lần thử này đã được rollback.";
 "wallpaper.error.restore" = "3105 không thể xóa an toàn toàn bộ descriptor của lần cài này.";
 "wallpaper.error.unknown" = "Đã xảy ra lỗi không mong muốn. Hãy kiểm tra Nhật ký phiên để biết chi tiết.";
+
+
+/* VESPER Profile, startup, and navigation */
+"vesper.tab.aim" = "AIM";
+"vesper.tab.hologram" = "ẢO ẢNH";
+"vesper.tab.skin_mod" = "MOD GIAO DIỆN";
+"vesper.tab.compatibility" = "TƯƠNG THÍCH";
+"vesper.tab.profile" = "HỒ SƠ";
+"vesper.tab.developer" = "NHÀ PHÁT TRIỂN";
+"vesper.profile.title" = "HỒ SƠ";
+"vesper.profile.subtitle" = "TÀI KHOẢN CỦA TÔI";
+"vesper.profile.license_time_left" = "THỜI GIAN GIẤY PHÉP CÒN LẠI";
+"vesper.profile.expires" = "HẾT HẠN %@";
+"vesper.profile.expiry_unreadable" = "KHÔNG ĐỌC ĐƯỢC NGÀY HẾT HẠN";
+"vesper.profile.no_expiry" = "KHÔNG CÓ NGÀY HẾT HẠN";
+"vesper.profile.checking" = "ĐANG KIỂM TRA NỀN";
+"vesper.profile.expiry_unavailable" = "KHÔNG CÓ THÔNG TIN HẾT HẠN";
+"vesper.profile.last_check" = "LẦN KIỂM TRA CUỐI %@";
+"vesper.profile.silent_check" = "KIỂM TRA ẨN: 5 GIÂY SAU KHI MỞ / QUAY LẠI";
+"vesper.time.days" = "còn %d ngày %d giờ %d phút %d giây";
+"vesper.time.hours" = "còn %d giờ %d phút %d giây";
+"vesper.time.minutes" = "còn %d phút %d giây";
+"vesper.time.seconds" = "còn %d giây";
+"vesper.profile.access_key" = "KHÓA TRUY CẬP";
+"vesper.profile.key_not_found" = "KHÔNG TÌM THẤY KHÓA";
+"vesper.profile.key_saved" = "Được lưu an toàn trên thiết bị này";
+"vesper.profile.owner_support" = "HỖ TRỢ CHỦ SỞ HỮU";
+"vesper.profile.contact_owner" = "Liên hệ chủ sở hữu nếu bạn gặp sự cố";
+"vesper.profile.language" = "NGÔN NGỮ ỨNG DỤNG";
+"vesper.profile.choose_language" = "Chọn ngôn ngữ";
+"vesper.profile.sign_out" = "ĐĂNG XUẤT";
+"vesper.loading.title" = "ĐANG TẢI VESPER";
+"vesper.loading.resources" = "ĐANG TẢI TÀI NGUYÊN TỪ MÁY CHỦ";

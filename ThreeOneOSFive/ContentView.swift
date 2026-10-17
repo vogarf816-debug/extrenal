@@ -4,8 +4,10 @@ import AVFoundation
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.appLanguage) private var appLanguage
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var licenseManager: LicenseManager
+    @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @State private var profileKeyText = ""
     @State private var isProfileKeyVisible = false
     @State private var remoteSyncTask: Task<Void, Never>?
@@ -21,12 +23,12 @@ struct ContentView: View {
 
     var body: some View {
         TabView {
-            appTab(title: "AIM", icon: "scope", showsPatchStatus: true) { aimTab }
-            appTab(title: "HOLOGRAM", icon: "cube.transparent", showsPatchStatus: true) { hologramTab }
-            appTab(title: "SKIN MOD", icon: "sparkles", showsPatchStatus: true) { skinModTab }
-            appTab(title: "COMPATIBILITY", icon: "iphone") { supportedDeviceTab }
-            appTab(title: "PROFILE", icon: "person.crop.circle") { profileTab }
-            appTab(title: "DEVELOPER", icon: "person.crop.circle") { developerTab }
+            appTab(title: appLanguage.text("vesper.tab.aim"), icon: "scope", showsPatchStatus: true) { aimTab }
+            appTab(title: appLanguage.text("vesper.tab.hologram"), icon: "cube.transparent", showsPatchStatus: true) { hologramTab }
+            appTab(title: appLanguage.text("vesper.tab.skin_mod"), icon: "sparkles", showsPatchStatus: true) { skinModTab }
+            appTab(title: appLanguage.text("vesper.tab.compatibility"), icon: "iphone") { supportedDeviceTab }
+            appTab(title: appLanguage.text("vesper.tab.profile"), icon: "person.crop.circle") { profileTab }
+            appTab(title: appLanguage.text("vesper.tab.developer"), icon: "person.crop.circle") { developerTab }
         }
         .preferredColorScheme(.dark)
         .tint(AppTheme.accent)
@@ -48,7 +50,7 @@ struct ContentView: View {
         }
         .onAppear {
             syncPatchStates()
-            patchStore.syncVesperDash(showCompletionAlert: false, showProgress: false)
+            patchStore.syncVesperDash(showCompletionAlert: false, showProgress: true)
             startRemoteStateChecks()
         }
         .onChange(of: patchStore.isBusy) { isBusy in
@@ -71,6 +73,7 @@ struct ContentView: View {
             guard phase == .active, !patchOperationBusy else { return }
             syncPatchStates()
             patchMessage = "READY — SELECT A PATCH"
+            patchStore.syncVesperDash(showCompletionAlert: false, showProgress: true)
         }
     }
 
@@ -109,6 +112,7 @@ struct ContentView: View {
 
     private struct RemoteLoadingView: View {
         @ObservedObject var store: PatchProjectStore
+        @Environment(\.appLanguage) private var appLanguage
         @State private var spinnerRotation = 0.0
 
         var body: some View {
@@ -118,11 +122,14 @@ struct ContentView: View {
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
-                .ignoresSafeArea()
+                    .ignoresSafeArea()
                 VStack(spacing: 18) {
                     VStack(spacing: 7) {
-                        Text("DOWNLOAD RESOURCE FROM SERVER")
-                            .font(.system(size: 14, weight: .black, design: .rounded))
+                        Text(appLanguage.text("vesper.loading.title"))
+                            .font(.system(size: 18, weight: .black, design: .rounded))
+                            .multilineTextAlignment(.center)
+                        Text(appLanguage.text("vesper.loading.resources"))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
                             .multilineTextAlignment(.center)
                         Text(progressText)
                             .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -354,10 +361,11 @@ struct ContentView: View {
 
     private var profileTab: some View {
         VStack(spacing: 16) {
-            gameIntro(title: "PROFILE", subtitle: "MY ACCOUNT", icon: "person.crop.circle")
+            gameIntro(title: appLanguage.text("vesper.profile.title"), subtitle: appLanguage.text("vesper.profile.subtitle"), icon: "person.crop.circle")
             licenseStatusCard
             profileKeyCard
             profileSupportCard
+            profileLanguageCard
             profileSignOutButton
         }
         .onAppear(perform: refreshProfileKey)
@@ -373,7 +381,7 @@ struct ContentView: View {
                 .frame(width: 42, height: 42)
                 .background(AppTheme.ink, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
             VStack(alignment: .leading, spacing: 5) {
-                Text("LICENSE TIME LEFT")
+                Text(appLanguage.text("vesper.profile.license_time_left"))
                     .font(.system(size: 10, weight: .black, design: .rounded))
                     .tracking(1)
                     .foregroundStyle(AppTheme.secondaryAccent)
@@ -384,28 +392,28 @@ struct ContentView: View {
                             .monospacedDigit()
                             .foregroundStyle(AppTheme.paper)
                     }
-                    Text("EXPIRES \(expiry.formatted(date: .abbreviated, time: .shortened))")
+                    Text(appLanguage.text("vesper.profile.expires", expiry.formatted(date: .abbreviated, time: .shortened)))
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.paper.opacity(0.56))
                 } else if licenseManager.hasExpiryInformation && licenseManager.expiryDateWasProvided {
-                    Text("EXPIRY DATE COULD NOT BE READ")
+                    Text(appLanguage.text("vesper.profile.expiry_unreadable"))
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.paper.opacity(0.72))
                 } else if licenseManager.hasExpiryInformation {
-                    Text("NO EXPIRATION DATE")
+                    Text(appLanguage.text("vesper.profile.no_expiry"))
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.paper)
                 } else {
-                    Text(licenseManager.isBusy ? "CHECKING IN BACKGROUND" : "EXPIRY INFO UNAVAILABLE")
+                    Text(appLanguage.text(licenseManager.isBusy ? "vesper.profile.checking" : "vesper.profile.expiry_unavailable"))
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.paper.opacity(0.72))
                 }
                 if let lastCheck = licenseManager.lastCheckAttemptAt {
-                    Text("LAST CHECK \(lastCheck.formatted(date: .abbreviated, time: .standard))")
+                    Text(appLanguage.text("vesper.profile.last_check", lastCheck.formatted(date: .abbreviated, time: .standard)))
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.paper.opacity(0.56))
                 } else {
-                    Text("SILENT CHECK: 5 SEC AFTER OPEN / RESUME")
+                    Text(appLanguage.text("vesper.profile.silent_check"))
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.paper.opacity(0.56))
                 }
@@ -425,17 +433,17 @@ struct ContentView: View {
         let hours = (seconds % 86_400) / 3_600
         let minutes = (seconds % 3_600) / 60
         let remainingSeconds = seconds % 60
-        if days > 0 { return "\(days)d \(hours)h \(minutes)m \(remainingSeconds)s remaining" }
-        if hours > 0 { return "\(hours)h \(minutes)m \(remainingSeconds)s remaining" }
-        if minutes > 0 { return "\(minutes)m \(remainingSeconds)s remaining" }
-        return "\(remainingSeconds)s remaining"
+        if days > 0 { return appLanguage.text("vesper.time.days", days, hours, minutes, remainingSeconds) }
+        if hours > 0 { return appLanguage.text("vesper.time.hours", hours, minutes, remainingSeconds) }
+        if minutes > 0 { return appLanguage.text("vesper.time.minutes", minutes, remainingSeconds) }
+        return appLanguage.text("vesper.time.seconds", remainingSeconds)
     }
 
     private var profileKeyCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            panelTitle("ACCESS KEY", icon: "key.fill")
+            panelTitle(appLanguage.text("vesper.profile.access_key"), icon: "key.fill")
             HStack(spacing: 10) {
-                Text(profileKeyText.isEmpty ? "KEY NOT FOUND" : (isProfileKeyVisible ? profileKeyText : String(repeating: "•", count: max(8, min(profileKeyText.count, 24)))))
+                Text(profileKeyText.isEmpty ? appLanguage.text("vesper.profile.key_not_found") : (isProfileKeyVisible ? profileKeyText : String(repeating: "•", count: max(8, min(profileKeyText.count, 24)))))
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
                     .foregroundStyle(AppTheme.paper)
                     .lineLimit(1)
@@ -453,7 +461,7 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(isProfileKeyVisible ? "Hide access key" : "Show access key")
             }
-            Text("Stored securely on this device")
+            Text(appLanguage.text("vesper.profile.key_saved"))
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundStyle(AppTheme.paper.opacity(0.58))
         }
@@ -474,11 +482,11 @@ struct ContentView: View {
                     .frame(width: 44, height: 44)
                     .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("OWNER SUPPORT")
+                    Text(appLanguage.text("vesper.profile.owner_support"))
                         .font(.system(size: 10, weight: .black, design: .rounded))
                         .tracking(0.8)
                         .foregroundStyle(AppTheme.secondaryAccent)
-                    Text("Contact the owner if you have a problem")
+                    Text(appLanguage.text("vesper.profile.contact_owner"))
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(AppTheme.paper)
                         .lineLimit(2)
@@ -497,21 +505,38 @@ struct ContentView: View {
         .accessibilityLabel("Contact owner support on Telegram")
     }
 
+    private var profileLanguageCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            panelTitle(appLanguage.text("vesper.profile.language"), icon: "globe")
+            Picker(appLanguage.text("vesper.profile.choose_language"), selection: $languageCode) {
+                ForEach(AppLanguage.allCases) { language in
+                    Text(language.displayName).tag(language.rawValue)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(AppTheme.accent)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.25), lineWidth: 1))
+    }
+
     private var profileSignOutButton: some View {
         Button {
             licenseManager.deactivate()
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "rectangle.portrait.and.arrow.right")
-                Text("SIGN OUT")
+                Text(appLanguage.text("vesper.profile.sign_out"))
             }
             .font(.system(size: 12, weight: .black, design: .rounded))
             .tracking(1)
-            .foregroundStyle(.white)
+            .foregroundStyle(.black)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
-            .background(Color.red.opacity(0.78), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.red.opacity(0.8), lineWidth: 1))
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .accessibilityHint("Removes the saved key from this device and returns to Enter Key")

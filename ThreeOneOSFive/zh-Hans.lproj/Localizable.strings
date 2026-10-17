@@ -511,3 +511,36 @@
 "wallpaper.error.install" = "安装失败，本次尝试添加的描述符已回滚。";
 "wallpaper.error.restore" = "3105 无法安全移除此安装中的全部描述符。";
 "wallpaper.error.unknown" = "发生意外错误。请查看会话日志了解详情。";
+
+
+/* VESPER Profile, startup, and navigation */
+"vesper.tab.aim" = "瞄准";
+"vesper.tab.hologram" = "全息";
+"vesper.tab.skin_mod" = "皮肤修改";
+"vesper.tab.compatibility" = "兼容性";
+"vesper.tab.profile" = "个人资料";
+"vesper.tab.developer" = "开发者";
+"vesper.profile.title" = "个人资料";
+"vesper.profile.subtitle" = "我的账户";
+"vesper.profile.license_time_left" = "许可证剩余时间";
+"vesper.profile.expires" = "到期时间 %@";
+"vesper.profile.expiry_unreadable" = "无法读取到期日期";
+"vesper.profile.no_expiry" = "无到期日期";
+"vesper.profile.checking" = "正在后台检查";
+"vesper.profile.expiry_unavailable" = "到期信息不可用";
+"vesper.profile.last_check" = "上次检查 %@";
+"vesper.profile.silent_check" = "静默检查：打开或返回后 5 秒";
+"vesper.time.days" = "剩余 %d 天 %d 小时 %d 分 %d 秒";
+"vesper.time.hours" = "剩余 %d 小时 %d 分 %d 秒";
+"vesper.time.minutes" = "剩余 %d 分 %d 秒";
+"vesper.time.seconds" = "剩余 %d 秒";
+"vesper.profile.access_key" = "访问密钥";
+"vesper.profile.key_not_found" = "未找到密钥";
+"vesper.profile.key_saved" = "已安全保存在此设备上";
+"vesper.profile.owner_support" = "所有者支持";
+"vesper.profile.contact_owner" = "遇到问题请联系所有者";
+"vesper.profile.language" = "应用语言";
+"vesper.profile.choose_language" = "选择语言";
+"vesper.profile.sign_out" = "退出登录";
+"vesper.loading.title" = "正在加载 VESPER";
+"vesper.loading.resources" = "正在从服务器下载资源";

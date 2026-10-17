@@ -497,3 +497,36 @@
 "wallpaper.title" = "Wallpaper Lab";
 "wallpaper.try_again" = "Check Again";
 "wallpaper.uuid_dynamic" = "Resolves com.apple.PosterBoard dynamically";
+
+
+/* VESPER Profile, startup, and navigation */
+"vesper.tab.aim" = "AIM";
+"vesper.tab.hologram" = "HOLOGRAM";
+"vesper.tab.skin_mod" = "SKIN MOD";
+"vesper.tab.compatibility" = "COMPATIBILITY";
+"vesper.tab.profile" = "PROFILE";
+"vesper.tab.developer" = "DEVELOPER";
+"vesper.profile.title" = "PROFILE";
+"vesper.profile.subtitle" = "MY ACCOUNT";
+"vesper.profile.license_time_left" = "LICENSE TIME LEFT";
+"vesper.profile.expires" = "EXPIRES %@";
+"vesper.profile.expiry_unreadable" = "EXPIRY DATE COULD NOT BE READ";
+"vesper.profile.no_expiry" = "NO EXPIRATION DATE";
+"vesper.profile.checking" = "CHECKING IN BACKGROUND";
+"vesper.profile.expiry_unavailable" = "EXPIRY INFO UNAVAILABLE";
+"vesper.profile.last_check" = "LAST CHECK %@";
+"vesper.profile.silent_check" = "SILENT CHECK: 5 SEC AFTER OPEN / RESUME";
+"vesper.time.days" = "%d d %d h %d m %d s remaining";
+"vesper.time.hours" = "%d h %d m %d s remaining";
+"vesper.time.minutes" = "%d m %d s remaining";
+"vesper.time.seconds" = "%d s remaining";
+"vesper.profile.access_key" = "ACCESS KEY";
+"vesper.profile.key_not_found" = "KEY NOT FOUND";
+"vesper.profile.key_saved" = "Stored securely on this device";
+"vesper.profile.owner_support" = "OWNER SUPPORT";
+"vesper.profile.contact_owner" = "Contact the owner if you have a problem";
+"vesper.profile.language" = "APP LANGUAGE";
+"vesper.profile.choose_language" = "Choose language";
+"vesper.profile.sign_out" = "SIGN OUT";
+"vesper.loading.title" = "LOADING VESPER";
+"vesper.loading.resources" = "DOWNLOAD RESOURCE FROM SERVER";
