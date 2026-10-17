@@ -71,6 +71,12 @@ class ClientSessionSecurityTests(unittest.TestCase):
         with patch.object(server, "_verify_license_with_m3sb", return_value=result):
             return self.client.post("/api/client/session", json={"key": key, "device_id": device_id})
 
+    def test_db_uses_wal_and_busy_timeout(self):
+        conn = server.db()
+        self.assertEqual(conn.execute("PRAGMA busy_timeout").fetchone()[0], 30000)
+        self.assertEqual(conn.execute("PRAGMA journal_mode").fetchone()[0].lower(), "wal")
+        conn.close()
+
     def test_signed_provider_proof_exchanges_for_download_session(self):
         provider_result = signed_license(self.key, self.device_id)
         with patch.object(server.urllib.request, "urlopen", side_effect=AssertionError("must not contact M3SB")):

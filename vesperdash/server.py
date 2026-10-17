@@ -45,8 +45,13 @@ def db():
     DATA.mkdir(parents=True, exist_ok=True)
     PATCH_DIR.mkdir(parents=True, exist_ok=True)
     IMAGE_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB)
+    conn = sqlite3.connect(DB, timeout=30.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=30000")
+    journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+    if str(journal_mode).lower() != "wal":
+        conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("BEGIN IMMEDIATE")
     conn.execute("""CREATE TABLE IF NOT EXISTS patches (
         id TEXT PRIMARY KEY, name TEXT NOT NULL, owner TEXT NOT NULL DEFAULT 'vesper', category TEXT NOT NULL DEFAULT 'aim', game TEXT NOT NULL,
         bundle_id TEXT NOT NULL, target_path TEXT NOT NULL, target_paths TEXT NOT NULL DEFAULT '[]', filename TEXT NOT NULL,
@@ -95,8 +100,11 @@ def db():
     session_columns = {row["name"] for row in conn.execute("PRAGMA table_info(sessions)")}
     if "owner" not in session_columns:
         conn.execute("ALTER TABLE sessions ADD COLUMN owner TEXT NOT NULL DEFAULT 'vesper'")
-    conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES('global_paused', '0')")
-    conn.execute("INSERT OR IGNORE INTO settings(key, value) SELECT 'global_paused_vesper', value FROM settings WHERE key='global_paused'")
+    setting_keys = {row["key"] for row in conn.execute("SELECT key FROM settings WHERE key IN ('global_paused', 'global_paused_vesper')")}
+    if "global_paused" not in setting_keys:
+        conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES('global_paused', '0')")
+    if "global_paused_vesper" not in setting_keys:
+        conn.execute("INSERT OR IGNORE INTO settings(key, value) SELECT 'global_paused_vesper', value FROM settings WHERE key='global_paused'")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_patches_owner_order ON patches(owner, category, game, sort_order, name)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_client_sessions_expires ON client_sessions(expires_at)")
