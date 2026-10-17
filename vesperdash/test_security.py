@@ -92,6 +92,7 @@ class ClientSessionSecurityTests(unittest.TestCase):
             json={"key": self.key, "device_id": self.device_id, "provider_result": tampered},
         )
         self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["status"], "signature_mismatch")
         self.assertNotIn("client_session", response.get_json())
 
         other_device = signed_license(self.key, "another-device")
@@ -100,6 +101,7 @@ class ClientSessionSecurityTests(unittest.TestCase):
             json={"key": self.key, "device_id": self.device_id, "provider_result": other_device},
         )
         self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["status"], "device_identity_mismatch")
         self.assertNotIn("client_session", response.get_json())
 
         banned = signed_license(self.key, self.device_id, status="banned")
@@ -109,6 +111,18 @@ class ClientSessionSecurityTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 403)
         self.assertNotIn("client_session", response.get_json())
+
+    def test_bridge_reports_hmac_secret_mismatch_without_exposing_proof(self):
+        provider_result = signed_license(self.key, self.device_id)
+        with patch.object(server, "M3SB_HMAC_SECRET", "different-test-secret"):
+            response = self.client.post(
+                "/api/client/session/bridge",
+                json={"key": self.key, "device_id": self.device_id, "provider_result": provider_result},
+            )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["status"], "signature_mismatch")
+        self.assertIn("HMAC secret", response.get_json()["message"])
+        self.assertNotIn("sig_v2", response.get_json())
 
     def test_bridge_is_disabled_without_server_hmac_secret(self):
         provider_result = signed_license(self.key, self.device_id)

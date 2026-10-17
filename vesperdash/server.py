@@ -360,19 +360,21 @@ def _signature_value(value):
     return str(value)
 
 
-def _m3sb_response_is_trusted(payload, expected_key, expected_device_hash):
+def _m3sb_response_trust_error(payload, expected_key, expected_device_hash):
     signature = payload.get("sig_v2")
     raw_timestamp = payload.get("ts")
-    if not isinstance(signature, str) or not signature or isinstance(raw_timestamp, bool):
-        return False
+    if not isinstance(signature, str) or not signature:
+        return "signature_missing"
+    if isinstance(raw_timestamp, bool):
+        return "timestamp_invalid"
     try:
         timestamp = float(raw_timestamp)
     except (TypeError, ValueError):
-        return False
+        return "timestamp_invalid"
     if timestamp > 10_000_000_000:
         timestamp /= 1000.0
     if abs(time.time() - timestamp) > 300:
-        return False
+        return "timestamp_expired"
     fields = ("valid", "status", "license", "device_hash", "expires_at", "devices_left", "allow_inject", "ts")
     parts = []
     for field in fields:
@@ -381,8 +383,16 @@ def _m3sb_response_is_trusted(payload, expected_key, expected_device_hash):
     canonical = "&".join(parts)
     expected = hmac.new(M3SB_HMAC_SECRET.encode(), canonical.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(signature, expected):
-        return False
-    return payload.get("license") == expected_key and payload.get("device_hash") == expected_device_hash
+        return "signature_mismatch"
+    if payload.get("license") != expected_key:
+        return "license_identity_mismatch"
+    if payload.get("device_hash") != expected_device_hash:
+        return "device_identity_mismatch"
+    return None
+
+
+def _m3sb_response_is_trusted(payload, expected_key, expected_device_hash):
+    return _m3sb_response_trust_error(payload, expected_key, expected_device_hash) is None
 
 
 def _expiry_timestamp(value):
@@ -562,8 +572,17 @@ def exchange_m3sb_result_for_client_session():
             message=str(result.get("message", "license is not active"))[:180],
         ), 403
     device_hash = hashlib.sha256(device_id.encode()).hexdigest()
-    if not _m3sb_response_is_trusted(result, key, device_hash):
-        return jsonify(valid=False, message="license response could not be verified"), 403
+    trust_error = _m3sb_response_trust_error(result, key, device_hash)
+    if trust_error:
+        messages = {
+            "signature_missing": "M3SB response is missing its signature",
+            "timestamp_invalid": "M3SB response timestamp is invalid",
+            "timestamp_expired": "M3SB response timestamp is outside the five-minute window",
+            "signature_mismatch": "M3SB signature mismatch; confirm the VPS HMAC secret matches the iOS build secret",
+            "license_identity_mismatch": "signed license identity does not match the submitted license key",
+            "device_identity_mismatch": "signed device identity does not match this device",
+        }
+        return jsonify(valid=False, status=trust_error, message=messages[trust_error]), 403
     return _issue_client_session(result, key, device_id)
 
 
