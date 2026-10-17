@@ -22,6 +22,8 @@ Keep these values only in the root-owned `/etc/vesperdash.env` (or the systemd s
 
 Do not paste credentials into chat, source code, Xcode settings or GitHub Actions secrets. Because prior IPA artifacts contained M3SB credentials, revoke/rotate both M3SB credentials before enabling the secure server code; deleting an artifact does not invalidate credentials that were already copied.
 
+If you explicitly choose to keep the existing credentials for a code-only server update, use the opt-in deployment mode below. It preserves `/etc/vesperdash.env` without printing or changing it, but the exposed-credential risk remains.
+
 ## Deploying the server update
 
 The server code change is **not deployed automatically** by the iOS build workflow. After rotating credentials and verifying that the new values are present in `/etc/vesperdash.env`, update the existing VPS through its interactive terminal:
@@ -30,7 +32,7 @@ The server code change is **not deployed automatically** by the iOS build workfl
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/vogarf816-debug/extrenal/main/vesperdash/deploy_from_vps.sh)"
 ```
 
-The deployment script asks for explicit confirmation, backs up the current application, preserves `/opt/vesperdash/data` and `/etc/vesperdash.env`, runs tests, restarts the service and checks that the health endpoint is available while the patch manifest is no longer public. It does not print secret values. Do not run it until both M3SB credentials have been rotated and configured on the VPS.
+The normal deployment script asks for confirmation that both credentials have been rotated. To intentionally retain the existing values, pass `--keep-current-m3sb-credentials` instead; it requires the exact confirmation `KEEP-EXPOSED-SECRETS` and then `DEPLOY`. Both modes back up the current application, preserve `/opt/vesperdash/data` and `/etc/vesperdash.env`, run tests, restart the service and check the health endpoint and protected routes. Secret values are never printed.
 
 ## Building the iOS IPA
 

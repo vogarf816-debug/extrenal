@@ -80,8 +80,20 @@ It backs up $APP_DIR, preserves /opt/vesperdash/data and $ENV_FILE,
 then restarts $SERVICE. Patch manifests, package passwords and downloads
 will require a valid, short-lived client session.
 NOTICE
-read -r -p 'Have you revoked/rotated the previously exposed M3SB token and HMAC secret? Type ROTATED: ' rotation_answer </dev/tty
-[[ "$rotation_answer" == "ROTATED" ]] || fail "Cancelled; rotate the exposed credentials first."
+if [[ "${VESPERDASH_KEEP_EXISTING_M3SB_CREDENTIALS:-0}" == "1" ]]; then
+  cat <<'RISK'
+WARNING: You chose to keep the existing M3SB credentials. Earlier IPA files
+contained credentials, so they may be compromised. This update preserves
+/etc/vesperdash.env unchanged and does not rotate or print those values.
+RISK
+  read -r -p 'Accept this risk and keep existing credentials? Type KEEP-EXPOSED-SECRETS: ' keep_answer </dev/tty
+  [[ "$keep_answer" == "KEEP-EXPOSED-SECRETS" ]] || fail "Cancelled; existing credentials were not deployed."
+elif [[ "${VESPERDASH_KEEP_EXISTING_M3SB_CREDENTIALS:-0}" == "0" ]]; then
+  read -r -p 'Have you revoked/rotated the previously exposed M3SB token and HMAC secret? Type ROTATED: ' rotation_answer </dev/tty
+  [[ "$rotation_answer" == "ROTATED" ]] || fail "Cancelled; rotate the exposed credentials first."
+else
+  fail "Invalid credential deployment mode."
+fi
 read -r -p 'Deploy the authenticated server update now? Type DEPLOY: ' deploy_answer </dev/tty
 [[ "$deploy_answer" == "DEPLOY" ]] || { echo 'Cancelled; no application files were changed.'; exit 0; }
 
