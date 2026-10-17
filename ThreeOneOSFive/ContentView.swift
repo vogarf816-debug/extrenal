@@ -1285,24 +1285,28 @@ enum EmbeddedAppResources {
 
     static func enforceIntegrityOrCrash() {
         func reject(_ reason: String) -> Never {
+            log("integrity: \(reason)")
             fatalError("VESPER integrity check failed: \(reason)")
         }
 
         let bundle = Bundle.main
         guard bundle.bundleURL.lastPathComponent == "VESPER.app" else { reject("bundle name changed") }
         guard bundle.executableURL?.lastPathComponent == "VESPER" else { reject("executable name changed") }
+        let runtimeInfo = bundle.infoDictionary ?? [:]
         guard bundle.infoDictionary?["CFBundleDisplayName"] as? String == "VESPER",
               bundle.infoDictionary?["CFBundleExecutable"] as? String == "VESPER",
-              bundle.infoDictionary?["CFBundleIdentifier"] as? String == "com.apple.mobile.MobileHouseArrest" else {
+              bundle.infoDictionary?["CFBundleVersion"] as? String == "16",
+              let runtimeBundleID = runtimeInfo["CFBundleIdentifier"] as? String,
+              !runtimeBundleID.isEmpty else {
             reject("bundle metadata changed")
         }
-        guard let infoData = resources["Info.plist"],
+        guard resources["Info.plist"] != nil,
               let assetsData = resources["Assets.car"],
               let pkgInfoData = resources["PkgInfo"],
               let manifestData = resources["__VESPER_BUNDLE_MANIFEST__.json"] else {
             reject("embedded resource or manifest missing")
         }
-        for (name, embeddedData) in [("Info.plist", infoData), ("Assets.car", assetsData), ("PkgInfo", pkgInfoData)] {
+        for (name, embeddedData) in [("Assets.car", assetsData), ("PkgInfo", pkgInfoData)] {
             let fileURL = bundle.bundleURL.appendingPathComponent(name)
             guard let onDisk = try? Data(contentsOf: fileURL), onDisk == embeddedData else {
                 reject("bundle resource changed or missing: \(name)")
@@ -1326,7 +1330,7 @@ enum EmbeddedAppResources {
         for case let fileURL as URL in enumerator {
             let relative = String(fileURL.path.dropFirst(bundle.bundleURL.path.count + 1))
             let components = relative.split(separator: "/")
-            if relative == "VESPER" || relative == "embedded.mobileprovision" || components.contains("_CodeSignature") {
+            if relative == "VESPER" || relative == "Info.plist" || relative == "embedded.mobileprovision" || components.contains("_CodeSignature") {
                 continue
             }
             do {

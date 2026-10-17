@@ -104,6 +104,7 @@ def _excluded_from_manifest(relative: str) -> bool:
     parts = Path(relative).parts
     return (
         relative == "VESPER"
+        or relative == "Info.plist"
         or relative in AUDIO_NAMES
         or SIGNATURE_DIR in parts
         or relative == "embedded.mobileprovision"
@@ -196,6 +197,9 @@ def verify(app_dir: Path) -> None:
         if name in AUDIO_NAMES:
             if path.exists():
                 raise ValueError(f"Audio bundle copy should be removed: {name}")
+        elif name == "Info.plist":
+            if not path.is_file():
+                raise ValueError("Required Info.plist is missing from the app bundle")
         elif not path.is_file() or path.read_bytes() != embedded[name]:
             raise ValueError(f"Embedded copy does not match required bundle resource: {name}")
     try:
