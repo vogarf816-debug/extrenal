@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import uuid
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -139,6 +140,7 @@ class ClientSessionSecurityTests(unittest.TestCase):
             result = server._verify_license_with_m3sb(self.key, self.device_id, {})
         self.assertFalse(result["valid"])
         self.assertRegex(captured["nonce"], r"^[0-9A-F]{32}$")
+        self.assertEqual(uuid.UUID(captured["nonce"]).version, 4)
 
     def test_mismatched_signed_license_identity_is_rejected(self):
         result = signed_license(self.key, "another-device")
