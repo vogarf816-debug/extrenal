@@ -4,6 +4,7 @@ import json
 import os
 import secrets
 import sqlite3
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -40,18 +41,10 @@ ALLOWED_CATEGORIES = {"aim", "esp", "hologram", "skin"}
 app = Flask(__name__, static_folder=str(ROOT / "static"), static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD
 
+_DB_INIT_LOCK = threading.Lock()
+_DB_INITIALIZED: set[str] = set()
 
-def db():
-    DATA.mkdir(parents=True, exist_ok=True)
-    PATCH_DIR.mkdir(parents=True, exist_ok=True)
-    IMAGE_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB, timeout=30.0)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout=30000")
-    journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
-    if str(journal_mode).lower() != "wal":
-        conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("BEGIN IMMEDIATE")
+def _initialize_database(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS patches (
         id TEXT PRIMARY KEY, name TEXT NOT NULL, owner TEXT NOT NULL DEFAULT 'vesper', category TEXT NOT NULL DEFAULT 'aim', game TEXT NOT NULL,
         bundle_id TEXT NOT NULL, target_path TEXT NOT NULL, target_paths TEXT NOT NULL DEFAULT '[]', filename TEXT NOT NULL,
@@ -109,6 +102,30 @@ def db():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_client_sessions_expires ON client_sessions(expires_at)")
     conn.commit()
+
+
+def db():
+    DATA.mkdir(parents=True, exist_ok=True)
+    PATCH_DIR.mkdir(parents=True, exist_ok=True)
+    IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB, timeout=8.0)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=8000")
+    database_id = str(Path(DB).resolve())
+    if database_id not in _DB_INITIALIZED:
+        with _DB_INIT_LOCK:
+            if database_id not in _DB_INITIALIZED:
+                try:
+                    journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+                    if str(journal_mode).lower() != "wal":
+                        conn.execute("PRAGMA journal_mode=WAL")
+                    conn.execute("BEGIN IMMEDIATE")
+                    _initialize_database(conn)
+                    _DB_INITIALIZED.add(database_id)
+                except Exception:
+                    conn.rollback()
+                    conn.close()
+                    raise
     return conn
 
 

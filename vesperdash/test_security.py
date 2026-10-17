@@ -57,6 +57,7 @@ def signed_license(key, device_id, valid=True, status=None):
 class ClientSessionSecurityTests(unittest.TestCase):
     def setUp(self):
         shutil.rmtree(TEST_ROOT / "data", ignore_errors=True)
+        server._DB_INITIALIZED.clear()
         secret_patcher = patch.object(server, "M3SB_HMAC_SECRET", "test-server-only-hmac-secret")
         secret_patcher.start()
         self.addCleanup(secret_patcher.stop)
@@ -73,7 +74,7 @@ class ClientSessionSecurityTests(unittest.TestCase):
 
     def test_db_uses_wal_and_busy_timeout(self):
         conn = server.db()
-        self.assertEqual(conn.execute("PRAGMA busy_timeout").fetchone()[0], 30000)
+        self.assertEqual(conn.execute("PRAGMA busy_timeout").fetchone()[0], 8000)
         self.assertEqual(conn.execute("PRAGMA journal_mode").fetchone()[0].lower(), "wal")
         conn.close()
 
