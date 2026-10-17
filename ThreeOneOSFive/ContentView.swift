@@ -207,10 +207,16 @@ struct ContentView: View {
                     .padding(.bottom, 28)
                 }
             }
-            .navigationTitle(title)
+            .navigationTitle(Text(verbatim: title))
             .navigationBarTitleDisplayMode(.inline)
         }
-        .tabItem { Label(title, systemImage: icon) }
+        .tabItem {
+            Label {
+                Text(verbatim: title)
+            } icon: {
+                Image(systemName: icon)
+            }
+        }
     }
 
     private var patchStatusBanner: some View {

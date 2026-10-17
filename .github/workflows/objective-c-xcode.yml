@@ -22,6 +22,10 @@ jobs:
           xcode-version: latest-stable
       - name: Verify embedded localization table
         run: python3 generate_embedded_localizations.py --check
+      - name: Runtime localization smoke test
+        run: |
+          swiftc ThreeOneOSFive/helpers/EmbeddedLocalizations.generated.swift verify_embedded_localizations.swift -o "$RUNNER_TEMP/vesper-localization-test"
+          "$RUNNER_TEMP/vesper-localization-test"
       - name: Build
         run: |
           set -o pipefail
