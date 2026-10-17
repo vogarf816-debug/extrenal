@@ -6,6 +6,8 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var licenseManager: LicenseManager
+    @State private var profileKeyText = ""
+    @State private var isProfileKeyVisible = false
     @State private var remoteSyncTask: Task<Void, Never>?
     @State private var fileSafety: [String: Bool] = [:]
     @StateObject private var patchStore = PatchProjectStore()
@@ -23,6 +25,7 @@ struct ContentView: View {
             appTab(title: "HOLOGRAM", icon: "cube.transparent", showsPatchStatus: true) { hologramTab }
             appTab(title: "SKIN MOD", icon: "sparkles", showsPatchStatus: true) { skinModTab }
             appTab(title: "COMPATIBILITY", icon: "iphone") { supportedDeviceTab }
+            appTab(title: "PROFILE", icon: "person.crop.circle") { profileTab }
             appTab(title: "DEVELOPER", icon: "person.crop.circle") { developerTab }
         }
         .preferredColorScheme(.dark)
@@ -343,11 +346,23 @@ struct ContentView: View {
 
     private var developerTab: some View {
         VStack(spacing: 16) {
-            licenseStatusCard
             developerCard
             telegramCard
             ownerCard
         }
+    }
+
+    private var profileTab: some View {
+        VStack(spacing: 16) {
+            gameIntro(title: "PROFILE", subtitle: "MY ACCOUNT", icon: "person.crop.circle")
+            licenseStatusCard
+            profileKeyCard
+            profileSupportCard
+            profileSignOutButton
+        }
+        .onAppear(perform: refreshProfileKey)
+        .onChange(of: licenseManager.isActive) { _ in refreshProfileKey() }
+        .onDisappear { isProfileKeyVisible = false }
     }
 
     private var licenseStatusCard: some View {
@@ -385,6 +400,15 @@ struct ContentView: View {
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.paper.opacity(0.72))
                 }
+                if let lastCheck = licenseManager.lastCheckAttemptAt {
+                    Text("LAST CHECK \(lastCheck.formatted(date: .abbreviated, time: .standard))")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppTheme.paper.opacity(0.56))
+                } else {
+                    Text("SILENT CHECK: 5 SEC AFTER OPEN / RESUME")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppTheme.paper.opacity(0.56))
+                }
             }
             Spacer(minLength: 0)
         }
@@ -405,6 +429,97 @@ struct ContentView: View {
         if hours > 0 { return "\(hours)h \(minutes)m \(remainingSeconds)s remaining" }
         if minutes > 0 { return "\(minutes)m \(remainingSeconds)s remaining" }
         return "\(remainingSeconds)s remaining"
+    }
+
+    private var profileKeyCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            panelTitle("ACCESS KEY", icon: "key.fill")
+            HStack(spacing: 10) {
+                Text(profileKeyText.isEmpty ? "KEY NOT FOUND" : (isProfileKeyVisible ? profileKeyText : String(repeating: "•", count: max(8, min(profileKeyText.count, 24)))))
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(AppTheme.paper)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
+                Spacer(minLength: 4)
+                Button {
+                    isProfileKeyVisible.toggle()
+                } label: {
+                    Image(systemName: isProfileKeyVisible ? "eye.slash.fill" : "eye.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(AppTheme.accent)
+                        .frame(width: 36, height: 36)
+                        .background(AppTheme.ink, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isProfileKeyVisible ? "Hide access key" : "Show access key")
+            }
+            Text("Stored securely on this device")
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(AppTheme.paper.opacity(0.58))
+        }
+        .padding(16)
+        .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.25), lineWidth: 1))
+    }
+
+    private var profileSupportCard: some View {
+        Button {
+            guard let url = URL(string: "https://t.me/YAGAMIxIOS") else { return }
+            UIApplication.shared.open(url)
+        } label: {
+            HStack(spacing: 13) {
+                Image(systemName: "questionmark.bubble.fill")
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundStyle(AppTheme.ink)
+                    .frame(width: 44, height: 44)
+                    .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("OWNER SUPPORT")
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .tracking(0.8)
+                        .foregroundStyle(AppTheme.secondaryAccent)
+                    Text("Contact the owner if you have a problem")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(AppTheme.paper)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(AppTheme.accent)
+            }
+            .padding(14)
+            .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.accent.opacity(0.35), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Contact owner support on Telegram")
+    }
+
+    private var profileSignOutButton: some View {
+        Button {
+            licenseManager.deactivate()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "rectangle.portrait.and.arrow.right")
+                Text("SIGN OUT")
+            }
+            .font(.system(size: 12, weight: .black, design: .rounded))
+            .tracking(1)
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 15)
+            .background(Color.red.opacity(0.78), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.red.opacity(0.8), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Removes the saved key from this device and returns to Enter Key")
+    }
+
+    private func refreshProfileKey() {
+        profileKeyText = licenseManager.rememberedKey() ?? ""
+        isProfileKeyVisible = false
     }
 
     private var supportedDeviceTab: some View {

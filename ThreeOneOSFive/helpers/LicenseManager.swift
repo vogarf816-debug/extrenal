@@ -10,6 +10,7 @@ final class LicenseManager: ObservableObject {
     @Published private(set) var expirationDate: Date?
     @Published private(set) var hasExpiryInformation = false
     @Published private(set) var expiryDateWasProvided = false
+    @Published private(set) var lastCheckAttemptAt: Date?
     @Published private(set) var isActive = false
     @Published private(set) var isBusy = false
     @Published private(set) var isLoadingScreen = true
@@ -36,6 +37,9 @@ final class LicenseManager: ObservableObject {
         if let value = string(for: expirationAccount), let timestamp = Double(value) {
             expirationDate = Date(timeIntervalSince1970: timestamp)
         }
+        if let value = string(for: lastCheckAccount), let timestamp = Double(value) {
+            lastCheckAttemptAt = Date(timeIntervalSince1970: timestamp)
+        }
         isLoadingScreen = false
     }
 
@@ -59,6 +63,7 @@ final class LicenseManager: ObservableObject {
             self.silentCheckID = nil
             self.silentCheckWorkItem = nil
             guard !self.isBusy, let key = self.string(for: self.keyAccount) else { return }
+            self.recordCheckAttempt()
             self.isBusy = true
             self.verify(key: key, silent: true)
         }
@@ -84,6 +89,7 @@ final class LicenseManager: ObservableObject {
         isBusy = true
         isLoadingScreen = true
         message = "Checking access key…"
+        recordCheckAttempt()
         verify(key: trimmed, silent: false)
     }
 
@@ -103,9 +109,16 @@ final class LicenseManager: ObservableObject {
         expirationDate = nil
         hasExpiryInformation = false
         expiryDateWasProvided = false
+        lastCheckAttemptAt = nil
         isActive = false
         isLoadingScreen = false
         message = "Activation removed from this device"
+    }
+
+    private func recordCheckAttempt() {
+        let now = Date()
+        lastCheckAttemptAt = now
+        save(String(now.timeIntervalSince1970), for: lastCheckAccount)
     }
 
     private func string(for account: String) -> String? {
