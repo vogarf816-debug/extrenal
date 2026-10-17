@@ -84,6 +84,42 @@ class ClientSessionSecurityTests(unittest.TestCase):
         manifest = self.client.get("/api/patches", headers={"Authorization": f"Bearer {token}"})
         self.assertEqual(manifest.status_code, 200)
 
+    def test_bridge_migrates_legacy_client_sessions_table_in_place(self):
+        legacy_db = TEST_ROOT / "legacy-client-sessions.sqlite3"
+        legacy_device = "legacy-device-0001"
+        legacy_token_hash = "legacy-token-hash"
+        legacy_license_hash = hashlib.sha256(b"legacy-license").hexdigest()
+        conn = server.sqlite3.connect(legacy_db)
+        conn.execute(
+            "CREATE TABLE client_sessions(token_hash TEXT PRIMARY KEY, license_hash TEXT NOT NULL, device_id TEXT NOT NULL, expires_at INTEGER NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO client_sessions(token_hash,license_hash,device_id,expires_at) VALUES(?,?,?,?)",
+            (legacy_token_hash, legacy_license_hash, legacy_device, int(time.time()) + 3600),
+        )
+        conn.commit()
+        conn.close()
+
+        provider_result = signed_license(self.key, self.device_id)
+        with patch.object(server, "DB", legacy_db):
+            response = self.client.post(
+                "/api/client/session/bridge",
+                json={"key": self.key, "device_id": self.device_id, "provider_result": provider_result},
+            )
+            self.assertEqual(response.status_code, 200)
+            token = response.get_json()["client_session"]
+            manifest = self.client.get("/api/patches", headers={"Authorization": f"Bearer {token}"})
+            self.assertEqual(manifest.status_code, 200)
+
+        conn = server.sqlite3.connect(legacy_db)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(client_sessions)")}
+        row = conn.execute(
+            "SELECT device_hash FROM client_sessions WHERE token_hash=?", (legacy_token_hash,)
+        ).fetchone()
+        conn.close()
+        self.assertIn("device_hash", columns)
+        self.assertEqual(row[0], hashlib.sha256(legacy_device.encode()).hexdigest())
+
     def test_bridge_rejects_tampered_or_wrong_device_provider_proof(self):
         tampered = signed_license(self.key, self.device_id)
         tampered["status"] = "banned"

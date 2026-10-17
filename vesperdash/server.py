@@ -76,6 +76,22 @@ def db():
     conn.execute("""CREATE TABLE IF NOT EXISTS client_sessions (
         token_hash TEXT PRIMARY KEY, license_hash TEXT NOT NULL, device_hash TEXT NOT NULL, expires_at INTEGER NOT NULL
     )""")
+    client_session_columns = {row["name"] for row in conn.execute("PRAGMA table_info(client_sessions)")}
+    if "device_hash" not in client_session_columns:
+        conn.execute("ALTER TABLE client_sessions ADD COLUMN device_hash TEXT NOT NULL DEFAULT ''")
+        if "device_id" in client_session_columns:
+            legacy_rows = conn.execute("SELECT token_hash, device_id FROM client_sessions").fetchall()
+            migrated = []
+            for row in legacy_rows:
+                legacy_device = str(row["device_id"] or "").strip()
+                if not legacy_device:
+                    continue
+                if len(legacy_device) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in legacy_device):
+                    digest = legacy_device.lower()
+                else:
+                    digest = hashlib.sha256(legacy_device.encode()).hexdigest()
+                migrated.append((digest, row["token_hash"]))
+            conn.executemany("UPDATE client_sessions SET device_hash=? WHERE token_hash=?", migrated)
     session_columns = {row["name"] for row in conn.execute("PRAGMA table_info(sessions)")}
     if "owner" not in session_columns:
         conn.execute("ALTER TABLE sessions ADD COLUMN owner TEXT NOT NULL DEFAULT 'vesper'")
@@ -532,10 +548,17 @@ def _issue_client_session(result, key, device_id):
         "DELETE FROM client_sessions WHERE license_hash=? AND device_hash=?",
         (license_hash, device_hash),
     )
-    conn.execute(
-        "INSERT INTO client_sessions(token_hash,license_hash,device_hash,expires_at) VALUES(?,?,?,?)",
-        (token_hash, license_hash, device_hash, expires),
-    )
+    client_columns = {row["name"] for row in conn.execute("PRAGMA table_info(client_sessions)")}
+    if "device_id" in client_columns:
+        conn.execute(
+            "INSERT INTO client_sessions(token_hash,license_hash,device_hash,device_id,expires_at) VALUES(?,?,?,?,?)",
+            (token_hash, license_hash, device_hash, device_id, expires),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO client_sessions(token_hash,license_hash,device_hash,expires_at) VALUES(?,?,?,?)",
+            (token_hash, license_hash, device_hash, expires),
+        )
     conn.commit()
     conn.close()
     response = jsonify(
