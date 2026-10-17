@@ -499,6 +499,15 @@ def create_client_session():
     device_hash = hashlib.sha256(device_id.encode()).hexdigest()
     if not _m3sb_response_is_trusted(result, key, device_hash):
         return jsonify(valid=False, message="license response could not be verified"), 502
+    return _issue_client_session(result, key, device_id)
+
+
+def _issue_client_session(result, key, device_id):
+    status = str(result.get("status", "")).strip().lower()
+    rejected_statuses = {"expired", "banned", "revoked", "invalid", "inactive", "not_found", "notfound", "license_invalid"}
+    if result.get("valid") is not True or status in rejected_statuses:
+        return jsonify(valid=False, status=status or "invalid", message="license is not active"), 403
+    device_hash = hashlib.sha256(device_id.encode()).hexdigest()
     raw_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
     license_hash = hashlib.sha256(key.encode()).hexdigest()
@@ -519,7 +528,7 @@ def create_client_session():
     )
     conn.commit()
     conn.close()
-    return jsonify(
+    response = jsonify(
         valid=True,
         status=result.get("status"),
         expires_at=result.get("expires_at"),
@@ -528,6 +537,34 @@ def create_client_session():
         client_session=raw_token,
         client_session_expires_at=expires,
     )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.post("/api/client/session/bridge")
+def exchange_m3sb_result_for_client_session():
+    if not M3SB_HMAC_SECRET:
+        return jsonify(valid=False, message="license response verification is not configured"), 503
+    if request.content_length is not None and request.content_length > 65536:
+        return jsonify(valid=False, message="provider response is too large"), 413
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify(valid=False, message="invalid request"), 400
+    key = str(body.get("key", "")).strip()
+    device_id = str(body.get("device_id", "")).strip()
+    result = body.get("provider_result")
+    if not 8 <= len(key) <= 256 or not 8 <= len(device_id) <= 128 or not isinstance(result, dict):
+        return jsonify(valid=False, message="key, device identifier or provider response is invalid"), 400
+    if result.get("valid") is not True:
+        return jsonify(
+            valid=False,
+            status=str(result.get("status", "invalid"))[:80],
+            message=str(result.get("message", "license is not active"))[:180],
+        ), 403
+    device_hash = hashlib.sha256(device_id.encode()).hexdigest()
+    if not _m3sb_response_is_trusted(result, key, device_hash):
+        return jsonify(valid=False, message="license response could not be verified"), 403
+    return _issue_client_session(result, key, device_id)
 
 
 @app.post("/api/client/session/logout")

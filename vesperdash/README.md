@@ -2,53 +2,58 @@
 
 Flask API used by the VESPER iOS client and admin dashboard. Patch files, database state and runtime secrets are kept outside the replaceable application directory.
 
-## Client security model
+## Activation and patch-download flow
 
-- The iOS application contains no M3SB package token or HMAC secret. The M3SB request is signed and sent by the VPS only.
-- `POST /api/client/session` verifies the license with M3SB, checks the signed response against the requested license and device, then issues a random, short-lived client session. Only a SHA-256 digest of that session is stored in SQLite.
-- The patch manifest, package-password list and `.3105` downloads require `Authorization: Bearer <client_session>`. Logging out revokes the session.
-- Client session lifetime is controlled by `VESPERDASH_CLIENT_SESSION_TTL` (default: one hour) and is capped at the license expiration time.
-- Obfuscating an API URL in an iOS binary is not a security boundary: a client can discover its network destinations. Access control, TLS and server-side secrets provide the security.
+- The iOS app sends the M3SB `/api/sdk/verify` request directly, using a package token and HMAC secret supplied to the build workflow as GitHub Actions secrets.
+- The app validates the provider's signed response locally, then sends the original provider response, license key and device ID to `POST /api/client/session/bridge`.
+- VesperDash independently checks the provider HMAC signature, timestamp freshness, license identity and device hash before issuing a short-lived client session. Only the session digest is stored in SQLite.
+- Patch manifests, package passwords and `.3105` downloads require `Authorization: Bearer <client_session>`. Logging out revokes the session.
+- The build stores the M3SB values as XOR/Base64-obfuscated strings in the IPA. This is obfuscation, **not encryption or secure secret storage**; a determined user can recover the values from the app. This mode is used because the VPS-origin M3SB request currently receives HTTP 403, while the legacy iOS request worked.
 
-## VPS runtime configuration
+## Credentials
 
-Keep these values only in the root-owned `/etc/vesperdash.env` (or the systemd service's equivalent `EnvironmentFile`):
+Keep values out of source files and chat. Configure the same `M3SB_PACKAGE_TOKEN` and `M3SB_HMAC_SECRET` as GitHub Actions repository secrets for building, and as `VESPERDASH_M3SB_PACKAGE_TOKEN` and `VESPERDASH_M3SB_HMAC_SECRET` in the root-owned `/etc/vesperdash.env` for provider-response verification by the VPS. Also configure:
 
 - `VESPERDASH_M3SB_API_BASE_URL` — HTTPS M3SB API base URL.
-- `VESPERDASH_M3SB_PACKAGE_TOKEN` — M3SB package token.
-- `VESPERDASH_M3SB_HMAC_SECRET` — M3SB HMAC secret.
 - `VESPERDASH_PACKAGE_PASSWORDS` — JSON array of `.3105` package passwords.
 - `VESPERDASH_DATA=/opt/vesperdash/data` — persistent database and uploaded files.
 
-Do not paste credentials into chat, source code, Xcode settings or GitHub Actions secrets. Because prior IPA artifacts contained M3SB credentials, revoke/rotate both M3SB credentials before enabling the secure server code; deleting an artifact does not invalidate credentials that were already copied.
-
-If you explicitly choose to keep the existing credentials for a code-only server update, use the opt-in deployment mode below. It preserves `/etc/vesperdash.env` without printing or changing it, but the exposed-credential risk remains.
+Earlier IPA artifacts contained these credentials. Rotation is recommended because deleting an artifact cannot invalidate values already copied from it. If retaining the old credentials, accept that they remain recoverable from an IPA.
 
 ## Deploying the server update
 
-The server code change is **not deployed automatically** by the iOS build workflow. After rotating credentials and verifying that the new values are present in `/etc/vesperdash.env`, update the existing VPS through its interactive terminal:
+Server code changes are not deployed by the iOS build workflow. The normal mode asks for confirmation that both M3SB credentials were rotated:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/vogarf816-debug/extrenal/main/vesperdash/deploy_from_vps.sh)"
+curl -fsSL https://raw.githubusercontent.com/vogarf816-debug/extrenal/main/vesperdash/deploy_from_vps.sh | sudo bash
 ```
 
-The normal deployment script asks for confirmation that both credentials have been rotated. To intentionally retain the existing values, pass `--keep-current-m3sb-credentials` instead; it requires the exact confirmation `KEEP-EXPOSED-SECRETS` and then `DEPLOY`. Both modes back up the current application, preserve `/opt/vesperdash/data` and `/etc/vesperdash.env`, run tests, restart the service and check the health endpoint and protected routes. Secret values are never printed.
+If you intentionally keep the existing credentials, use the explicit code-update mode:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vogarf816-debug/extrenal/main/vesperdash/deploy_from_vps.sh | sudo bash -s -- --keep-current-m3sb-credentials
+```
+
+That mode preserves `/etc/vesperdash.env` and requires the exact confirmations `KEEP-EXPOSED-SECRETS` and `DEPLOY`. Both modes back up the current application, preserve `/opt/vesperdash/data`, run tests, restart the service and verify health plus protected routes. Secret values are never printed.
 
 ## Building the iOS IPA
 
-GitHub Actions builds an **unsigned** IPA on `main` and runs the server security tests. It does not need M3SB Actions secrets. After a successful run, download the artifact named `VESPER-Build-9-unsigned-ipa` and sign it using the usual process. The app requires the secure server update above; the legacy public API is intentionally rejected.
+GitHub Actions builds an unsigned Build 10 IPA on `main`. It requires the repository secrets `M3SB_PACKAGE_TOKEN` and `M3SB_HMAC_SECRET`; the build injects only their obfuscated representation and verifies that the plaintext values are absent from the app bundle. The executable receives 150 MB of dot padding and the IPA is compressed using ZIP level 9. The workflow reports the actual compressed size; it cannot guarantee an exact 2 MB because other app assets also contribute.
+
+After a successful workflow, download `VESPER-Build-10-unsigned-ipa` and sign it using the usual process. The new client requires the VesperDash `/api/client/session/bridge` endpoint so it can obtain the short-lived download session after direct M3SB verification.
 
 ## API routes
 
 - `GET /health` — service health.
-- `POST /api/client/session` — verify a license through M3SB and issue a client session.
+- `POST /api/client/session` — server-side M3SB verification (retained as a server API path).
+- `POST /api/client/session/bridge` — validate a signed M3SB result from iOS and issue a client session.
 - `POST /api/client/session/logout` — revoke the authenticated client session.
 - `GET /api/patches` and `GET /api/patches/:id/download` — require a valid client Bearer session.
 - `GET /api/patches/:id/image`, `/api/settings`, and `/api/resellers` — public display metadata only.
 - `POST /api/auth/login` and `/api/admin/*` — existing dashboard authentication and management.
 
-Run the security checks locally with:
+Run server tests locally with:
 
 ```bash
-python3 -m unittest vesperdash.test_security vesperdash.test_legacy_api -v
+python3 -m unittest discover -s vesperdash -v
 ```

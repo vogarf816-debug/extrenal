@@ -1,4 +1,4 @@
-name: Build secure VESPER IPA
+name: Build VESPER IPA with obfuscated M3SB activation
 
 on:
   workflow_dispatch:
@@ -28,28 +28,77 @@ jobs:
         run: |
           chmod +x build_unsigned.sh build_esign_ready_ipa.sh
           ./build_unsigned.sh
+        env:
+          M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
+          M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - name: Prepare IPA
-        run: ./build_esign_ready_ipa.sh build/VESPER-Build-9-unsigned.ipa
+        run: ./build_esign_ready_ipa.sh build/VESPER-Build-10-unsigned.ipa
 
-      - name: Verify IPA contains no M3SB credentials
+      - name: Verify obfuscated configuration and executable padding
         run: |
           set -euo pipefail
           rm -rf /tmp/vesper-ipa-check
           mkdir -p /tmp/vesper-ipa-check
-          unzip -q build/VESPER-Build-9-unsigned.ipa -d /tmp/vesper-ipa-check
-          APP_PLIST="$(find /tmp/vesper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)/Info.plist"
+          unzip -q build/VESPER-Build-10-unsigned.ipa -d /tmp/vesper-ipa-check
+          APP_DIR="$(find /tmp/vesper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)"
+          APP_PLIST="$APP_DIR/Info.plist"
+          APP_EXECUTABLE="$APP_DIR/3105"
           test -f "$APP_PLIST"
-          APP_EXECUTABLE="$(dirname "$APP_PLIST")/3105"
           test -f "$APP_EXECUTABLE"
           EXECUTABLE_BYTES="$(wc -c < "$APP_EXECUTABLE" | tr -d ' ')"
           test "$EXECUTABLE_BYTES" -ge 150000000 || { echo 'Executable padding is missing' >&2; exit 1; }
-          if /usr/libexec/PlistBuddy -c 'Print :M3SB_PACKAGE_TOKEN' "$APP_PLIST" >/dev/null 2>&1; then echo 'M3SB_PACKAGE_TOKEN must not be embedded' >&2; exit 1; fi
-          if /usr/libexec/PlistBuddy -c 'Print :M3SB_HMAC_SECRET' "$APP_PLIST" >/dev/null 2>&1; then echo 'M3SB_HMAC_SECRET must not be embedded' >&2; exit 1; fi
-          IPA_BYTES="$(wc -c < build/VESPER-Build-9-unsigned.ipa | tr -d ' ')"
-          echo "Verified: no M3SB credentials; executable=${EXECUTABLE_BYTES} bytes; compressed IPA=${IPA_BYTES} bytes"
+          python3 - "$APP_DIR" "$APP_PLIST" <<'PY'
+          import base64
+          import os
+          import plistlib
+          import sys
+          from pathlib import Path
+
+          app_dir = Path(sys.argv[1])
+          plist_path = Path(sys.argv[2])
+          token = os.environ.get("M3SB_PACKAGE_TOKEN", "").encode("utf-8")
+          secret = os.environ.get("M3SB_HMAC_SECRET", "").encode("utf-8")
+          if not token or not secret:
+              raise SystemExit("M3SB build secrets are missing (values hidden).")
+          with plist_path.open("rb") as stream:
+              info = plistlib.load(stream)
+          if "M3SB_PACKAGE_TOKEN" in info or "M3SB_HMAC_SECRET" in info:
+              raise SystemExit("Plaintext M3SB keys must not appear in Info.plist.")
+          for name, expected in (("M3SB_PACKAGE_TOKEN_OBFUSCATED", token), ("M3SB_HMAC_SECRET_OBFUSCATED", secret)):
+              encoded = info.get(name)
+              if not isinstance(encoded, str):
+                  raise SystemExit("Obfuscated M3SB configuration is missing.")
+              try:
+                  decoded = bytes(byte ^ 0x5A for byte in base64.b64decode(encoded, validate=True))
+              except Exception:
+                  raise SystemExit("Obfuscated M3SB configuration is invalid.")
+              if decoded != expected:
+                  raise SystemExit("Obfuscated M3SB configuration does not match the configured build secret.")
+          needles = (token, secret)
+          overlap_size = max(map(len, needles)) - 1
+          for path in app_dir.rglob("*"):
+              if not path.is_file():
+                  continue
+              overlap = b""
+              with path.open("rb") as stream:
+                  while True:
+                      chunk = stream.read(1024 * 1024)
+                      if not chunk:
+                          break
+                      data = overlap + chunk
+                      if any(needle in data for needle in needles):
+                          raise SystemExit("A plaintext M3SB credential was found in the app bundle.")
+                      overlap = data[-overlap_size:] if overlap_size > 0 else b""
+          print("Verified: M3SB settings are obfuscated and not present as plaintext; executable padding is present.")
+          PY
+          IPA_BYTES="$(wc -c < build/VESPER-Build-10-unsigned.ipa | tr -d ' ')"
+          echo "Compressed IPA size: ${IPA_BYTES} bytes"
+        env:
+          M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
+          M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: VESPER-Build-9-unsigned-ipa
-          path: build/VESPER-Build-9-unsigned.ipa
+          name: VESPER-Build-10-unsigned-ipa
+          path: build/VESPER-Build-10-unsigned.ipa

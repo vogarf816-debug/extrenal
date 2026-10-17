@@ -3,9 +3,14 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$ROOT/build"
-ARCHIVE="$BUILD_DIR/VESPER-Build-9.xcarchive"
-IPA="$BUILD_DIR/VESPER-Build-9-unsigned.ipa"
+ARCHIVE="$BUILD_DIR/VESPER-Build-10.xcarchive"
+IPA="$BUILD_DIR/VESPER-Build-10-unsigned.ipa"
 echo "Building repository revision: $(git -C "$ROOT" rev-parse --short HEAD)"
+
+if [[ -z "${M3SB_PACKAGE_TOKEN:-}" || -z "${M3SB_HMAC_SECRET:-}" ]]; then
+  echo 'M3SB_PACKAGE_TOKEN and M3SB_HMAC_SECRET must be configured as build secrets.' >&2
+  exit 2
+fi
 
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
@@ -35,6 +40,30 @@ echo "Verified no bundled local patch resources; patches are loaded only from Ve
 
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable 3105" "$APP/Info.plist" || true
 /usr/libexec/PlistBuddy -c "Set :CFBundlePackageType APPL" "$APP/Info.plist" || true
+python3 - "$APP/Info.plist" <<'PY'
+import base64
+import os
+import plistlib
+import sys
+
+path = sys.argv[1]
+values = {
+    "M3SB_PACKAGE_TOKEN_OBFUSCATED": os.environ["M3SB_PACKAGE_TOKEN"],
+    "M3SB_HMAC_SECRET_OBFUSCATED": os.environ["M3SB_HMAC_SECRET"],
+}
+with open(path, "rb") as stream:
+    info = plistlib.load(stream)
+info.pop("M3SB_PACKAGE_TOKEN", None)
+info.pop("M3SB_HMAC_SECRET", None)
+for key, value in values.items():
+    raw = value.encode("utf-8")
+    obfuscated = bytes(byte ^ 0x5A for byte in raw)
+    info[key] = base64.b64encode(obfuscated).decode("ascii")
+with open(path, "wb") as stream:
+    plistlib.dump(info, stream, fmt=plistlib.FMT_XML, sort_keys=False)
+print("Embedded obfuscated M3SB configuration in the app bundle.")
+PY
+
 test -f "$APP/3105"
 PAD_MB="${VESPER_EXECUTABLE_PADDING_MB:-150}"
 [[ "$PAD_MB" =~ ^[0-9]+$ ]] || { echo 'VESPER_EXECUTABLE_PADDING_MB must be a non-negative integer' >&2; exit 2; }

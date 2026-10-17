@@ -29,11 +29,11 @@ import server  # noqa: E402
 server.app.config.update(TESTING=True)
 
 
-def signed_license(key, device_id, valid=True):
+def signed_license(key, device_id, valid=True, status=None):
     timestamp = int(time.time())
     payload = {
         "valid": valid,
-        "status": "active" if valid else "invalid",
+        "status": status or ("active" if valid else "invalid"),
         "license": key,
         "device_hash": hashlib.sha256(device_id.encode()).hexdigest(),
         "expires_at": timestamp + 3600,
@@ -57,6 +57,9 @@ def signed_license(key, device_id, valid=True):
 class ClientSessionSecurityTests(unittest.TestCase):
     def setUp(self):
         shutil.rmtree(TEST_ROOT / "data", ignore_errors=True)
+        secret_patcher = patch.object(server, "M3SB_HMAC_SECRET", "test-server-only-hmac-secret")
+        secret_patcher.start()
+        self.addCleanup(secret_patcher.stop)
         self.client = server.app.test_client()
         self.key = "TEST-LICENSE-KEY-1234"
         self.device_id = "00000000-0000-4000-8000-000000000001"
@@ -67,6 +70,55 @@ class ClientSessionSecurityTests(unittest.TestCase):
         result = signed_license(key, device_id, valid=valid)
         with patch.object(server, "_verify_license_with_m3sb", return_value=result):
             return self.client.post("/api/client/session", json={"key": key, "device_id": device_id})
+
+    def test_signed_provider_proof_exchanges_for_download_session(self):
+        provider_result = signed_license(self.key, self.device_id)
+        with patch.object(server.urllib.request, "urlopen", side_effect=AssertionError("must not contact M3SB")):
+            response = self.client.post(
+                "/api/client/session/bridge",
+                json={"key": self.key, "device_id": self.device_id, "provider_result": provider_result},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("no-store", response.headers.get("Cache-Control", ""))
+        token = response.get_json()["client_session"]
+        manifest = self.client.get("/api/patches", headers={"Authorization": f"Bearer {token}"})
+        self.assertEqual(manifest.status_code, 200)
+
+    def test_bridge_rejects_tampered_or_wrong_device_provider_proof(self):
+        tampered = signed_license(self.key, self.device_id)
+        tampered["status"] = "banned"
+        response = self.client.post(
+            "/api/client/session/bridge",
+            json={"key": self.key, "device_id": self.device_id, "provider_result": tampered},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn("client_session", response.get_json())
+
+        other_device = signed_license(self.key, "another-device")
+        response = self.client.post(
+            "/api/client/session/bridge",
+            json={"key": self.key, "device_id": self.device_id, "provider_result": other_device},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn("client_session", response.get_json())
+
+        banned = signed_license(self.key, self.device_id, status="banned")
+        response = self.client.post(
+            "/api/client/session/bridge",
+            json={"key": self.key, "device_id": self.device_id, "provider_result": banned},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn("client_session", response.get_json())
+
+    def test_bridge_is_disabled_without_server_hmac_secret(self):
+        provider_result = signed_license(self.key, self.device_id)
+        with patch.object(server, "M3SB_HMAC_SECRET", ""):
+            response = self.client.post(
+                "/api/client/session/bridge",
+                json={"key": self.key, "device_id": self.device_id, "provider_result": provider_result},
+            )
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn("client_session", response.get_json())
 
     def test_public_manifest_is_rejected(self):
         response = self.client.get("/api/patches")
