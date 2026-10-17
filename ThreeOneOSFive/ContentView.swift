@@ -1282,21 +1282,23 @@ enum EmbeddedAppResources {
         resources[name]
     }
 
-    static func enforceIntegrityOrCrash() {
-        func reject(_ reason: String) -> Never {
-            log("integrity: \(reason)")
-            fatalError("VESPER integrity check failed: \(reason)")
-        }
-
+    static func identityWasModified() -> Bool {
         let bundle = Bundle.main
-        guard bundle.bundleURL.lastPathComponent == "VESPER.app" else { reject("bundle name changed") }
-        guard bundle.executableURL?.lastPathComponent == "VESPER" else { reject("executable name changed") }
+        guard bundle.bundleURL.lastPathComponent == "VESPER.app" else {
+            log("integrity: bundle folder name changed")
+            return true
+        }
+        guard bundle.executableURL?.lastPathComponent == "VESPER" else {
+            log("integrity: executable name changed")
+            return true
+        }
         let runtimeInfo = bundle.infoDictionary ?? [:]
         guard runtimeInfo["CFBundleDisplayName"] as? String == "VESPER",
               runtimeInfo["CFBundleName"] as? String == "VESPER",
               runtimeInfo["CFBundleExecutable"] as? String == "VESPER",
               runtimeInfo["CFBundleIdentifier"] as? String == "com.apple.mobile.MobileHouseArrest" else {
-            reject("bundle metadata changed")
+            log("integrity: app or bundle identity changed")
+            return true
         }
         guard let phoneIcons = runtimeInfo["CFBundleIcons"] as? [String: Any],
               let phonePrimary = phoneIcons["CFBundlePrimaryIcon"] as? [String: Any],
@@ -1308,20 +1310,23 @@ enum EmbeddedAppResources {
               tabletPrimary["CFBundleIconName"] as? String == "AppIcon",
               let tabletFiles = tabletPrimary["CFBundleIconFiles"] as? [String],
               tabletFiles.contains("AppIcon76x76") else {
-            reject("app icon metadata changed")
+            log("integrity: app icon metadata changed")
+            return true
         }
         let iconNames = ["AppIcon60x60@2x.png", "AppIcon76x76@2x~ipad.png"]
         guard iconNames.allSatisfy({ resources[$0] != nil }) else {
             log("integrity: icon reference payload unavailable; skipping image comparison")
-            return
+            return false
         }
         for name in iconNames {
             guard let embeddedData = resources[name] else { continue }
             let fileURL = bundle.bundleURL.appendingPathComponent(name)
             guard let onDisk = try? Data(contentsOf: fileURL), onDisk == embeddedData else {
-                reject("app icon changed or missing: \(name)")
+                log("integrity: app icon changed or missing: \(name)")
+                return true
             }
         }
+        return false
     }
 
     private static func readUInt64(_ bytes: [UInt8], at offset: Int) -> UInt64? {

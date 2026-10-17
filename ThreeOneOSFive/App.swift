@@ -10,12 +10,15 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @AppStorage("vesperWelcomeShownOnce") private var hasShownWelcome = false
     @State private var showWelcome = false
+    @State private var showSecurityAlert: Bool
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
         setupLogCapture()
 #if !DEBUG
-        EmbeddedAppResources.enforceIntegrityOrCrash()
+        _showSecurityAlert = State(initialValue: EmbeddedAppResources.identityWasModified())
+#else
+        _showSecurityAlert = State(initialValue: false)
 #endif
         log("app: VESPER launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
     }
@@ -26,20 +29,31 @@ struct ThreeOneOSFiveApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if licenseManager.isActive {
-                    ZStack {
-                        ContentView()
-                            .environmentObject(licenseManager)
-                        if showWelcome {
-                            WelcomeView()
-                                .zIndex(1)
+            if showSecurityAlert {
+                Color.black
+                    .ignoresSafeArea()
+                    .alert("Security Alert", isPresented: $showSecurityAlert) {
+                        Button("OK", role: .destructive) {
+                            fatalError("The external name or bundle identifier was modified.")
                         }
+                    } message: {
+                        Text("The external name or bundle identifier was modified. For security reasons, this product cannot be used after those changes.")
                     }
-                } else {
-                    LicenseActivationView(manager: licenseManager)
+            } else {
+                Group {
+                    if licenseManager.isActive {
+                        ZStack {
+                            ContentView()
+                                .environmentObject(licenseManager)
+                            if showWelcome {
+                                WelcomeView()
+                                    .zIndex(1)
+                            }
+                        }
+                    } else {
+                        LicenseActivationView(manager: licenseManager)
+                    }
                 }
-            }
                 .environmentObject(appState)
                 .environmentObject(patchDraftCoordinator)
                 .environmentObject(fileOperationCoordinator)
@@ -69,6 +83,7 @@ struct ThreeOneOSFiveApp: App {
                 patchDraftCoordinator.presentImport(url)
             }
             .preferredColorScheme(.dark)
+            }
         }
     }
 
