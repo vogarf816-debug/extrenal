@@ -24,6 +24,9 @@ jobs:
       - name: Test authenticated client API
         run: .venv-server-tests/bin/python -m unittest discover -s vesperdash -v
 
+      - name: Verify embedded localization table
+        run: python3 generate_embedded_localizations.py --check
+
       - name: Build unsigned IPA
         run: |
           chmod +x build_unsigned.sh build_esign_ready_ipa.sh
@@ -33,23 +36,24 @@ jobs:
           M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - name: Prepare IPA
-        run: ./build_esign_ready_ipa.sh build/VESPER-Build-11-unsigned.ipa
+        run: ./build_esign_ready_ipa.sh build/VESPER-Build-12-unsigned.ipa
 
       - name: Verify obfuscated configuration and executable padding
         run: |
           set -euo pipefail
           rm -rf /tmp/vesper-ipa-check
           mkdir -p /tmp/vesper-ipa-check
-          unzip -q build/VESPER-Build-11-unsigned.ipa -d /tmp/vesper-ipa-check
+          unzip -q build/VESPER-Build-12-unsigned.ipa -d /tmp/vesper-ipa-check
           APP_DIR="$(find /tmp/vesper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)"
           APP_PLIST="$APP_DIR/Info.plist"
           APP_EXECUTABLE="$APP_DIR/VESPER"
           test "$(basename "$APP_DIR")" = "VESPER.app"
           test -f "$APP_PLIST"
           test -f "$APP_EXECUTABLE"
-          for locale in en es pt-BR vi zh-Hans; do
-            test -f "$APP_DIR/$locale.lproj/Localizable.strings" || { echo "Missing localization: $locale" >&2; exit 1; }
-          done
+          if find "$APP_DIR" -type d -name '*.lproj' -print -quit | grep -q .; then
+            echo 'Localized .lproj folders should be embedded in the VESPER executable.' >&2
+            exit 1
+          fi
           EXECUTABLE_BYTES="$(wc -c < "$APP_EXECUTABLE" | tr -d ' ')"
           test "$EXECUTABLE_BYTES" -ge 1000000000 || { echo '1 GB executable padding is missing' >&2; exit 1; }
           python3 - "$APP_DIR" "$APP_PLIST" <<'PY'
@@ -67,6 +71,8 @@ jobs:
               raise SystemExit("M3SB build secrets are missing (values hidden).")
           with plist_path.open("rb") as stream:
               info = plistlib.load(stream)
+          if info.get("CFBundleVersion") != "12":
+              raise SystemExit("Expected VESPER Build 12.")
           if info.get("CFBundleDisplayName") != "VESPER" or info.get("CFBundleExecutable") != "VESPER":
               raise SystemExit("The VESPER app display name or executable name is incorrect.")
           if "M3SB_PACKAGE_TOKEN" in info or "M3SB_HMAC_SECRET" in info:
@@ -98,7 +104,7 @@ jobs:
                       overlap = data[-overlap_size:] if overlap_size > 0 else b""
           print("Verified: M3SB settings are obfuscated and not present as plaintext; executable padding is present.")
           PY
-          IPA_BYTES="$(wc -c < build/VESPER-Build-11-unsigned.ipa | tr -d ' ')"
+          IPA_BYTES="$(wc -c < build/VESPER-Build-12-unsigned.ipa | tr -d ' ')"
           echo "Compressed IPA size: ${IPA_BYTES} bytes"
         env:
           M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
@@ -106,5 +112,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: VESPER-Build-11-unsigned-ipa
-          path: build/VESPER-Build-11-unsigned.ipa
+          name: VESPER-Build-12-unsigned-ipa
+          path: build/VESPER-Build-12-unsigned.ipa

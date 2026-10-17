@@ -34,7 +34,7 @@ extension WallpaperLabError: LocalizedError {
     }
 
     var errorDescription: String? {
-        String(localized: String.LocalizationValue(localizationKey))
+        AppLanguage.currentText(localizationKey)
     }
 }
 

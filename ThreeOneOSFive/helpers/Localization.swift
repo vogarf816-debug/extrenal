@@ -23,29 +23,18 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     }
 
     func text(_ key: String) -> String {
-        let translated = localizedBundle.localizedString(forKey: key, value: nil, table: nil)
-        guard translated == key else { return translated }
-        return englishBundle.localizedString(forKey: key, value: key, table: nil)
+        EmbeddedLocalizationCatalog.text(for: key, languageCode: rawValue)
+            ?? EmbeddedLocalizationCatalog.text(for: key, languageCode: AppLanguage.english.rawValue)
+            ?? key
     }
 
     func text(_ key: String, _ arguments: CVarArg...) -> String {
         String(format: text(key), locale: locale, arguments: arguments)
     }
 
-    private var localizedBundle: Bundle {
-        guard let path = Bundle.main.path(forResource: rawValue, ofType: "lproj"),
-              let bundle = Bundle(path: path) else {
-            return .main
-        }
-        return bundle
-    }
-
-    private var englishBundle: Bundle {
-        guard let path = Bundle.main.path(forResource: AppLanguage.english.rawValue, ofType: "lproj"),
-              let bundle = Bundle(path: path) else {
-            return .main
-        }
-        return bundle
+    static func currentText(_ key: String) -> String {
+        let code = UserDefaults.standard.string(forKey: storageKey) ?? AppLanguage.english.rawValue
+        return (AppLanguage(rawValue: code) ?? .english).text(key)
     }
 }
 

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-IPA="${1:-$ROOT/build/VESPER-Build-11-unsigned.ipa}"
+IPA="${1:-$ROOT/build/VESPER-Build-12-unsigned.ipa}"
 
 if ! command -v unzip >/dev/null 2>&1; then
   echo "Error: unzip is required." >&2
@@ -46,8 +46,8 @@ if [[ ! -f "$APP/Info.plist" ]]; then
   echo "Error: the app bundle is missing Info.plist." >&2
   exit 1
 fi
-if [[ ! -f "$APP/en.lproj/Localizable.strings" ]]; then
-  echo "Error: the app bundle is missing en.lproj/Localizable.strings." >&2
+if find "$APP" -type d -name '*.lproj' -print -quit | grep -q .; then
+  echo "Error: localized .lproj folders should be embedded in the VESPER executable." >&2
   exit 1
 fi
 

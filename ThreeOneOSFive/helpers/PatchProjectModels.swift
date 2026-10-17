@@ -223,7 +223,7 @@ extension PatchPackageError: LocalizedError {
         if case .missingTarget(let path) = self {
             return "Target file not found in game container: \(path)"
         }
-        let message = String(localized: String.LocalizationValue(localizationKey))
+        let message = AppLanguage.currentText(localizationKey)
         if let localizationArgument {
             return String(format: message, localizationArgument)
         }

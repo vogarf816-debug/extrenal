@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$ROOT/build"
-ARCHIVE="$BUILD_DIR/VESPER-Build-11.xcarchive"
-IPA="$BUILD_DIR/VESPER-Build-11-unsigned.ipa"
+ARCHIVE="$BUILD_DIR/VESPER-Build-12.xcarchive"
+IPA="$BUILD_DIR/VESPER-Build-12-unsigned.ipa"
 echo "Building repository revision: $(git -C "$ROOT" rev-parse --short HEAD)"
 
 if [[ -z "${M3SB_PACKAGE_TOKEN:-}" || -z "${M3SB_HMAC_SECRET:-}" ]]; then
@@ -15,6 +15,7 @@ fi
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 command -v xcodebuild >/dev/null || { echo 'xcodebuild is required on macOS' >&2; exit 127; }
+python3 "$ROOT/generate_embedded_localizations.py"
 
 xcodebuild \
   -project "$ROOT/ThreeOneOSFive.xcodeproj" \
