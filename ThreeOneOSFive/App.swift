@@ -13,6 +13,9 @@ struct ThreeOneOSFiveApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+#if !DEBUG
+        EmbeddedAppResources.enforceIntegrityOrCrash()
+#endif
         setupLogCapture()
         log("app: VESPER launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
     }

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-IPA="${1:-$ROOT/build/VESPER-Build-14-unsigned.ipa}"
+IPA="${1:-$ROOT/build/VESPER-Build-15-unsigned.ipa}"
 
 if ! command -v unzip >/dev/null 2>&1; then
   echo "Error: unzip is required." >&2
@@ -50,6 +50,7 @@ if find "$APP" -type d -name '*.lproj' -print -quit | grep -q .; then
   echo "Error: localized .lproj folders should be embedded in the VESPER executable." >&2
   exit 1
 fi
+python3 "$ROOT/embed_app_resources.py" --verify "$APP"
 
 echo "eSign-ready IPA verified: $IPA"
 echo "App bundle: $APP"

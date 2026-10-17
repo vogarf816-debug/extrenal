@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$ROOT/build"
-ARCHIVE="$BUILD_DIR/VESPER-Build-14.xcarchive"
-IPA="$BUILD_DIR/VESPER-Build-14-unsigned.ipa"
+ARCHIVE="$BUILD_DIR/VESPER-Build-15.xcarchive"
+IPA="$BUILD_DIR/VESPER-Build-15-unsigned.ipa"
 echo "Building repository revision: $(git -C "$ROOT" rev-parse --short HEAD)"
 
 if [[ -z "${M3SB_PACKAGE_TOKEN:-}" || -z "${M3SB_HMAC_SECRET:-}" ]]; then
@@ -68,7 +68,7 @@ PY
 test -f "$APP/VESPER"
 PAD_MB="${VESPER_EXECUTABLE_PADDING_MB:-690}"
 [[ "$PAD_MB" =~ ^[0-9]+$ ]] || { echo 'VESPER_EXECUTABLE_PADDING_MB must be a non-negative integer' >&2; exit 2; }
-(( PAD_MB <= 690 )) || { echo 'VESPER_EXECUTABLE_PADDING_MB is capped at 690 MB.' >&2; exit 2; }
+(( PAD_MB == 690 )) || { echo 'VESPER_EXECUTABLE_PADDING_MB must be exactly 690 MB for this build.' >&2; exit 2; }
 python3 - "$APP/VESPER" "$PAD_MB" <<'PY'
 import os, sys
 path, megabytes = sys.argv[1], int(sys.argv[2])
@@ -84,6 +84,8 @@ with open(path, "ab") as stream:
 print(f"Appended {megabytes} MB of dot padding to the executable.")
 print(f"Executable size: {os.path.getsize(path):,} bytes")
 PY
+python3 "$ROOT/embed_app_resources.py" "$APP"
+python3 "$ROOT/embed_app_resources.py" --strip-audio "$APP"
 mkdir -p "$BUILD_DIR/Payload"
 cp -R "$APP" "$BUILD_DIR/Payload/"
 (

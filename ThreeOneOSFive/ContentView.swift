@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import AVFoundation
+import CryptoKit
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -1272,6 +1273,166 @@ private struct PatchOptionCard: View {
         .accessibilityLabel(statusText.isEmpty ? "\(name), \(target), \(isEnabled ? "On" : "Off")" : "\(name), \(target), \(statusText), \(isEnabled ? "On" : "Off")")
     }
 }
+enum EmbeddedAppResources {
+    private static let payloadMagic = Array("VSPRPAY1".utf8)
+    private static let footerMagic = Array("VSPRFTR1".utf8)
+    private static let footerSize = 24
+    private static let resources = loadResources()
+
+    static func data(named name: String) -> Data? {
+        resources[name]
+    }
+
+    static func enforceIntegrityOrCrash() {
+        func reject(_ reason: String) -> Never {
+            fatalError("VESPER integrity check failed: \(reason)")
+        }
+
+        let bundle = Bundle.main
+        guard bundle.bundleURL.lastPathComponent == "VESPER.app" else { reject("bundle name changed") }
+        guard bundle.executableURL?.lastPathComponent == "VESPER" else { reject("executable name changed") }
+        guard bundle.infoDictionary?["CFBundleDisplayName"] as? String == "VESPER",
+              bundle.infoDictionary?["CFBundleExecutable"] as? String == "VESPER",
+              bundle.infoDictionary?["CFBundleIdentifier"] as? String == "com.apple.mobile.MobileHouseArrest" else {
+            reject("bundle metadata changed")
+        }
+        guard let infoData = resources["Info.plist"],
+              let assetsData = resources["Assets.car"],
+              let pkgInfoData = resources["PkgInfo"],
+              let manifestData = resources["__VESPER_BUNDLE_MANIFEST__.json"] else {
+            reject("embedded resource or manifest missing")
+        }
+        for (name, embeddedData) in [("Info.plist", infoData), ("Assets.car", assetsData), ("PkgInfo", pkgInfoData)] {
+            let fileURL = bundle.bundleURL.appendingPathComponent(name)
+            guard let onDisk = try? Data(contentsOf: fileURL), onDisk == embeddedData else {
+                reject("bundle resource changed or missing: \(name)")
+            }
+        }
+        for name in ["ACTIVADA.m4a", "DESACTIVADA.m4a"] {
+            guard !FileManager.default.fileExists(atPath: bundle.bundleURL.appendingPathComponent(name).path) else {
+                reject("standalone audio unexpectedly present: \(name)")
+            }
+        }
+        guard let manifestJSON = try? JSONSerialization.jsonObject(with: manifestData),
+              let manifestObject = manifestJSON as? [String: Any],
+              manifestObject["version"] as? Int == 1,
+              let expectedFiles = manifestObject["files"] as? [String: String] else {
+            reject("integrity manifest is invalid")
+        }
+        guard let enumerator = FileManager.default.enumerator(at: bundle.bundleURL, includingPropertiesForKeys: [.isRegularFileKey]) else {
+            reject("could not enumerate app bundle")
+        }
+        var actualFiles: [String: String] = [:]
+        for case let fileURL as URL in enumerator {
+            let relative = String(fileURL.path.dropFirst(bundle.bundleURL.path.count + 1))
+            let components = relative.split(separator: "/")
+            if relative == "VESPER" || relative == "embedded.mobileprovision" || components.contains("_CodeSignature") {
+                continue
+            }
+            do {
+                let values = try fileURL.resourceValues(forKeys: [.isRegularFileKey])
+                guard values.isRegularFile == true else { continue }
+                let data = try Data(contentsOf: fileURL, options: .mappedIfSafe)
+                actualFiles[relative] = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+            } catch {
+                reject("could not verify bundle file: \(relative)")
+            }
+        }
+        guard actualFiles == expectedFiles else {
+            reject("app bundle file changed, added, or missing")
+        }
+    }
+
+    private static func readUInt64(_ bytes: [UInt8], at offset: Int) -> UInt64? {
+        guard offset >= 0, offset + 8 <= bytes.count else { return nil }
+        var value: UInt64 = 0
+        for byte in bytes[offset..<(offset + 8)] {
+            value = (value << 8) | UInt64(byte)
+        }
+        return value
+    }
+
+    private static func loadResources() -> [String: Data] {
+        guard let executableURL = Bundle.main.executableURL,
+              let handle = try? FileHandle(forReadingFrom: executableURL) else { return [:] }
+        defer { try? handle.close() }
+
+        do {
+            let fileSize = try handle.seekToEnd()
+            guard let (payloadOffset, payloadSize) = try findPayload(handle: handle, fileSize: fileSize),
+                  payloadSize <= 16_000_000 else { return [:] }
+            try handle.seek(toOffset: payloadOffset)
+            guard let payloadData = try handle.read(upToCount: Int(payloadSize)),
+                  payloadData.count == Int(payloadSize) else { return [:] }
+            let bytes = [UInt8](payloadData)
+            guard Array(bytes.prefix(payloadMagic.count)) == payloadMagic,
+                  bytes.count >= payloadMagic.count + 4 else { return [:] }
+
+            var cursor = payloadMagic.count
+            guard let recordCount = readUInt32(bytes, at: cursor) else { return [:] }
+            cursor += 4
+            guard recordCount == 6 else { return [:] }
+            var result: [String: Data] = [:]
+
+            for _ in 0..<recordCount {
+                guard let nameSize = readUInt16(bytes, at: cursor),
+                      let contentSize = readUInt64(bytes, at: cursor + 2) else { return [:] }
+                cursor += 10
+                guard nameSize > 0, contentSize <= UInt64(bytes.count),
+                      cursor + Int(nameSize) <= bytes.count else { return [:] }
+                let nameEnd = cursor + Int(nameSize)
+                guard let name = String(bytes: bytes[cursor..<nameEnd], encoding: .utf8) else { return [:] }
+                let contentStart = nameEnd
+                let contentEnd = contentStart + Int(contentSize)
+                guard contentEnd <= bytes.count else { return [:] }
+                result[name] = Data(bytes[contentStart..<contentEnd])
+                cursor = contentEnd
+            }
+            guard cursor == bytes.count,
+                  Set(result.keys) == Set(["ACTIVADA.m4a", "DESACTIVADA.m4a", "Assets.car", "PkgInfo", "Info.plist", "__VESPER_BUNDLE_MANIFEST__.json"]) else { return [:] }
+            return result
+        } catch {
+            log("audio: could not read embedded resources: \(error)")
+            return [:]
+        }
+    }
+
+    private static func findPayload(handle: FileHandle, fileSize: UInt64) throws -> (UInt64, UInt64)? {
+        let blockSize: UInt64 = 1_048_576
+        var scanEnd = fileSize
+        while scanEnd > 0 {
+            let scanStart = scanEnd > blockSize ? scanEnd - blockSize : 0
+            try handle.seek(toOffset: scanStart)
+            let blockData = try handle.read(upToCount: Int(scanEnd - scanStart)) ?? Data()
+            let block = [UInt8](blockData)
+            if block.count >= footerSize {
+                for position in stride(from: block.count - footerSize, through: 0, by: -1) {
+                    guard Array(block[position..<(position + footerMagic.count)]) == footerMagic,
+                          let payloadOffset = readUInt64(block, at: position + footerMagic.count),
+                          let payloadSize = readUInt64(block, at: position + footerMagic.count + 8),
+                          payloadSize > 0,
+                          payloadOffset + payloadSize == scanStart + UInt64(position) else { continue }
+                    return (payloadOffset, payloadSize)
+                }
+            }
+            if scanStart == 0 { break }
+            scanEnd = scanStart + UInt64(footerSize - 1)
+        }
+        return nil
+    }
+
+    private static func readUInt16(_ bytes: [UInt8], at offset: Int) -> Int? {
+        guard offset >= 0, offset + 2 <= bytes.count else { return nil }
+        return (Int(bytes[offset]) << 8) | Int(bytes[offset + 1])
+    }
+
+    private static func readUInt32(_ bytes: [UInt8], at offset: Int) -> Int? {
+        guard offset >= 0, offset + 4 <= bytes.count else { return nil }
+        return (Int(bytes[offset]) << 24) | (Int(bytes[offset + 1]) << 16)
+            | (Int(bytes[offset + 2]) << 8) | Int(bytes[offset + 3])
+    }
+}
+
 private enum PatchAudioFeedback {
     private static var player: AVAudioPlayer?
 
@@ -1279,15 +1440,16 @@ private enum PatchAudioFeedback {
     static func originalRestored() { play(resource: "DESACTIVADA", ext: "m4a") }
 
     private static func play(resource: String, ext: String) {
-        guard let url = Bundle.main.url(forResource: resource, withExtension: ext) else {
-            log("audio: missing resource \(resource).\(ext)")
+        let resourceName = "\(resource).\(ext)"
+        guard let audioData = EmbeddedAppResources.data(named: resourceName) else {
+            log("audio: missing embedded resource \(resourceName)")
             return
         }
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
             try session.setActive(true, options: [])
-            player = try AVAudioPlayer(contentsOf: url)
+            player = try AVAudioPlayer(data: audioData)
             player?.prepareToPlay()
             player?.play()
         } catch {
