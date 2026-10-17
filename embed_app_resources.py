@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-"""Embed essential resources and an integrity manifest in the VESPER executable.
+"""Embed audio and reference app icons in the VESPER executable.
 
 The two audio files are read from the executable trailer at runtime and are
 removed from the app bundle. Info.plist and Assets.car stay at their standard
-iOS-required paths; PkgInfo is also retained. A manifest covers every other
-bundle file and is checked by the app at startup. Code-signing artifacts and
-the executable itself are excluded from the manifest.
+iOS-required paths; PkgInfo and the two standard icon PNGs are also retained.
+At startup, the app checks only its display/bundle identity and the two app-icon
+files. It does not hash unrelated app files.
 """
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
 import struct
 import sys
 from pathlib import Path
@@ -22,14 +20,14 @@ RESOURCE_NAMES = (
     "Assets.car",
     "PkgInfo",
     "Info.plist",
+    "AppIcon60x60@2x.png",
+    "AppIcon76x76@2x~ipad.png",
 )
 AUDIO_NAMES = ("ACTIVADA.m4a", "DESACTIVADA.m4a")
-MANIFEST_NAME = "__VESPER_BUNDLE_MANIFEST__.json"
-PAYLOAD_NAMES = (*RESOURCE_NAMES, MANIFEST_NAME)
+PAYLOAD_NAMES = RESOURCE_NAMES
 PAYLOAD_MAGIC = b"VSPRPAY1"
 FOOTER_MAGIC = b"VSPRFTR1"
 FOOTER_SIZE = len(FOOTER_MAGIC) + 16
-SIGNATURE_DIR = "_CodeSignature"
 
 
 def read_u64(data: bytes, offset: int) -> int:
@@ -100,31 +98,6 @@ def read_embedded(executable: Path) -> dict[str, bytes]:
     raise ValueError("VESPER executable has no valid embedded-resource footer")
 
 
-def _excluded_from_manifest(relative: str) -> bool:
-    parts = Path(relative).parts
-    return (
-        relative == "VESPER"
-        or relative == "Info.plist"
-        or relative in AUDIO_NAMES
-        or SIGNATURE_DIR in parts
-        or relative == "embedded.mobileprovision"
-    )
-
-
-def bundle_manifest(app_dir: Path) -> dict[str, str]:
-    result: dict[str, str] = {}
-    for path in sorted(app_dir.rglob("*")):
-        if not path.is_file():
-            continue
-        relative = path.relative_to(app_dir).as_posix()
-        if _excluded_from_manifest(relative):
-            continue
-        result[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
-    if not result:
-        raise ValueError("No app bundle files were found for the integrity manifest")
-    return result
-
-
 def encode_payload(resources: dict[str, bytes]) -> bytes:
     chunks = [PAYLOAD_MAGIC, struct.pack(">I", len(PAYLOAD_NAMES))]
     for name in PAYLOAD_NAMES:
@@ -146,13 +119,6 @@ def embed(app_dir: Path) -> None:
         resources[name] = path.read_bytes()
         if not resources[name]:
             raise ValueError(f"Required app resource is empty: {path}")
-    manifest = bundle_manifest(app_dir)
-    resources[MANIFEST_NAME] = json.dumps(
-        {"version": 1, "files": manifest},
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-
     try:
         existing = read_embedded(executable)
     except ValueError:
@@ -172,7 +138,7 @@ def embed(app_dir: Path) -> None:
         stream.flush()
     if read_embedded(executable) != resources:
         raise ValueError("Embedded-resource payload failed post-write verification")
-    print("Embedded and verified: " + ", ".join(RESOURCE_NAMES) + " plus file-integrity manifest")
+    print("Embedded and verified only the audio, required resources, and app icons: " + ", ".join(RESOURCE_NAMES))
     print(f"Payload bytes appended: {len(payload):,}")
 
 
@@ -202,13 +168,7 @@ def verify(app_dir: Path) -> None:
                 raise ValueError("Required Info.plist is missing from the app bundle")
         elif not path.is_file() or path.read_bytes() != embedded[name]:
             raise ValueError(f"Embedded copy does not match required bundle resource: {name}")
-    try:
-        parsed = json.loads(embedded[MANIFEST_NAME])
-    except (KeyError, json.JSONDecodeError) as error:
-        raise ValueError("Embedded app integrity manifest is invalid") from error
-    if parsed.get("version") != 1 or parsed.get("files") != bundle_manifest(app_dir):
-        raise ValueError("App bundle files do not match the embedded integrity manifest")
-    print("Verified embedded resources, stripped audio, and app bundle integrity manifest.")
+    print("Verified embedded audio and required resources; icon files are ready for runtime identity checks.")
 
 
 def main() -> int:

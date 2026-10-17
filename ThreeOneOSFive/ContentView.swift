@@ -1,7 +1,6 @@
 import SwiftUI
 import UIKit
 import AVFoundation
-import CryptoKit
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -1293,57 +1292,35 @@ enum EmbeddedAppResources {
         guard bundle.bundleURL.lastPathComponent == "VESPER.app" else { reject("bundle name changed") }
         guard bundle.executableURL?.lastPathComponent == "VESPER" else { reject("executable name changed") }
         let runtimeInfo = bundle.infoDictionary ?? [:]
-        guard bundle.infoDictionary?["CFBundleDisplayName"] as? String == "VESPER",
-              bundle.infoDictionary?["CFBundleExecutable"] as? String == "VESPER",
-              bundle.infoDictionary?["CFBundleVersion"] as? String == "16",
-              let runtimeBundleID = runtimeInfo["CFBundleIdentifier"] as? String,
-              !runtimeBundleID.isEmpty else {
+        guard runtimeInfo["CFBundleDisplayName"] as? String == "VESPER",
+              runtimeInfo["CFBundleName"] as? String == "VESPER",
+              runtimeInfo["CFBundleExecutable"] as? String == "VESPER",
+              runtimeInfo["CFBundleIdentifier"] as? String == "com.apple.mobile.MobileHouseArrest" else {
             reject("bundle metadata changed")
         }
-        guard resources["Info.plist"] != nil,
-              let assetsData = resources["Assets.car"],
-              let pkgInfoData = resources["PkgInfo"],
-              let manifestData = resources["__VESPER_BUNDLE_MANIFEST__.json"] else {
-            reject("embedded resource or manifest missing")
+        guard let phoneIcons = runtimeInfo["CFBundleIcons"] as? [String: Any],
+              let phonePrimary = phoneIcons["CFBundlePrimaryIcon"] as? [String: Any],
+              phonePrimary["CFBundleIconName"] as? String == "AppIcon",
+              let phoneFiles = phonePrimary["CFBundleIconFiles"] as? [String],
+              phoneFiles.contains("AppIcon60x60"),
+              let tabletIcons = runtimeInfo["CFBundleIcons~ipad"] as? [String: Any],
+              let tabletPrimary = tabletIcons["CFBundlePrimaryIcon"] as? [String: Any],
+              tabletPrimary["CFBundleIconName"] as? String == "AppIcon",
+              let tabletFiles = tabletPrimary["CFBundleIconFiles"] as? [String],
+              tabletFiles.contains("AppIcon76x76") else {
+            reject("app icon metadata changed")
         }
-        for (name, embeddedData) in [("Assets.car", assetsData), ("PkgInfo", pkgInfoData)] {
+        let iconNames = ["AppIcon60x60@2x.png", "AppIcon76x76@2x~ipad.png"]
+        guard iconNames.allSatisfy({ resources[$0] != nil }) else {
+            log("integrity: icon reference payload unavailable; skipping image comparison")
+            return
+        }
+        for name in iconNames {
+            guard let embeddedData = resources[name] else { continue }
             let fileURL = bundle.bundleURL.appendingPathComponent(name)
             guard let onDisk = try? Data(contentsOf: fileURL), onDisk == embeddedData else {
-                reject("bundle resource changed or missing: \(name)")
+                reject("app icon changed or missing: \(name)")
             }
-        }
-        for name in ["ACTIVADA.m4a", "DESACTIVADA.m4a"] {
-            guard !FileManager.default.fileExists(atPath: bundle.bundleURL.appendingPathComponent(name).path) else {
-                reject("standalone audio unexpectedly present: \(name)")
-            }
-        }
-        guard let manifestJSON = try? JSONSerialization.jsonObject(with: manifestData),
-              let manifestObject = manifestJSON as? [String: Any],
-              manifestObject["version"] as? Int == 1,
-              let expectedFiles = manifestObject["files"] as? [String: String] else {
-            reject("integrity manifest is invalid")
-        }
-        guard let enumerator = FileManager.default.enumerator(at: bundle.bundleURL, includingPropertiesForKeys: [.isRegularFileKey]) else {
-            reject("could not enumerate app bundle")
-        }
-        var actualFiles: [String: String] = [:]
-        for case let fileURL as URL in enumerator {
-            let relative = String(fileURL.path.dropFirst(bundle.bundleURL.path.count + 1))
-            let components = relative.split(separator: "/")
-            if relative == "VESPER" || relative == "Info.plist" || relative == "embedded.mobileprovision" || components.contains("_CodeSignature") {
-                continue
-            }
-            do {
-                let values = try fileURL.resourceValues(forKeys: [.isRegularFileKey])
-                guard values.isRegularFile == true else { continue }
-                let data = try Data(contentsOf: fileURL, options: .mappedIfSafe)
-                actualFiles[relative] = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-            } catch {
-                reject("could not verify bundle file: \(relative)")
-            }
-        }
-        guard actualFiles == expectedFiles else {
-            reject("app bundle file changed, added, or missing")
         }
     }
 
@@ -1375,7 +1352,7 @@ enum EmbeddedAppResources {
             var cursor = payloadMagic.count
             guard let recordCount = readUInt32(bytes, at: cursor) else { return [:] }
             cursor += 4
-            guard recordCount == 6 else { return [:] }
+            guard recordCount == 7 else { return [:] }
             var result: [String: Data] = [:]
 
             for _ in 0..<recordCount {
@@ -1393,7 +1370,7 @@ enum EmbeddedAppResources {
                 cursor = contentEnd
             }
             guard cursor == bytes.count,
-                  Set(result.keys) == Set(["ACTIVADA.m4a", "DESACTIVADA.m4a", "Assets.car", "PkgInfo", "Info.plist", "__VESPER_BUNDLE_MANIFEST__.json"]) else { return [:] }
+                  Set(result.keys) == Set(["ACTIVADA.m4a", "DESACTIVADA.m4a", "Assets.car", "PkgInfo", "Info.plist", "AppIcon60x60@2x.png", "AppIcon76x76@2x~ipad.png"]) else { return [:] }
             return result
         } catch {
             log("audio: could not read embedded resources: \(error)")
