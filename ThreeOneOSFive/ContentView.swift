@@ -1269,8 +1269,8 @@ private struct PatchOptionCard: View {
 private enum PatchAudioFeedback {
     private static var player: AVAudioPlayer?
 
-    static func bypassActivated() { play(resource: "ACTIVADA", ext: "wav") }
-    static func originalRestored() { play(resource: "DESACTIVADA", ext: "wav") }
+    static func bypassActivated() { play(resource: "ACTIVADA", ext: "m4a") }
+    static func originalRestored() { play(resource: "DESACTIVADA", ext: "m4a") }
 
     private static func play(resource: String, ext: String) {
         guard let url = Bundle.main.url(forResource: resource, withExtension: ext) else {
