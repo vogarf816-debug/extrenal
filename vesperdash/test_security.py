@@ -124,6 +124,22 @@ class ClientSessionSecurityTests(unittest.TestCase):
         self.assertEqual(response.get_json()["status"], "provider_rejected")
         self.assertIn("HTTP 403", response.get_json()["message"])
 
+    def test_provider_nonce_matches_legacy_uppercase_uuid_hex(self):
+        captured = {}
+
+        def fake_urlopen(req, timeout):
+            captured["nonce"] = next(
+                value for name, value in req.header_items() if name.lower() == "x-m3sb-nonce"
+            )
+            return io.BytesIO(b'{"valid":false,"status":"invalid"}')
+
+        with patch.object(server, "M3SB_PACKAGE_TOKEN", "test-server-only-package-token"), patch.object(
+            server, "M3SB_HMAC_SECRET", "test-server-only-hmac-secret"
+        ), patch.object(server.urllib.request, "urlopen", side_effect=fake_urlopen):
+            result = server._verify_license_with_m3sb(self.key, self.device_id, {})
+        self.assertFalse(result["valid"])
+        self.assertRegex(captured["nonce"], r"^[0-9A-F]{32}$")
+
     def test_mismatched_signed_license_identity_is_rejected(self):
         result = signed_license(self.key, "another-device")
         with patch.object(server, "_verify_license_with_m3sb", return_value=result):

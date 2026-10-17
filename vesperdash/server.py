@@ -423,7 +423,8 @@ def _verify_license_with_m3sb(key, device_id, body):
     }
     body_data = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     timestamp = str(int(time.time()))
-    nonce = secrets.token_hex(16)
+    # Match the original iOS client, which used UUID().uuidString without hyphens.
+    nonce = secrets.token_hex(16).upper()
     body_hash = hashlib.sha256(body_data).hexdigest()
     canonical = "\n".join(("M3SB-API-SIGNATURE-V3", "POST", "/api/sdk/verify", timestamp, nonce, body_hash, M3SB_PACKAGE_TOKEN, key, device_id))
     signature = hmac.new(M3SB_HMAC_SECRET.encode(), canonical.encode(), hashlib.sha256).hexdigest()
