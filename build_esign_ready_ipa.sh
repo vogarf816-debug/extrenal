@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-IPA="${1:-$ROOT/build/VESPER-Build-13-unsigned.ipa}"
+IPA="${1:-$ROOT/build/VESPER-Build-14-unsigned.ipa}"
 
 if ! command -v unzip >/dev/null 2>&1; then
   echo "Error: unzip is required." >&2
@@ -37,8 +37,8 @@ if [[ ! -x "$APP/VESPER" ]]; then
   exit 1
 fi
 EXECUTABLE_BYTES="$(wc -c < "$APP/VESPER" | tr -d ' ')"
-if [[ "$EXECUTABLE_BYTES" -lt 1000000000 ]]; then
-  echo "Error: expected approximately 1 GB of VESPER executable padding; found $EXECUTABLE_BYTES bytes." >&2
+if [[ "$EXECUTABLE_BYTES" -lt 690000000 ]]; then
+  echo "Error: expected approximately 690 MB of VESPER executable padding; found $EXECUTABLE_BYTES bytes." >&2
   exit 1
 fi
 

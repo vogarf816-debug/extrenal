@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$ROOT/build"
-ARCHIVE="$BUILD_DIR/VESPER-Build-13.xcarchive"
-IPA="$BUILD_DIR/VESPER-Build-13-unsigned.ipa"
+ARCHIVE="$BUILD_DIR/VESPER-Build-14.xcarchive"
+IPA="$BUILD_DIR/VESPER-Build-14-unsigned.ipa"
 echo "Building repository revision: $(git -C "$ROOT" rev-parse --short HEAD)"
 
 if [[ -z "${M3SB_PACKAGE_TOKEN:-}" || -z "${M3SB_HMAC_SECRET:-}" ]]; then
@@ -66,9 +66,9 @@ print("Embedded obfuscated M3SB configuration in the app bundle.")
 PY
 
 test -f "$APP/VESPER"
-PAD_MB="${VESPER_EXECUTABLE_PADDING_MB:-1000}"
+PAD_MB="${VESPER_EXECUTABLE_PADDING_MB:-690}"
 [[ "$PAD_MB" =~ ^[0-9]+$ ]] || { echo 'VESPER_EXECUTABLE_PADDING_MB must be a non-negative integer' >&2; exit 2; }
-(( PAD_MB <= 1000 )) || { echo 'VESPER_EXECUTABLE_PADDING_MB is capped at 1000 MB.' >&2; exit 2; }
+(( PAD_MB <= 690 )) || { echo 'VESPER_EXECUTABLE_PADDING_MB is capped at 690 MB.' >&2; exit 2; }
 python3 - "$APP/VESPER" "$PAD_MB" <<'PY'
 import os, sys
 path, megabytes = sys.argv[1], int(sys.argv[2])

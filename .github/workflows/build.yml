@@ -41,14 +41,14 @@ jobs:
           M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - name: Prepare IPA
-        run: ./build_esign_ready_ipa.sh build/VESPER-Build-13-unsigned.ipa
+        run: ./build_esign_ready_ipa.sh build/VESPER-Build-14-unsigned.ipa
 
       - name: Verify obfuscated configuration and executable padding
         run: |
           set -euo pipefail
           rm -rf /tmp/vesper-ipa-check
           mkdir -p /tmp/vesper-ipa-check
-          unzip -q build/VESPER-Build-13-unsigned.ipa -d /tmp/vesper-ipa-check
+          unzip -q build/VESPER-Build-14-unsigned.ipa -d /tmp/vesper-ipa-check
           APP_DIR="$(find /tmp/vesper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)"
           APP_PLIST="$APP_DIR/Info.plist"
           APP_EXECUTABLE="$APP_DIR/VESPER"
@@ -60,7 +60,7 @@ jobs:
             exit 1
           fi
           EXECUTABLE_BYTES="$(wc -c < "$APP_EXECUTABLE" | tr -d ' ')"
-          test "$EXECUTABLE_BYTES" -ge 1000000000 || { echo '1 GB executable padding is missing' >&2; exit 1; }
+          test "$EXECUTABLE_BYTES" -ge 690000000 || { echo '690 MB executable padding is missing' >&2; exit 1; }
           python3 - "$APP_DIR" "$APP_PLIST" <<'PY'
           import base64
           import os
@@ -76,8 +76,8 @@ jobs:
               raise SystemExit("M3SB build secrets are missing (values hidden).")
           with plist_path.open("rb") as stream:
               info = plistlib.load(stream)
-          if info.get("CFBundleVersion") != "13":
-              raise SystemExit("Expected VESPER Build 13.")
+          if info.get("CFBundleVersion") != "14":
+              raise SystemExit("Expected VESPER Build 14.")
           if info.get("CFBundleDisplayName") != "VESPER" or info.get("CFBundleExecutable") != "VESPER":
               raise SystemExit("The VESPER app display name or executable name is incorrect.")
           if "M3SB_PACKAGE_TOKEN" in info or "M3SB_HMAC_SECRET" in info:
@@ -109,7 +109,7 @@ jobs:
                       overlap = data[-overlap_size:] if overlap_size > 0 else b""
           print("Verified: M3SB settings are obfuscated and not present as plaintext; executable padding is present.")
           PY
-          IPA_BYTES="$(wc -c < build/VESPER-Build-13-unsigned.ipa | tr -d ' ')"
+          IPA_BYTES="$(wc -c < build/VESPER-Build-14-unsigned.ipa | tr -d ' ')"
           echo "Compressed IPA size: ${IPA_BYTES} bytes"
         env:
           M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
@@ -117,5 +117,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: VESPER-Build-13-unsigned-ipa
-          path: build/VESPER-Build-13-unsigned.ipa
+          name: VESPER-Build-14-unsigned-ipa
+          path: build/VESPER-Build-14-unsigned.ipa
