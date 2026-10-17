@@ -98,11 +98,11 @@ class ClientSessionSecurityTests(unittest.TestCase):
         legacy_license_hash = hashlib.sha256(b"legacy-license").hexdigest()
         conn = server.sqlite3.connect(legacy_db)
         conn.execute(
-            "CREATE TABLE client_sessions(token_hash TEXT PRIMARY KEY, license_hash TEXT NOT NULL, device_id TEXT NOT NULL, expires_at INTEGER NOT NULL)"
+            "CREATE TABLE client_sessions(token_hash TEXT PRIMARY KEY, license_hash TEXT NOT NULL, device_id TEXT NOT NULL, owner TEXT NOT NULL DEFAULT 'vesper', expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL)"
         )
         conn.execute(
-            "INSERT INTO client_sessions(token_hash,license_hash,device_id,expires_at) VALUES(?,?,?,?)",
-            (legacy_token_hash, legacy_license_hash, legacy_device, int(time.time()) + 3600),
+            "INSERT INTO client_sessions(token_hash,license_hash,device_id,expires_at,created_at) VALUES(?,?,?,?,?)",
+            (legacy_token_hash, legacy_license_hash, legacy_device, int(time.time()) + 3600, int(time.time())),
         )
         conn.commit()
         conn.close()
@@ -115,6 +115,7 @@ class ClientSessionSecurityTests(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 200)
             token = response.get_json()["client_session"]
+            new_token_hash = hashlib.sha256(token.encode()).hexdigest()
             manifest = self.client.get("/api/patches", headers={"Authorization": f"Bearer {token}"})
             self.assertEqual(manifest.status_code, 200)
 
@@ -123,9 +124,13 @@ class ClientSessionSecurityTests(unittest.TestCase):
         row = conn.execute(
             "SELECT device_hash FROM client_sessions WHERE token_hash=?", (legacy_token_hash,)
         ).fetchone()
+        created_at = conn.execute(
+            "SELECT created_at FROM client_sessions WHERE token_hash=?", (new_token_hash,)
+        ).fetchone()
         conn.close()
         self.assertIn("device_hash", columns)
         self.assertEqual(row[0], hashlib.sha256(legacy_device.encode()).hexdigest())
+        self.assertGreater(created_at[0], 0)
 
     def test_bridge_rejects_tampered_or_wrong_device_provider_proof(self):
         tampered = signed_license(self.key, self.device_id)

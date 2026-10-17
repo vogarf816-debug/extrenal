@@ -574,16 +574,23 @@ def _issue_client_session(result, key, device_id):
         (license_hash, device_hash),
     )
     client_columns = {row["name"] for row in conn.execute("PRAGMA table_info(client_sessions)")}
+    insert_columns = ["token_hash", "license_hash", "device_hash", "expires_at"]
+    insert_values = [token_hash, license_hash, device_hash, expires]
     if "device_id" in client_columns:
-        conn.execute(
-            "INSERT INTO client_sessions(token_hash,license_hash,device_hash,device_id,expires_at) VALUES(?,?,?,?,?)",
-            (token_hash, license_hash, device_hash, device_id, expires),
-        )
-    else:
-        conn.execute(
-            "INSERT INTO client_sessions(token_hash,license_hash,device_hash,expires_at) VALUES(?,?,?,?)",
-            (token_hash, license_hash, device_hash, expires),
-        )
+        insert_columns.append("device_id")
+        insert_values.append(device_id)
+    if "owner" in client_columns:
+        insert_columns.append("owner")
+        insert_values.append("vesper")
+    if "created_at" in client_columns:
+        insert_columns.append("created_at")
+        insert_values.append(int(now))
+    columns_sql = ",".join(insert_columns)
+    placeholders = ",".join("?" for _ in insert_values)
+    conn.execute(
+        f"INSERT INTO client_sessions({columns_sql}) VALUES({placeholders})",
+        insert_values,
+    )
     conn.commit()
     conn.close()
     response = jsonify(
