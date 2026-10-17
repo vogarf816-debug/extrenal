@@ -2,12 +2,14 @@
 
 import hashlib
 import hmac
+import io
 import json
 import os
 import shutil
 import sys
 import tempfile
 import time
+import urllib.error
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -91,6 +93,36 @@ class ClientSessionSecurityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertFalse(response.get_json()["valid"])
         self.assertNotIn("client_session", response.get_json())
+
+    def test_provider_http_403_invalid_license_is_returned_as_license_rejection(self):
+        provider_body = json.dumps({"valid": False, "status": "invalid", "message": "license is invalid"}).encode()
+        provider_error = urllib.error.HTTPError(
+            "https://license.invalid/api/sdk/verify", 403, "Forbidden", {}, io.BytesIO(provider_body)
+        )
+        with patch.object(server, "M3SB_PACKAGE_TOKEN", "test-server-only-package-token"), patch.object(
+            server, "M3SB_HMAC_SECRET", "test-server-only-hmac-secret"
+        ), patch.object(server.urllib.request, "urlopen", side_effect=provider_error):
+            response = self.client.post(
+                "/api/client/session", json={"key": self.key, "device_id": self.device_id}
+            )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["status"], "invalid")
+        self.assertEqual(response.get_json()["message"], "license is invalid")
+
+    def test_provider_http_403_authorization_error_is_not_reported_as_outage(self):
+        provider_body = json.dumps({"status": "forbidden", "message": "request rejected"}).encode()
+        provider_error = urllib.error.HTTPError(
+            "https://license.invalid/api/sdk/verify", 403, "Forbidden", {}, io.BytesIO(provider_body)
+        )
+        with patch.object(server, "M3SB_PACKAGE_TOKEN", "test-server-only-package-token"), patch.object(
+            server, "M3SB_HMAC_SECRET", "test-server-only-hmac-secret"
+        ), patch.object(server.urllib.request, "urlopen", side_effect=provider_error):
+            response = self.client.post(
+                "/api/client/session", json={"key": self.key, "device_id": self.device_id}
+            )
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.get_json()["status"], "provider_rejected")
+        self.assertIn("HTTP 403", response.get_json()["message"])
 
     def test_mismatched_signed_license_identity_is_rejected(self):
         result = signed_license(self.key, "another-device")

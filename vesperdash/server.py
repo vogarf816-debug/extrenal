@@ -401,6 +401,12 @@ def _expiry_timestamp(value):
     return None
 
 
+class LicenseProviderHTTPError(RuntimeError):
+    def __init__(self, status_code):
+        self.status_code = int(status_code)
+        super().__init__(f"license provider rejected request (HTTP {self.status_code})")
+
+
 def _verify_license_with_m3sb(key, device_id, body):
     if not M3SB_PACKAGE_TOKEN or not M3SB_HMAC_SECRET:
         raise RuntimeError("license service is not configured")
@@ -435,10 +441,27 @@ def _verify_license_with_m3sb(key, device_id, body):
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=15) as response:
-        if not 200 <= response.status < 300:
-            raise RuntimeError("license service rejected the request")
-        result = json.loads(response.read(1024 * 1024))
+    try:
+        with urllib.request.urlopen(req, timeout=15) as response:
+            raw = response.read(1024 * 1024)
+    except urllib.error.HTTPError as exc:
+        raw = exc.read(1024 * 1024)
+        try:
+            error_result = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            error_result = None
+        status = str(error_result.get("status", "")).strip().lower().replace("-", "_") if isinstance(error_result, dict) else ""
+        license_statuses = {
+            "invalid", "invalid_license", "license_invalid", "expired", "banned",
+            "revoked", "inactive", "not_found", "notfound", "license_not_found",
+        }
+        if exc.code in {400, 403, 422} and isinstance(error_result, dict) and (
+            error_result.get("valid") is False or status in license_statuses
+        ) and status not in {"forbidden", "unauthorized", "invalid_token", "token_invalid", "invalid_signature", "signature_invalid", "bad_signature"}:
+            error_result.setdefault("valid", False)
+            return error_result
+        raise LicenseProviderHTTPError(exc.code) from None
+    result = json.loads(raw)
     if not isinstance(result, dict):
         raise RuntimeError("invalid license response")
     return result
@@ -455,6 +478,12 @@ def create_client_session():
         return jsonify(valid=False, message="key or device identifier is invalid"), 400
     try:
         result = _verify_license_with_m3sb(key, device_id, body)
+    except LicenseProviderHTTPError as exc:
+        return jsonify(
+            valid=False,
+            status="provider_rejected",
+            message=f"license provider rejected request (HTTP {exc.status_code})",
+        ), 502
     except (urllib.error.URLError, TimeoutError, OSError, ValueError, RuntimeError, json.JSONDecodeError):
         return jsonify(valid=False, message="license service is temporarily unavailable"), 502
     if result.get("valid") is not True:
