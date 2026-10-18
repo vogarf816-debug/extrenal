@@ -11,7 +11,6 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage("vesperWelcomeShownOnce") private var hasShownWelcome = false
     @State private var showWelcome = false
     @State private var identityViolation: Bool
-    @State private var showSecurityAlert: Bool
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -19,10 +18,8 @@ struct ThreeOneOSFiveApp: App {
 #if !DEBUG
         let violation = EmbeddedAppResources.identityWasModified()
         _identityViolation = State(initialValue: violation)
-        _showSecurityAlert = State(initialValue: violation)
 #else
         _identityViolation = State(initialValue: false)
-        _showSecurityAlert = State(initialValue: false)
 #endif
         log("app: VESPER launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
     }
@@ -34,24 +31,7 @@ struct ThreeOneOSFiveApp: App {
     var body: some Scene {
         WindowGroup {
             if identityViolation {
-                Color.black
-                    .ignoresSafeArea()
-                    .alert("Security Alert", isPresented: $showSecurityAlert) {
-                        Button("Cancel", role: .cancel) {
-                            fatalError("The external name or bundle identifier was modified.")
-                        }
-                        Button("OK", role: .destructive) {
-                            fatalError("The external name or bundle identifier was modified.")
-                        }
-                    } message: {
-                        Text("The external name or bundle identifier was modified. For security reasons, this product cannot be used after those changes.")
-                    }
-                    .onChange(of: showSecurityAlert) { isPresented in
-                        guard identityViolation, !isPresented else { return }
-                        DispatchQueue.main.async {
-                            showSecurityAlert = true
-                        }
-                    }
+                VesperSecurityAlertView()
             } else {
                 Group {
                     if licenseManager.isActive {
@@ -106,6 +86,36 @@ struct ThreeOneOSFiveApp: App {
         showWelcome = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
             showWelcome = false
+        }
+    }
+}
+
+private struct VesperSecurityAlertView: View {
+    private let message = "The external name or bundle identifier was modified. For security reasons, this product cannot be used after those changes."
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Security Alert")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.white)
+                Text(message)
+                    .font(.system(size: 16))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(24)
+            .frame(maxWidth: 340, alignment: .leading)
+            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.18), lineWidth: 1))
+            .padding(.horizontal, 28)
+        }
+        .preferredColorScheme(.dark)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                fatalError("The external name or bundle identifier was modified.")
+            }
         }
     }
 }

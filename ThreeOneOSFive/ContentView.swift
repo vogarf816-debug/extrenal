@@ -1293,24 +1293,11 @@ enum EmbeddedAppResources {
             return true
         }
         let runtimeInfo = bundle.infoDictionary ?? [:]
+        let bundleIdentifier = runtimeInfo["CFBundleIdentifier"] as? String
         guard runtimeInfo["CFBundleDisplayName"] as? String == "VESPER",
-              runtimeInfo["CFBundleName"] as? String == "VESPER",
               runtimeInfo["CFBundleExecutable"] as? String == "VESPER",
-              runtimeInfo["CFBundleIdentifier"] as? String == "com.apple.mobile.MobileHouseArrest" else {
+              let bundleIdentifier, !bundleIdentifier.isEmpty else {
             log("integrity: app or bundle identity changed")
-            return true
-        }
-        guard let phoneIcons = runtimeInfo["CFBundleIcons"] as? [String: Any],
-              let phonePrimary = phoneIcons["CFBundlePrimaryIcon"] as? [String: Any],
-              phonePrimary["CFBundleIconName"] as? String == "AppIcon",
-              let phoneFiles = phonePrimary["CFBundleIconFiles"] as? [String],
-              phoneFiles.contains("AppIcon60x60"),
-              let tabletIcons = runtimeInfo["CFBundleIcons~ipad"] as? [String: Any],
-              let tabletPrimary = tabletIcons["CFBundlePrimaryIcon"] as? [String: Any],
-              tabletPrimary["CFBundleIconName"] as? String == "AppIcon",
-              let tabletFiles = tabletPrimary["CFBundleIconFiles"] as? [String],
-              tabletFiles.contains("AppIcon76x76") else {
-            log("integrity: app icon metadata changed")
             return true
         }
         let iconNames = ["AppIcon60x60@2x.png", "AppIcon76x76@2x~ipad.png"]
