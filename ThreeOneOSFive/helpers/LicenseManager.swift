@@ -192,15 +192,16 @@ final class LicenseManager: ObservableObject {
             "system_info": "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)",
             "os_info": UIDevice.current.systemVersion
         ]
+        let verifyPath = VesperStringVault.m3sbVerifyPath
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes]),
-              let url = URL(string: configuration.baseURL + "/api/sdk/verify") else {
+              let url = URL(string: configuration.baseURL + verifyPath) else {
             finishVerification(.failure(.message("M3SB activation configuration is invalid")), key: key, silent: silent)
             return
         }
         let timestamp = String(Int(Date().timeIntervalSince1970))
         let nonce = UUID().uuidString.replacingOccurrences(of: "-", with: "")
         let bodyHash = sha256(bodyData)
-        let canonical = ["M3SB-API-SIGNATURE-V3", "POST", "/api/sdk/verify", timestamp, nonce, bodyHash, configuration.token, key, deviceID].joined(separator: "\n")
+        let canonical = ["M3SB-API-SIGNATURE-V3", "POST", verifyPath, timestamp, nonce, bodyHash, configuration.token, key, deviceID].joined(separator: "\n")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.httpBody = bodyData

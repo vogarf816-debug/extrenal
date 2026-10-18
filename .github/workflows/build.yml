@@ -88,6 +88,7 @@ jobs:
           assert "RestoreSweepBackground()" in ui
           assert "TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false))" in ui
           assert "hasPreparedRemoteProject" in ui
+          assert 'm3sbVerifyPath' in Path("ThreeOneOSFive/helpers/VesperDashRemoteSync.swift").read_text()
           print("Verified: private storage, on-demand AES-GCM encrypted single-file remote package vault, and Release stripping are configured.")
           PY
 
@@ -100,14 +101,14 @@ jobs:
           M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - name: Prepare IPA
-        run: ./build_esign_ready_ipa.sh build/VESPER-Build-33-unsigned.ipa
+        run: ./build_esign_ready_ipa.sh build/VESPER-Build-34-unsigned.ipa
 
       - name: Verify obfuscated configuration and executable padding
         run: |
           set -euo pipefail
           rm -rf /tmp/vesper-ipa-check
           mkdir -p /tmp/vesper-ipa-check
-          unzip -q build/VESPER-Build-33-unsigned.ipa -d /tmp/vesper-ipa-check
+          unzip -q build/VESPER-Build-34-unsigned.ipa -d /tmp/vesper-ipa-check
           APP_DIR="$(find /tmp/vesper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)"
           APP_PLIST="$APP_DIR/Info.plist"
           APP_EXECUTABLE="$APP_DIR/VESPER"
@@ -136,8 +137,8 @@ jobs:
               raise SystemExit("M3SB build secrets are missing (values hidden).")
           with plist_path.open("rb") as stream:
               info = plistlib.load(stream)
-          if info.get("CFBundleVersion") != "33":
-              raise SystemExit("Expected VESPER Build 33.")
+          if info.get("CFBundleVersion") != "34":
+              raise SystemExit("Expected VESPER Build 34.")
           if info.get("CFBundleDisplayName") != "VESPER" or info.get("CFBundleExecutable") != "VESPER":
               raise SystemExit("The VESPER app display name or executable name is incorrect.")
           if info.get("UIFileSharingEnabled") or info.get("LSSupportsOpeningDocumentsInPlace"):
@@ -154,7 +155,7 @@ jobs:
                   raise SystemExit("Obfuscated M3SB configuration is invalid.")
               if decoded != expected:
                   raise SystemExit("Obfuscated M3SB configuration does not match the configured build secret.")
-          needles = (token, secret)
+          needles = (token, secret, b"api.m3sbapi.shop", b"/api/sdk/verify", "/api/sdk/verify".encode("utf-16le"))
           overlap_size = max(map(len, needles)) - 1
           for path in app_dir.rglob("*"):
               if not path.is_file():
@@ -169,9 +170,9 @@ jobs:
                       if any(needle in data for needle in needles):
                           raise SystemExit("A plaintext M3SB credential was found in the app bundle.")
                       overlap = data[-overlap_size:] if overlap_size > 0 else b""
-          print("Verified: M3SB settings are obfuscated and not present as plaintext; executable padding is present.")
+          print("Verified: M3SB credentials and API endpoint strings are absent as plaintext; executable padding is present.")
           PY
-          IPA_BYTES="$(wc -c < build/VESPER-Build-33-unsigned.ipa | tr -d ' ')"
+          IPA_BYTES="$(wc -c < build/VESPER-Build-34-unsigned.ipa | tr -d ' ')"
           echo "Compressed IPA size: ${IPA_BYTES} bytes"
         env:
           M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
@@ -179,5 +180,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: VESPER-Build-33-unsigned-ipa
-          path: build/VESPER-Build-33-unsigned.ipa
+          name: VESPER-Build-34-unsigned-ipa
+          path: build/VESPER-Build-34-unsigned.ipa
