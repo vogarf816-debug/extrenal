@@ -84,6 +84,23 @@ enum PatchProjectLibrary {
         return root
     }
 
+    static func remotePackageVaultURL(fileManager: FileManager = .default) throws -> URL {
+        let applicationSupport = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let protectedRoot = applicationSupport.appendingPathComponent(
+            protectedStoreDirectory,
+            isDirectory: true
+        )
+        let vaultRoot = protectedRoot.appendingPathComponent(".v", isDirectory: true)
+        try createProtectedDirectory(protectedRoot, fileManager: fileManager)
+        try createProtectedDirectory(vaultRoot, fileManager: fileManager)
+        return vaultRoot.appendingPathComponent(".cache", isDirectory: false)
+    }
+
     private static func createProtectedDirectory(
         _ url: URL,
         fileManager: FileManager

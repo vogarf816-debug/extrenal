@@ -7,6 +7,92 @@ enum VesperDashDigest {
     }
 }
 
+enum RemotePackageVault {
+    private struct Payload: Codable {
+        var packages: [String: Data]
+    }
+
+    private static let lock = NSRecursiveLock()
+    private static let magic = Data("VSPRVLT1".utf8)
+
+    static func load(for remote: RemotePatch) throws -> Data? {
+        lock.lock()
+        defer { lock.unlock() }
+        let url = try PatchProjectLibrary.remotePackageVaultURL()
+        guard FileManager.default.fileExists(atPath: url.path),
+              let keyData = try PatchKeyStore.remoteVaultEncryptionKey(createIfMissing: false) else {
+            return nil
+        }
+        let payload = try readPayload(at: url, keyData: keyData)
+        guard let data = payload.packages[cacheKey(for: remote)],
+              VesperDashDigest.hex(data).caseInsensitiveCompare(remote.sha256) == .orderedSame else {
+            return nil
+        }
+        return data
+    }
+
+    static func store(_ data: Data, for remote: RemotePatch) throws {
+        guard VesperDashDigest.hex(data).caseInsensitiveCompare(remote.sha256) == .orderedSame else {
+            throw PatchPackageError.remoteImportFailed
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        let url = try PatchProjectLibrary.remotePackageVaultURL()
+        guard let keyData = try PatchKeyStore.remoteVaultEncryptionKey() else {
+            throw PatchPackageError.keychainFailed
+        }
+        var packages: [String: Data]
+        if FileManager.default.fileExists(atPath: url.path) {
+            packages = (try? readPayload(at: url, keyData: keyData).packages) ?? [:]
+        } else {
+            packages = [:]
+        }
+        packages[cacheKey(for: remote)] = data
+        try writePayload(Payload(packages: packages), to: url, keyData: keyData)
+    }
+
+    static func prune(keeping remotes: [RemotePatch]) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        let url = try PatchProjectLibrary.remotePackageVaultURL()
+        guard FileManager.default.fileExists(atPath: url.path),
+              let keyData = try PatchKeyStore.remoteVaultEncryptionKey(createIfMissing: false) else {
+            return
+        }
+        let keep = Set(remotes.map { cacheKey(for: $0) })
+        let oldPayload = try readPayload(at: url, keyData: keyData)
+        let retained = oldPayload.packages.filter { keep.contains($0.key) }
+        guard retained.count != oldPayload.packages.count else { return }
+        if retained.isEmpty {
+            try FileManager.default.removeItem(at: url)
+        } else {
+            try writePayload(Payload(packages: retained), to: url, keyData: keyData)
+        }
+    }
+
+    private static func cacheKey(for remote: RemotePatch) -> String {
+        VesperDashDigest.hex(Data("\(remote.bundle_id.lowercased())|\(remote.sha256.lowercased())".utf8))
+    }
+
+    private static func readPayload(at url: URL, keyData: Data) throws -> Payload {
+        let encryptedFile = try Data(contentsOf: url, options: .mappedIfSafe)
+        guard encryptedFile.starts(with: magic) else { throw PatchPackageError.invalidProject }
+        let combined = encryptedFile.dropFirst(magic.count)
+        let sealedBox = try AES.GCM.SealedBox(combined: Data(combined))
+        let clearData = try AES.GCM.open(sealedBox, using: SymmetricKey(data: keyData))
+        return try PropertyListDecoder().decode(Payload.self, from: clearData)
+    }
+
+    private static func writePayload(_ payload: Payload, to url: URL, keyData: Data) throws {
+        let clearData = try PropertyListEncoder().encode(payload)
+        let sealedBox = try AES.GCM.seal(clearData, using: SymmetricKey(data: keyData))
+        guard let combined = sealedBox.combined else { throw PatchPackageError.remoteImportFailed }
+        var encryptedFile = magic
+        encryptedFile.append(combined)
+        try encryptedFile.write(to: url, options: [.atomic, .completeFileProtection])
+    }
+}
+
 struct PatchStoreAlert: Identifiable {
     let id = UUID()
     let titleKey: String
@@ -255,30 +341,38 @@ final class PatchProjectStore: ObservableObject {
                 throw PatchPackageError.remoteImportFailed
             }
 
-            let directory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("vesper-inject-\(UUID().uuidString)", isDirectory: true)
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            defer { try? FileManager.default.removeItem(at: directory) }
-            let session = URLSession(configuration: .ephemeral)
-            defer { session.invalidateAndCancel() }
-            let packageURL = try await VesperDashRemoteSync.downloadPackageFile(
-                for: remote,
-                sessionToken: sessionToken,
-                using: session,
-                into: directory
-            )
+            let cachedPackageData = try? await Task.detached(priority: .utility) {
+                try RemotePackageVault.load(for: remote)
+            }.value
+            let packageData: Data
+            if let cachedPackageData {
+                packageData = cachedPackageData
+            } else {
+                let directory = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("vesper-inject-\(UUID().uuidString)", isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                defer { try? FileManager.default.removeItem(at: directory) }
+                let session = URLSession(configuration: .ephemeral)
+                defer { session.invalidateAndCancel() }
+                let packageURL = try await VesperDashRemoteSync.downloadPackageFile(
+                    for: remote,
+                    sessionToken: sessionToken,
+                    using: session,
+                    into: directory
+                )
+                packageData = try Data(contentsOf: packageURL, options: .mappedIfSafe)
+            }
             let passwords = (manifest.package_passwords ?? []).filter { !$0.isEmpty }
             let project = try await Task.detached(priority: .userInitiated) {
-                let data = try Data(contentsOf: packageURL, options: .mappedIfSafe)
-                guard data.starts(with: Data("3105PATCH\0".utf8)),
-                      VesperDashDigest.hex(data).caseInsensitiveCompare(remote.sha256) == .orderedSame else {
+                guard packageData.starts(with: Data("3105PATCH\0".utf8)),
+                      VesperDashDigest.hex(packageData).caseInsensitiveCompare(remote.sha256) == .orderedSame else {
                     throw PatchPackageError.remoteImportFailed
                 }
-                _ = try PatchPackageCodec.inspect(data)
-                var decoded = try? PatchPackageCodec.decode(data, password: nil)
+                _ = try PatchPackageCodec.inspect(packageData)
+                var decoded = try? PatchPackageCodec.decode(packageData, password: nil)
                 if decoded == nil {
                     for password in passwords {
-                        if let candidate = try? PatchPackageCodec.decode(data, password: password) {
+                        if let candidate = try? PatchPackageCodec.decode(packageData, password: password) {
                             decoded = candidate
                             break
                         }
@@ -295,6 +389,16 @@ final class PatchProjectStore: ObservableObject {
                 throw CancellationError()
             }
 
+            if cachedPackageData == nil {
+                do {
+                    try await Task.detached(priority: .utility) {
+                        try RemotePackageVault.store(packageData, for: remote)
+                    }.value
+                } catch {
+                    log("patch: remote package cache write failed: \(error.localizedDescription)")
+                }
+            }
+
             preparedRemoteProjects[key] = project
             preparedRemotePatchKeys.insert(key)
         } catch {
@@ -306,6 +410,13 @@ final class PatchProjectStore: ObservableObject {
     }
 
     private func pruneDownloadedRemotePackages(_ remotes: [RemotePatch]) {
+        Task.detached(priority: .utility) {
+            do {
+                try RemotePackageVault.prune(keeping: remotes)
+            } catch {
+                log("patch: remote package vault cleanup failed: \(error.localizedDescription)")
+            }
+        }
         var itemsToRemove: [PatchLibraryItem] = []
         var mappingsChanged = false
         var staleMappingKeys: [String] = []

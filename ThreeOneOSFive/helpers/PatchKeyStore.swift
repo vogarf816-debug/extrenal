@@ -4,6 +4,7 @@ import Security
 
 enum PatchKeyStore {
     private static let service = "com.apple.mobile.MobileHouseArrest.patch-keys"
+    private static let remoteVaultService = "com.apple.mobile.MobileHouseArrest.remote-vault"
 
     static func account(for summary: PatchPackageSummary) -> String {
         let fingerprint = summary.keyFingerprint.map { String(format: "%02x", $0) }.joined()
@@ -68,5 +69,41 @@ enum PatchKeyStore {
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw PatchPackageError.keychainFailed
         }
+    }
+
+    static func remoteVaultEncryptionKey(createIfMissing: Bool = true) throws -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: remoteVaultService,
+            kSecAttrAccount as String: "remote-package-vault-v1",
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecSuccess {
+            guard let data = result as? Data, data.count == 32 else {
+                throw PatchPackageError.keychainFailed
+            }
+            return data
+        }
+        guard status == errSecItemNotFound else {
+            throw PatchPackageError.keychainFailed
+        }
+        guard createIfMissing else { return nil }
+
+        let symmetricKey = SymmetricKey(size: .bits256)
+        let keyData = symmetricKey.withUnsafeBytes { Data($0) }
+        var newItem = query
+        newItem.removeValue(forKey: kSecReturnData as String)
+        newItem.removeValue(forKey: kSecMatchLimit as String)
+        newItem[kSecValueData as String] = keyData
+        newItem[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let addStatus = SecItemAdd(newItem as CFDictionary, nil)
+        if addStatus == errSecSuccess { return keyData }
+        if addStatus == errSecDuplicateItem {
+            return try remoteVaultEncryptionKey(createIfMissing: false)
+        }
+        throw PatchPackageError.keychainFailed
     }
 }
