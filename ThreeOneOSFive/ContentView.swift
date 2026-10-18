@@ -41,8 +41,18 @@ struct ContentView: View {
             }
         }
         .overlay {
-            if patchStore.isRemoteSyncing {
-                RemoteLoadingView(store: patchStore)
+            if patchStore.isRemoteSyncing || !patchStore.isInitialPackageSyncReady {
+                RemoteLoadingView(
+                    store: patchStore,
+                    sessionAvailable: licenseManager.clientSessionToken()?.isEmpty == false,
+                    onRetry: {
+                        patchStore.syncVesperDash(
+                            sessionToken: licenseManager.clientSessionToken(),
+                            showCompletionAlert: false,
+                            showProgress: true
+                        )
+                    }
+                )
             }
         }
         .sheet(item: $patchStore.passwordRequest, onDismiss: patchStore.cancelUnlock) { _ in
@@ -115,6 +125,8 @@ struct ContentView: View {
 
     private struct RemoteLoadingView: View {
         @ObservedObject var store: PatchProjectStore
+        let sessionAvailable: Bool
+        let onRetry: () -> Void
         @Environment(\.appLanguage) private var appLanguage
         @State private var spinnerRotation = 0.0
 
@@ -140,31 +152,59 @@ struct ContentView: View {
                     }
                     .foregroundStyle(.white)
 
-                    if store.syncFileNames.isEmpty {
+                    if store.syncFileNames.isEmpty && store.isBusy {
                         ProgressView().tint(AppTheme.accent)
+                    } else if store.syncFileNames.isEmpty {
+                        Image(systemName: store.hasManifestSyncError ? "exclamationmark.triangle.fill" : "lock.fill")
+                            .font(.system(size: 32, weight: .semibold))
+                            .foregroundStyle(store.hasManifestSyncError ? .orange : AppTheme.accent)
                     } else {
                         ProgressView(value: progress)
                             .tint(AppTheme.accent)
                             .scaleEffect(x: 1, y: 1.5, anchor: .center)
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(store.syncFileNames, id: \.self) { name in
-                            HStack(spacing: 9) {
-                                Image(systemName: store.syncFinishedFileNames.contains(name) ? "checkmark.circle.fill" : (store.syncCurrentFile == name ? "arrow.down.circle.fill" : "circle"))
-                                    .foregroundStyle(store.syncFinishedFileNames.contains(name) ? .green : (store.syncCurrentFile == name ? AppTheme.accent : .white.opacity(0.35)))
-                                    .rotationEffect(.degrees(store.syncCurrentFile == name && !store.syncFinishedFileNames.contains(name) ? spinnerRotation : 0))
-                                Text(name)
-                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(.white.opacity(store.syncFinishedFileNames.contains(name) ? 0.55 : 0.95))
-                                    .lineLimit(1)
-                                Spacer()
+                    if !store.syncFileNames.isEmpty {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(store.syncFileNames, id: \.self) { name in
+                                    HStack(spacing: 9) {
+                                        let failed = store.syncFailedFileNames.contains(name)
+                                        let finished = store.syncFinishedFileNames.contains(name)
+                                        Image(systemName: failed ? "exclamationmark.circle.fill" : (finished ? "checkmark.circle.fill" : (store.syncCurrentFile == name ? "arrow.down.circle.fill" : "circle")))
+                                            .foregroundStyle(failed ? .orange : (finished ? .green : (store.syncCurrentFile == name ? AppTheme.accent : .white.opacity(0.35))))
+                                            .rotationEffect(.degrees(store.syncCurrentFile == name && !finished && !failed ? spinnerRotation : 0))
+                                        Text(name)
+                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(.white.opacity(finished && !failed ? 0.55 : 0.95))
+                                            .lineLimit(1)
+                                        Spacer()
+                                        if failed {
+                                            Text("FAILED")
+                                                .font(.system(size: 9, weight: .black, design: .rounded))
+                                                .foregroundStyle(.orange)
+                                        }
+                                    }
+                                }
                             }
+                            .padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        .frame(maxHeight: 280)
+                        .background(.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                    if !store.isBusy {
+                        Button(action: onRetry) {
+                            Label(sessionAvailable ? "RETRY DOWNLOADS" : "WAITING FOR ACTIVATION", systemImage: "arrow.clockwise")
+                                .font(.system(size: 12, weight: .black, design: .rounded))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(AppTheme.accent)
+                        .disabled(!sessionAvailable)
+                    }
                 }
                 .padding(28)
             }
@@ -179,14 +219,25 @@ struct ContentView: View {
 
         private var progress: Double {
             guard !store.syncFileNames.isEmpty else { return 0 }
-            return Double(store.syncFinishedFileNames.count) / Double(store.syncFileNames.count)
+            return Double(downloadedCount) / Double(store.syncFileNames.count)
+        }
+
+        private var downloadedCount: Int {
+            store.syncFinishedFileNames.subtracting(store.syncFailedFileNames).count
         }
 
         private var progressText: String {
             let total = store.syncFileNames.count
-            let done = store.syncFinishedFileNames.count
-            guard total > 0 else { return store.syncCurrentFile }
-            return "\(done)/\(total) FILES • \(store.syncCurrentFile)"
+            let remaining = max(0, total - downloadedCount)
+            guard total > 0 else {
+                if store.hasManifestSyncError { return "CATALOG DOWNLOAD FAILED" }
+                if sessionAvailable { return store.syncCurrentFile.isEmpty ? "CONNECTING TO PATCH SERVER…" : store.syncCurrentFile }
+                return "WAITING FOR ACTIVATION SESSION…"
+            }
+            if !store.syncFailedFileNames.isEmpty {
+                return "\(downloadedCount)/\(total) DOWNLOADED • \(remaining) LEFT • \(store.syncFailedFileNames.count) FAILED"
+            }
+            return "\(downloadedCount)/\(total) DOWNLOADED • \(remaining) LEFT"
         }
     }
 

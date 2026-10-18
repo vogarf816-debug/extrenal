@@ -40,6 +40,8 @@ final class PatchProjectStore: ObservableObject {
     @Published private(set) var items: [PatchLibraryItem] = []
     @Published private(set) var isBusy = false
     @Published private(set) var isRemoteSyncing = false
+    @Published private(set) var isInitialPackageSyncReady = false
+    @Published private(set) var hasManifestSyncError = false
     @Published private(set) var hasCompletedInitialSync = false
     @Published private(set) var isRemoteDisabled = false
     @Published private(set) var remoteSyncMessage = "REMOTE DATA: WAITING"
@@ -101,12 +103,14 @@ final class PatchProjectStore: ObservableObject {
     func syncVesperDash(sessionToken: String?, showCompletionAlert: Bool = true, showProgress: Bool = true) {
         guard !isBusy, let sessionToken, !sessionToken.isEmpty else { return }
         isBusy = true
+        hasManifestSyncError = false
         isRemoteSyncing = showProgress
         performAuthoritativeResetIfNeeded()
         remoteBundleIDs = [:]
         remoteSyncMessage = "REMOTE DATA: CHECKING…"
         syncFileNames = []
         syncFinishedFileNames = []
+        syncFailedFileNames = []
         syncCurrentFile = "PREPARING DOWNLOADS"
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
@@ -121,7 +125,11 @@ final class PatchProjectStore: ObservableObject {
                 await self?.setRemoteSyncing(showProgress || hasNewFiles)
                 await self?.beginSyncFiles(manifest.patches.map(\.name))
                 guard !manifest.global_paused else {
-                    await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: 0)
+                    await self?.finishRemoteSync(
+                        showCompletionAlert: showCompletionAlert,
+                        patchCount: 0,
+                        allPackagesReady: true
+                    )
                     return
                 }
                 var metadataByDigest: [String: (category: String, imageURL: URL?, statusText: String, sortOrder: Int)] = [:]
@@ -198,7 +206,12 @@ final class PatchProjectStore: ObservableObject {
                     await self?.finishSyncFile(remote.name)
                 }
                 await self?.reconcileRemotePackages(metadataByDigest: metadataByDigest)
-                await self?.finishRemoteSync(showCompletionAlert: showCompletionAlert, patchCount: manifest.patches.count)
+                let allPackagesReady = await self?.allRemotePackagesReady(manifest.patches) ?? false
+                await self?.finishRemoteSync(
+                    showCompletionAlert: showCompletionAlert,
+                    patchCount: manifest.patches.count,
+                    allPackagesReady: allPackagesReady
+                )
             } catch {
                 await self?.failRemoteSync()
             }
@@ -227,6 +240,7 @@ final class PatchProjectStore: ObservableObject {
         if lastManifestFingerprint == fingerprint && hasCompletedInitialSync && !hasNewRemoteFiles(patches) {
             isBusy = false
             isRemoteSyncing = false
+            isInitialPackageSyncReady = true
             return false
         }
         lastManifestFingerprint = fingerprint
@@ -252,6 +266,12 @@ final class PatchProjectStore: ObservableObject {
         syncFinishedFileNames.insert(name)
     }
 
+    private func allRemotePackagesReady(_ patches: [RemotePatch]) -> Bool {
+        syncFailedFileNames.isEmpty && patches.allSatisfy {
+            existingPackageURL(matchingDigest: $0.sha256) != nil
+        }
+    }
+
     private func performAuthoritativeResetIfNeeded() {
         let defaults = UserDefaults.standard
         guard !defaults.bool(forKey: Self.authoritativeResetKey) else { return }
@@ -274,11 +294,19 @@ final class PatchProjectStore: ObservableObject {
         defaults.set(true, forKey: Self.authoritativeResetKey)
     }
 
-    private func finishRemoteSync(showCompletionAlert: Bool = true, patchCount: Int = 0) {
+    private func finishRemoteSync(
+        showCompletionAlert: Bool = true,
+        patchCount: Int = 0,
+        allPackagesReady: Bool
+    ) {
         reload()
         isBusy = false
         isRemoteSyncing = false
         hasCompletedInitialSync = true
+        hasManifestSyncError = false
+        if allPackagesReady {
+            isInitialPackageSyncReady = true
+        }
         UserDefaults.standard.set(true, forKey: Self.initialSyncCompletedKey)
         remoteSyncMessage = "REMOTE DATA: UPDATED • \(patchCount) PATCH\(patchCount == 1 ? "" : "ES")"
         if showCompletionAlert {
@@ -455,6 +483,7 @@ final class PatchProjectStore: ObservableObject {
     private func failRemoteSync() {
         isBusy = false
         isRemoteSyncing = false
+        hasManifestSyncError = true
         remoteSyncMessage = "REMOTE DATA: CHECK FAILED • RETRYING"
         alert = PatchStoreAlert(titleKey: "common.failed", messageKey: "patch.error.remote_import")
     }
