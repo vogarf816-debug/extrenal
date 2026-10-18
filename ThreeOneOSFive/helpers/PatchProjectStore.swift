@@ -37,6 +37,7 @@ final class PatchProjectStore: ObservableObject {
     private static let remoteStatusesKey = "vesperdash.remoteStatuses.v3"
     private static let remoteOrdersKey = "vesperdash.remoteOrders.v3"
     private static let remoteBundlesKey = "vesperdash.remoteBundles.v3"
+    private static let remoteProjectIDsKey = "vesperdash.remoteProjectIDs.v1"
     @Published private(set) var items: [PatchLibraryItem] = []
     @Published private(set) var isBusy = false
     @Published private(set) var hasManifestSyncError = false
@@ -49,6 +50,10 @@ final class PatchProjectStore: ObservableObject {
     @Published private(set) var remoteOrders: [String: Int] = [:]
     @Published private(set) var remoteEntries: [RemotePatch] = []
     @Published private(set) var remoteBundleIDs: [String: String] = [:]
+    @Published private(set) var remoteProjectIDs: [String: String] = [:]
+    @Published private(set) var preparingRemotePatchKeys: Set<String> = []
+    @Published private(set) var preparedRemotePatchKeys: Set<String> = []
+    @Published private(set) var failedRemotePatchKeys: Set<String> = []
     @Published private(set) var syncFileNames: [String] = []
     @Published private(set) var syncFinishedFileNames: Set<String> = []
     @Published private(set) var syncFailedFileNames: Set<String> = []
@@ -59,6 +64,8 @@ final class PatchProjectStore: ObservableObject {
     @Published var unlockErrorKey: String?
     private var digestCache: [String: String] = [:]
     private var lastManifestFingerprint = ""
+    private var preparedRemoteProjects: [String: PatchProject] = [:]
+    private var remotePreparationGeneration = 0
 
     private struct PendingUnlock {
         let data: Data
@@ -82,6 +89,7 @@ final class PatchProjectStore: ObservableObject {
         remoteStatusTexts = [:]
         remoteOrders = [:]
         remoteBundleIDs = [:]
+        remoteProjectIDs = defaults.dictionary(forKey: Self.remoteProjectIDsKey) as? [String: String] ?? [:]
     }
 
     func reload() {
@@ -96,191 +104,32 @@ final class PatchProjectStore: ObservableObject {
         reload()
     }
 
-    /// Pull enabled, non-paused packages from VesperDash and install them
-    /// locally. The package is still decoded by PatchPackageCodec, and the
-    /// server-provided digest is checked before anything is persisted.
+    /// Fetch catalog metadata only. Package payloads are fetched by the user's
+    /// explicit INJECT action and are never installed as .3105 files.
     func syncVesperDash(sessionToken: String?, showCompletionAlert: Bool = true) {
         guard !isBusy, let sessionToken, !sessionToken.isEmpty else { return }
         isBusy = true
         hasManifestSyncError = false
         performAuthoritativeResetIfNeeded()
         remoteBundleIDs = [:]
-        remoteSyncMessage = "REMOTE DATA: CHECKING…"
+        remoteSyncMessage = "REMOTE DATA: CHECKING CATALOG…"
         syncFileNames = []
         syncFinishedFileNames = []
         syncFailedFileNames = []
         syncDownloadingFileNames = []
-        syncCurrentFile = "PREPARING DOWNLOADS"
+        syncCurrentFile = "FETCHING CATALOG"
+
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let manifest = try await VesperDashRemoteSync.fetchManifest(sessionToken: sessionToken)
+                let catalog = manifest.all_patches ?? manifest.patches
                 let fingerprint = await self?.manifestFingerprint(for: manifest) ?? ""
-                guard await self?.shouldProcessManifest(fingerprint, patches: manifest.patches) == true else {
+                guard await self?.shouldProcessManifest(fingerprint) == true else {
                     return
                 }
                 await self?.applyRemoteState(paused: manifest.global_paused)
-                await self?.applyRemoteEntries(manifest.all_patches ?? manifest.patches)
-                await self?.beginSyncFiles(manifest.patches.map(\.name))
-                guard !manifest.global_paused else {
-                    await self?.finishRemoteSync(
-                        showCompletionAlert: showCompletionAlert,
-                        patchCount: 0
-                    )
-                    return
-                }
-                var metadataByDigest: [String: (category: String, imageURL: URL?, statusText: String, sortOrder: Int)] = [:]
-                for remote in manifest.patches {
-                    let digest = remote.sha256.lowercased()
-                    let current = metadataByDigest[digest]
-                    if current == nil || (remote.normalizedCategory == "hologram" && current?.category != "hologram") {
-                        metadataByDigest[digest] = (
-                            remote.normalizedCategory,
-                            VesperDashRemoteSync.validImageURL(for: remote),
-                            remote.status_text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
-                            remote.normalizedOrder
-                        )
-                    }
-                }
-                let configuration = URLSessionConfiguration.ephemeral
-                configuration.httpMaximumConnectionsPerHost = 4
-                let session = URLSession(configuration: configuration)
-                defer { session.invalidateAndCancel() }
-                let downloadDirectory = FileManager.default.temporaryDirectory
-                    .appendingPathComponent("vesper-patch-sync-\(UUID().uuidString)", isDirectory: true)
-                try FileManager.default.createDirectory(at: downloadDirectory, withIntermediateDirectories: true)
-                defer { try? FileManager.default.removeItem(at: downloadDirectory) }
-                var pending: [RemotePatch] = []
-                var pendingDigests = Set<String>()
-                for remote in manifest.patches {
-                    if await self?.existingPackageURL(matchingDigest: remote.sha256) != nil {
-                        continue
-                    }
-                    if pendingDigests.insert(remote.sha256.lowercased()).inserted {
-                        pending.append(remote)
-                    }
-                }
-
-                var downloadedByDigest: [String: URL] = [:]
-                var failedDigests = Set<String>()
-                if !pending.isEmpty {
-                    await self?.setSyncCurrentFile("DOWNLOADING PATCHES IN PARALLEL")
-                    var nextIndex = 0
-                    await withTaskGroup(of: (String, URL?, String?).self) { group in
-                        for _ in 0..<min(4, pending.count) {
-                            let remote = pending[nextIndex]
-                            nextIndex += 1
-                            await self?.setSyncDownloadActive(remote.name, active: true)
-                            group.addTask {
-                                do {
-                                    let fileURL = try await VesperDashRemoteSync.downloadPackageFile(
-                                        for: remote,
-                                        sessionToken: sessionToken,
-                                        using: session,
-                                        into: downloadDirectory
-                                    )
-                                    return (remote.sha256.lowercased(), fileURL, nil)
-                                } catch {
-                                    return (remote.sha256.lowercased(), nil, String(describing: error))
-                                }
-                            }
-                        }
-
-                        while let result = await group.next() {
-                            let digest = result.0
-                            let remote = pending.first { $0.sha256.caseInsensitiveCompare(digest) == .orderedSame }
-                            if let remote {
-                                await self?.setSyncDownloadActive(remote.name, active: false)
-                                if let fileURL = result.1 {
-                                    downloadedByDigest[digest] = fileURL
-                                } else {
-                                    failedDigests.insert(digest)
-                                    log("patch: remote .3105 download failed for \(remote.name): \(result.2 ?? "unknown error")")
-                                    await self?.recordSyncFailure(remote.name)
-                                    await self?.finishSyncFile(remote.name)
-                                }
-                            }
-
-                            if nextIndex < pending.count {
-                                let remote = pending[nextIndex]
-                                nextIndex += 1
-                                await self?.setSyncDownloadActive(remote.name, active: true)
-                                group.addTask {
-                                    do {
-                                        let fileURL = try await VesperDashRemoteSync.downloadPackageFile(
-                                            for: remote,
-                                            sessionToken: sessionToken,
-                                            using: session,
-                                            into: downloadDirectory
-                                        )
-                                        return (remote.sha256.lowercased(), fileURL, nil)
-                                    } catch {
-                                        return (remote.sha256.lowercased(), nil, String(describing: error))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                for remote in manifest.patches {
-                    let digest = remote.sha256.lowercased()
-                    if let localURL = await self?.existingPackageURL(matchingDigest: remote.sha256) {
-                        await self?.recordRemoteBundleID(
-                            remoteBundleID: remote.bundle_id,
-                            filename: localURL.lastPathComponent
-                        )
-                        await self?.finishSyncFile(remote.name)
-                        continue
-                    }
-                    guard !failedDigests.contains(digest),
-                          let packageFileURL = downloadedByDigest[digest] else {
-                        await self?.recordSyncFailure(remote.name)
-                        await self?.finishSyncFile(remote.name)
-                        continue
-                    }
-
-                    await self?.beginSyncFile(remote.name)
-                    do {
-                        let data = try Data(contentsOf: packageFileURL, options: .mappedIfSafe)
-                        guard data.starts(with: Data("3105PATCH\0".utf8)),
-                              VesperDashDigest.hex(data).caseInsensitiveCompare(remote.sha256) == .orderedSame else {
-                            throw PatchPackageError.remoteImportFailed
-                        }
-                        let summary = try PatchPackageCodec.inspect(data)
-                        var decoded: DecodedPatchPackage?
-                        let serverPasswords = (manifest.package_passwords ?? []).filter { !$0.isEmpty }
-                        for password in serverPasswords {
-                            if let candidate = try? PatchPackageCodec.decode(data, password: password) {
-                                decoded = candidate
-                                break
-                            }
-                        }
-                        guard let decoded else {
-                            throw PatchPackageError.invalidPasswordOrCorruptedPackage
-                        }
-                        let existingURL = await self?.existingPackageURL(matchingDigest: remote.sha256)
-                        try PatchKeyStore.store(decoded.contentKey, for: summary)
-                        try PatchProjectLibrary.installImportedPackage(
-                            data: data,
-                            decoded: decoded,
-                            summary: summary,
-                            existingURL: existingURL
-                        )
-                        await self?.reload()
-                        let localFilename = existingURL?.lastPathComponent
-                            ?? PatchProjectLibrary.sanitizedPackageFilename(decoded.project.name)
-                        await self?.recordRemoteBundleID(
-                            remoteBundleID: remote.bundle_id,
-                            filename: localFilename
-                        )
-                    } catch {
-                        failedDigests.insert(digest)
-                        log("patch: remote .3105 install failed for \(remote.name): \(error)")
-                        await self?.recordSyncFailure(remote.name)
-                    }
-                    await self?.finishSyncFile(remote.name)
-                }
-                await self?.reconcileRemotePackages(metadataByDigest: metadataByDigest)
+                await self?.applyRemoteEntries(catalog)
+                await self?.pruneDownloadedRemotePackages(catalog)
                 await self?.finishRemoteSync(
                     showCompletionAlert: showCompletionAlert,
                     patchCount: manifest.patches.count
@@ -291,8 +140,222 @@ final class PatchProjectStore: ObservableObject {
         }
     }
 
-    private func hasNewRemoteFiles(_ patches: [RemotePatch]) -> Bool {
-        patches.contains { existingPackageURL(matchingDigest: $0.sha256) == nil }
+    func remotePatchKey(for remote: RemotePatch) -> String {
+        [remote.id, remote.bundle_id.lowercased(), remote.sha256.lowercased()].joined(separator: "|")
+    }
+
+    func hasPreparedRemoteProject(for remote: RemotePatch) -> Bool {
+        preparedRemotePatchKeys.contains(remotePatchKey(for: remote))
+    }
+
+    func preparedRemoteProject(for remote: RemotePatch) -> PatchProject? {
+        preparedRemoteProjects[remotePatchKey(for: remote)]
+    }
+
+    func remoteProjectID(for remote: RemotePatch) -> UUID? {
+        guard let value = remoteProjectIDs[remotePatchKey(for: remote)] else { return nil }
+        return UUID(uuidString: value)
+    }
+
+    func isRemotePatchActive(_ remote: RemotePatch) -> Bool {
+        guard let projectID = remoteProjectID(for: remote) else { return false }
+        return DevicePatchService.latestReceipt(
+            projectID: projectID,
+            targetBundleID: remote.bundle_id
+        ) != nil
+    }
+
+    func rememberRemoteProject(_ remote: RemotePatch, projectID: UUID) {
+        let relatedEntries = remoteEntries.filter {
+            $0.bundle_id == remote.bundle_id &&
+            $0.sha256.caseInsensitiveCompare(remote.sha256) == .orderedSame
+        }
+        for entry in relatedEntries {
+            remoteProjectIDs[remotePatchKey(for: entry)] = projectID.uuidString
+        }
+        remoteProjectIDs[remotePatchKey(for: remote)] = projectID.uuidString
+        UserDefaults.standard.set(remoteProjectIDs, forKey: Self.remoteProjectIDsKey)
+    }
+
+    func discardRemoteProjectMapping(for remote: RemotePatch) {
+        let relatedEntries = remoteEntries.filter {
+            $0.bundle_id == remote.bundle_id &&
+            $0.sha256.caseInsensitiveCompare(remote.sha256) == .orderedSame
+        }
+        for entry in relatedEntries {
+            remoteProjectIDs.removeValue(forKey: remotePatchKey(for: entry))
+        }
+        remoteProjectIDs.removeValue(forKey: remotePatchKey(for: remote))
+        UserDefaults.standard.set(remoteProjectIDs, forKey: Self.remoteProjectIDsKey)
+    }
+
+    func finishRemoteActivation(_ remote: RemotePatch) {
+        let relatedEntries = remoteEntries.filter {
+            $0.bundle_id == remote.bundle_id &&
+            $0.sha256.caseInsensitiveCompare(remote.sha256) == .orderedSame
+        }
+        for entry in relatedEntries {
+            let key = remotePatchKey(for: entry)
+            preparedRemoteProjects.removeValue(forKey: key)
+            preparedRemotePatchKeys.remove(key)
+        }
+        let key = remotePatchKey(for: remote)
+        preparedRemoteProjects.removeValue(forKey: key)
+        preparedRemotePatchKeys.remove(key)
+    }
+
+    func discardPreparedRemoteProjects() {
+        remotePreparationGeneration += 1
+        preparedRemoteProjects.removeAll()
+        preparedRemotePatchKeys.removeAll()
+    }
+
+    func finishRemoteRestore(_ remote: RemotePatch) {
+        let relatedEntries = remoteEntries.filter {
+            $0.bundle_id == remote.bundle_id &&
+            $0.sha256.caseInsensitiveCompare(remote.sha256) == .orderedSame
+        }
+        for entry in relatedEntries {
+            let key = remotePatchKey(for: entry)
+            preparedRemoteProjects.removeValue(forKey: key)
+            preparedRemotePatchKeys.remove(key)
+            remoteProjectIDs.removeValue(forKey: key)
+        }
+        let key = remotePatchKey(for: remote)
+        preparedRemoteProjects.removeValue(forKey: key)
+        preparedRemotePatchKeys.remove(key)
+        remoteProjectIDs.removeValue(forKey: key)
+        UserDefaults.standard.set(remoteProjectIDs, forKey: Self.remoteProjectIDsKey)
+    }
+
+    func prepareRemoteProject(
+        for requested: RemotePatch,
+        sessionToken: String?
+    ) async throws {
+        let key = remotePatchKey(for: requested)
+        let generation = remotePreparationGeneration
+        guard !preparingRemotePatchKeys.contains(key) else { return }
+        guard let sessionToken, !sessionToken.isEmpty else {
+            failedRemotePatchKeys.insert(key)
+            throw PatchPackageError.remoteImportFailed
+        }
+        preparingRemotePatchKeys.insert(key)
+        failedRemotePatchKeys.remove(key)
+        defer { preparingRemotePatchKeys.remove(key) }
+
+        do {
+            let manifest = try await VesperDashRemoteSync.fetchManifest(sessionToken: sessionToken)
+            guard !manifest.global_paused,
+                  let remote = manifest.patches.first(where: {
+                      $0.id == requested.id &&
+                      $0.bundle_id == requested.bundle_id &&
+                      $0.sha256.caseInsensitiveCompare(requested.sha256) == .orderedSame &&
+                      $0.enabled && !$0.paused
+                  }) else {
+                throw PatchPackageError.remoteImportFailed
+            }
+
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("vesper-inject-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let session = URLSession(configuration: .ephemeral)
+            defer { session.invalidateAndCancel() }
+            let packageURL = try await VesperDashRemoteSync.downloadPackageFile(
+                for: remote,
+                sessionToken: sessionToken,
+                using: session,
+                into: directory
+            )
+            let passwords = (manifest.package_passwords ?? []).filter { !$0.isEmpty }
+            let project = try await Task.detached(priority: .userInitiated) {
+                let data = try Data(contentsOf: packageURL, options: .mappedIfSafe)
+                guard data.starts(with: Data("3105PATCH\0".utf8)),
+                      VesperDashDigest.hex(data).caseInsensitiveCompare(remote.sha256) == .orderedSame else {
+                    throw PatchPackageError.remoteImportFailed
+                }
+                _ = try PatchPackageCodec.inspect(data)
+                var decoded = try? PatchPackageCodec.decode(data, password: nil)
+                if decoded == nil {
+                    for password in passwords {
+                        if let candidate = try? PatchPackageCodec.decode(data, password: password) {
+                            decoded = candidate
+                            break
+                        }
+                    }
+                }
+                guard let decoded,
+                      decoded.project.allBundleIdentifiers.contains(remote.bundle_id) else {
+                    throw PatchPackageError.invalidPasswordOrCorruptedPackage
+                }
+                return decoded.project
+            }.value
+
+            guard generation == remotePreparationGeneration, !Task.isCancelled else {
+                throw CancellationError()
+            }
+
+            preparedRemoteProjects[key] = project
+            preparedRemotePatchKeys.insert(key)
+        } catch {
+            if generation == remotePreparationGeneration {
+                failedRemotePatchKeys.insert(key)
+            }
+            throw error
+        }
+    }
+
+    private func pruneDownloadedRemotePackages(_ remotes: [RemotePatch]) {
+        var itemsToRemove: [PatchLibraryItem] = []
+        var mappingsChanged = false
+        var staleMappingKeys: [String] = []
+        for (key, value) in remoteProjectIDs {
+            guard let remote = remotes.first(where: { remotePatchKey(for: $0) == key }) else { continue }
+            guard let projectID = UUID(uuidString: value) else {
+                staleMappingKeys.append(key)
+                continue
+            }
+            let hasReceipt = DevicePatchService.latestReceipt(
+                projectID: projectID,
+                targetBundleID: remote.bundle_id
+            ) != nil
+            if !hasReceipt && !preparedRemotePatchKeys.contains(key) {
+                staleMappingKeys.append(key)
+            }
+        }
+        for key in staleMappingKeys {
+            remoteProjectIDs.removeValue(forKey: key)
+            mappingsChanged = true
+        }
+        for item in items {
+            let packageDigest = digest(for: item)
+            guard !packageDigest.isEmpty else { continue }
+            let matchingRemotes = remotes.filter {
+                $0.sha256.caseInsensitiveCompare(packageDigest) == .orderedSame &&
+                (item.project?.allBundleIdentifiers.contains($0.bundle_id) ?? true)
+            }
+            guard !matchingRemotes.isEmpty else { continue }
+            for remote in matchingRemotes where DevicePatchService.latestReceipt(
+                projectID: item.id,
+                targetBundleID: remote.bundle_id
+            ) != nil {
+                remoteProjectIDs[remotePatchKey(for: remote)] = item.id.uuidString
+            }
+            itemsToRemove.append(item)
+        }
+        for item in itemsToRemove {
+            do {
+                try PatchProjectLibrary.removePackageFileOnly(item)
+            } catch {
+                log("patch: could not remove cached remote .3105: \(error)")
+            }
+        }
+        if !itemsToRemove.isEmpty || mappingsChanged {
+            UserDefaults.standard.set(remoteProjectIDs, forKey: Self.remoteProjectIDsKey)
+        }
+        if !itemsToRemove.isEmpty {
+            reload()
+        }
     }
 
     private func manifestFingerprint(for manifest: VesperDashManifest) -> String {
@@ -305,8 +368,8 @@ final class PatchProjectStore: ObservableObject {
         }.joined(separator: "\n")
     }
 
-    private func shouldProcessManifest(_ fingerprint: String, patches: [RemotePatch]) -> Bool {
-        if lastManifestFingerprint == fingerprint && hasCompletedInitialSync && !hasNewRemoteFiles(patches) {
+    private func shouldProcessManifest(_ fingerprint: String) -> Bool {
+        if lastManifestFingerprint == fingerprint && hasCompletedInitialSync {
             isBusy = false
             return false
         }
@@ -409,7 +472,11 @@ final class PatchProjectStore: ObservableObject {
 
     func remoteEntries(category: String, bundleID: String) -> [RemotePatch] {
         remoteEntries
-            .filter { $0.enabled && !$0.paused && $0.normalizedCategory == category && $0.bundle_id == bundleID }
+            .filter {
+                $0.normalizedCategory == category &&
+                $0.bundle_id == bundleID &&
+                (($0.enabled && !$0.paused) || remoteProjectID(for: $0) != nil)
+            }
             .sorted {
                 if $0.normalizedOrder != $1.normalizedOrder { return $0.normalizedOrder < $1.normalizedOrder }
                 return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending

@@ -389,6 +389,16 @@ enum PatchProjectLibrary {
         try? PatchKeyStore.delete(for: item.summary)
     }
 
+    static func removePackageFileOnly(
+        _ item: PatchLibraryItem,
+        fileManager: FileManager = .default
+    ) throws {
+        if fileManager.fileExists(atPath: item.packageURL.path) {
+            try fileManager.removeItem(at: item.packageURL)
+        }
+        try? PatchKeyStore.delete(for: item.summary)
+    }
+
     static func synchronizeWorkspace(
         item: PatchLibraryItem,
         fileManager: FileManager = .default

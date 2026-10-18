@@ -65,6 +65,7 @@ struct ContentView: View {
         }
         .onChange(of: scenePhase) { phase in
             if phase == .background {
+                patchStore.discardPreparedRemoteProjects()
                 restoreActivePatches()
                 return
             }
@@ -610,16 +611,21 @@ struct ContentView: View {
             if !remotePatches.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(Array(remotePatches.enumerated()), id: \.element.id) { index, remote in
-                        if let package = patchStore.localFilename(for: remote) {
+                        let color = index.isMultiple(of: 2) ? AppTheme.accent : AppTheme.secondaryAccent
+                        let remoteKey = patchStore.remotePatchKey(for: remote)
+                        let hasPreparedProject = patchStore.hasPreparedRemoteProject(for: remote)
+                        let isRemoteActive = patchStore.isRemotePatchActive(remote)
+                        if hasPreparedProject || isRemoteActive {
                             patchCard(
                                 name: remote.name,
                                 target: targetTitle,
-                                package: package,
-                                color: index.isMultiple(of: 2) ? AppTheme.accent : AppTheme.secondaryAccent,
+                                package: remoteKey,
+                                color: color,
                                 imageURL: VesperDashRemoteSync.validImageURL(for: remote),
                                 statusText: remote.displayStatusText,
-                                state: patchBinding(for: package, targetBundleID: targetBundleID),
-                                targetBundleID: targetBundleID
+                                state: patchBinding(for: remoteKey, targetBundleID: targetBundleID),
+                                targetBundleID: targetBundleID,
+                                remote: remote
                             )
                         } else {
                             HStack(spacing: 10) {
@@ -638,25 +644,31 @@ struct ContentView: View {
                                 }
                                 Spacer()
                                 Button {
-                                    patchStore.syncVesperDash(
-                                        sessionToken: licenseManager.clientSessionToken(),
-                                        showCompletionAlert: false
-                                    )
+                                    guard !patchOperationBusy else { return }
+                                    patchOperationBusy = true
+                                    patchMessage = "PREPARING — \(remote.name)"
+                                    Task { @MainActor in
+                                        do {
+                                            try await patchStore.prepareRemoteProject(
+                                                for: remote,
+                                                sessionToken: licenseManager.clientSessionToken()
+                                            )
+                                            patchMessage = "READY — \(remote.name)"
+                                        } catch {
+                                            patchMessage = "INJECT PREPARATION FAILED — \(error.localizedDescription)"
+                                        }
+                                        patchOperationBusy = false
+                                    }
                                 } label: {
-                                    Text(patchStore.syncDownloadingFileNames.contains(remote.name)
-                                         || (patchStore.isBusy && patchStore.syncCurrentFile == remote.name)
+                                    Text(patchStore.preparingRemotePatchKeys.contains(remoteKey)
                                          ? "DOWNLOADING…"
-                                         : (patchStore.isBusy
-                                            ? "WAITING…"
-                                            : (patchStore.syncFailedFileNames.contains(remote.name)
-                                               ? "FAILED • TAP RETRY"
-                                               : "TAP TO DOWNLOAD")))
-                                        .font(.system(size: 8, weight: .black, design: .rounded))
-                                        .foregroundStyle(patchStore.syncFailedFileNames.contains(remote.name) ? .orange : AppTheme.secondaryAccent)
+                                         : (patchStore.failedRemotePatchKeys.contains(remoteKey) ? "RETRY INJECT" : "INJECT"))
+                                        .font(.system(size: 9, weight: .black, design: .rounded))
+                                        .foregroundStyle(patchStore.failedRemotePatchKeys.contains(remoteKey) ? .orange : AppTheme.secondaryAccent)
                                 }
                                 .buttonStyle(.plain)
-                                .disabled(patchStore.isBusy)
-                                .accessibilityLabel("Download or retry \(remote.name)")
+                                .disabled(patchOperationBusy || patchStore.preparingRemotePatchKeys.contains(remoteKey))
+                                .accessibilityLabel("Inject \(remote.name)")
                             }
                             .padding(14)
                             .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -707,14 +719,16 @@ struct ContentView: View {
         imageURL: URL?,
         statusText: String,
         state: Binding<Bool>,
-        targetBundleID: String
+        targetBundleID: String,
+        remote: RemotePatch? = nil
     ) -> some View {
         PatchOptionCard(name: name, target: target, color: color, imageURL: imageURL, statusText: statusText, isEnabled: state, isBusy: patchOperationBusy) {
             togglePatch(
                 packageFilename: package,
                 displayName: name,
                 state: state,
-                targetBundleID: targetBundleID
+                targetBundleID: targetBundleID,
+                remote: remote
             )
         }
     }
@@ -943,6 +957,27 @@ struct ContentView: View {
             }
             setPatchState(for: filename, targetBundleID: bundleID, enabled: false)
         }
+        for remote in patchStore.remoteEntries {
+            guard let projectID = patchStore.remoteProjectID(for: remote),
+                  let receipt = DevicePatchService.latestReceipt(
+                    projectID: projectID,
+                    targetBundleID: remote.bundle_id
+                  ),
+                  restoredReceipts.insert(receipt.id).inserted else { continue }
+            let remoteKey = patchStore.remotePatchKey(for: remote)
+            Task.detached(priority: .utility) {
+                do {
+                    try DevicePatchService.restore(receipt: receipt)
+                    await patchStore.finishRemoteRestore(remote)
+                    await MainActor.run {
+                        self.syncPatchStates()
+                    }
+                } catch {
+                    log("patch: automatic remote restore failed: \(error.localizedDescription)")
+                }
+            }
+            setPatchState(for: remoteKey, targetBundleID: remote.bundle_id, enabled: false)
+        }
     }
 
     private func syncPatchStates() {
@@ -962,6 +997,10 @@ struct ContentView: View {
             }
             let filename = item.packageURL.lastPathComponent
             patchEnabled[patchStateKey(filename, targetBundleID: bundleID)] = true
+        }
+        for remote in patchStore.remoteEntries {
+            let key = patchStore.remotePatchKey(for: remote)
+            patchEnabled[patchStateKey(key, targetBundleID: remote.bundle_id)] = patchStore.isRemotePatchActive(remote)
         }
     }
 
@@ -1064,22 +1103,31 @@ struct ContentView: View {
         packageFilename: String,
         displayName: String,
         state: Binding<Bool>,
-        targetBundleID: String = "com.dts.freefireth"
+        targetBundleID: String = "com.dts.freefireth",
+        remote: RemotePatch? = nil
     ) {
         guard !patchOperationBusy else { return }
         patchStore.refreshBundledPackages()
-        guard let item = patchItem(for: packageFilename, targetBundleID: targetBundleID) else {
-            let available = patchStore.items.map { $0.packageURL.lastPathComponent }.sorted().joined(separator: ", ")
-            patchMessage = "ERROR — PACKAGE NOT FOUND"
-            log("patch: package not found: \(packageFilename); available=\(available)")
+        let item = remote == nil ? patchItem(for: packageFilename, targetBundleID: targetBundleID) : nil
+        let remoteProject = remote.flatMap { patchStore.preparedRemoteProject(for: $0) }
+        let projectID = item?.id ?? remoteProject?.id ?? remote.flatMap { patchStore.remoteProjectID(for: $0) }
+        let wasEnabled = state.wrappedValue
+
+        guard let projectID else {
+            patchMessage = "ERROR — PATCH NOT PREPARED"
+            return
+        }
+        if !wasEnabled, item == nil, remoteProject == nil {
+            patchMessage = "TAP INJECT TO PREPARE THIS PATCH"
             return
         }
 
-        let wasEnabled = state.wrappedValue
         patchOperationBusy = true
         patchMessage = "PROCESSING — \(displayName)"
-        let project = item.project
-        let projectID = item.id
+        let project = item?.project ?? remoteProject
+        if !wasEnabled, let remote {
+            patchStore.rememberRemoteProject(remote, projectID: projectID)
+        }
 
         DispatchQueue.global(qos: .userInitiated).async {
             let result: PatchActionResult
@@ -1091,6 +1139,8 @@ struct ContentView: View {
                     ) else {
                         result = .unavailable("NO ACTIVE RECEIPT — NOTHING TO RESTORE")
                         DispatchQueue.main.async {
+                            if let remote { self.patchStore.finishRemoteRestore(remote) }
+                            self.syncPatchStates()
                             self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
                             self.patchMessage = "OFF — NO ACTIVE PATCH FOUND"
                             self.patchOperationBusy = false
@@ -1101,18 +1151,23 @@ struct ContentView: View {
                     result = .restored
                 } else {
                     guard let project else {
-                        result = .unavailable("PASSWORD REQUIRED — UNLOCK PACKAGE")
+                        if let item, item.project == nil {
+                            DispatchQueue.main.async {
+                                self.patchStore.requestUnlock(for: item)
+                                self.patchMessage = "PASSWORD REQUIRED — ENTER PACKAGE PASSWORD"
+                                self.patchOperationBusy = false
+                            }
+                            return
+                        }
+                        result = .unavailable("PATCH DATA IS NO LONGER PREPARED — TAP INJECT")
                         DispatchQueue.main.async {
-                            self.patchStore.requestUnlock(for: item)
-                            self.patchMessage = "PASSWORD REQUIRED — ENTER PACKAGE PASSWORD"
+                            if let remote { self.patchStore.discardRemoteProjectMapping(for: remote) }
+                            self.patchMessage = "PATCH DATA IS NO LONGER PREPARED — TAP INJECT"
                             self.patchOperationBusy = false
                         }
                         return
                     }
-                    // Same behavior as the known-working project: the
-                    // decoded package is the source of truth. Do not rebuild
-                    // or retarget its paths from remote metadata.
-                    log("patch: applying package unchanged package=\(packageFilename) target=\(project.rules.first?.relativePath ?? "none")")
+                    log("patch: applying decoded project without persisting .3105 package=\(packageFilename) target=\(project.rules.first?.relativePath ?? "none")")
                     _ = try DevicePatchService.apply(project: project)
                     result = .applied
                 }
@@ -1130,13 +1185,22 @@ struct ContentView: View {
                 switch result {
                 case .applied:
                     self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: true)
+                    if let remote {
+                        self.patchStore.finishRemoteActivation(remote)
+                        self.syncPatchStates()
+                    }
                     self.patchMessage = "Inject Successful — \(displayName)"
                     PatchAudioFeedback.bypassActivated()
                 case .restored:
                     self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
+                    if let remote {
+                        self.patchStore.finishRemoteRestore(remote)
+                        self.syncPatchStates()
+                    }
                     self.patchMessage = "Restore Successful — \(displayName)"
                     PatchAudioFeedback.originalRestored()
                 case .unavailable(let message):
+                    if let remote, !wasEnabled { self.patchStore.discardRemoteProjectMapping(for: remote) }
                     self.patchMessage = message
                 }
                 self.patchOperationBusy = false

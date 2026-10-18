@@ -4,3 +4,6 @@ pi/M3SB_API_Config.json
 # Python test/runtime artifacts.
 __pycache__/
 *.py[cod]
+
+# Generated Xcode archives and unsigned IPA artifacts.
+build/
