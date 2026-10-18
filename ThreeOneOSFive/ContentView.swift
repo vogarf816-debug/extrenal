@@ -736,7 +736,7 @@ struct ContentView: View {
         remote: RemotePatch? = nil
     ) -> some View {
         let stateKey = patchStateKey(package, targetBundleID: targetBundleID)
-        PatchOptionCard(
+        return PatchOptionCard(
             name: name,
             target: target,
             color: color,
