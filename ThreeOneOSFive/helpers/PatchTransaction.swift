@@ -150,7 +150,11 @@ enum PatchTransaction {
             .appendingPathComponent(project.id.uuidString, isDirectory: true)
             .appendingPathComponent(transactionID.uuidString, isDirectory: true)
         do {
-            try fileManager.createDirectory(at: transactionDirectory, withIntermediateDirectories: true)
+            try fileManager.createDirectory(
+                at: transactionDirectory,
+                withIntermediateDirectories: true,
+                attributes: [.protectionKey: FileProtectionType.complete]
+            )
         } catch {
             throw PatchPackageError.applyFailed
         }
@@ -172,6 +176,10 @@ enum PatchTransaction {
                 if let backupFilename {
                     let backupURL = transactionDirectory.appendingPathComponent(backupFilename)
                     try fileManager.copyItem(at: resolved.target, to: backupURL)
+                    try fileManager.setAttributes(
+                        [.protectionKey: FileProtectionType.complete],
+                        ofItemAtPath: backupURL.path
+                    )
                     originalDigest = try digestFile(backupURL)
                 }
                 records.append(Record(

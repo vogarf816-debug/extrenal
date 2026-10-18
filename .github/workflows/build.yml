@@ -32,6 +32,27 @@ jobs:
           swiftc ThreeOneOSFive/helpers/EmbeddedLocalizations.generated.swift verify_embedded_localizations.swift -o "$RUNNER_TEMP/vesper-localization-test"
           "$RUNNER_TEMP/vesper-localization-test"
 
+      - name: Verify private storage and release stripping
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import plistlib
+          with Path("ThreeOneOSFive/Info.plist").open("rb") as stream:
+              info = plistlib.load(stream)
+          assert info.get("UIFileSharingEnabled") is False
+          assert info.get("LSSupportsOpeningDocumentsInPlace") is False
+          project = Path("ThreeOneOSFive.xcodeproj/project.pbxproj").read_text()
+          release = project.split("3105A602 /* Release */ = {", 1)[1].split("name = Release;", 1)[0]
+          for setting in ("COPY_PHASE_STRIP = YES;", "STRIP_INSTALLED_PRODUCT = YES;", 'SWIFT_OPTIMIZATION_LEVEL = "-O";', "SWIFT_COMPILATION_MODE = wholemodule;"):
+              assert setting in release, setting
+          for source in ("ThreeOneOSFive/helpers/PatchProjectLibrary.swift", "ThreeOneOSFive/helpers/PatchWorkspaceService.swift"):
+              text = Path(source).read_text()
+              assert 'protectedStoreDirectory = ".7c91e4a2"' in text
+              assert "FileProtectionType.complete" in text
+          assert "FileProtectionType.complete" in Path("ThreeOneOSFive/helpers/PatchTransaction.swift").read_text()
+          print("Verified: app-wide file sharing is disabled; private storage and Release stripping are configured.")
+          PY
+
       - name: Build unsigned IPA
         run: |
           chmod +x build_unsigned.sh build_esign_ready_ipa.sh
@@ -41,14 +62,14 @@ jobs:
           M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - name: Prepare IPA
-        run: ./build_esign_ready_ipa.sh build/VESPER-Build-24-unsigned.ipa
+        run: ./build_esign_ready_ipa.sh build/VESPER-Build-25-unsigned.ipa
 
       - name: Verify obfuscated configuration and executable padding
         run: |
           set -euo pipefail
           rm -rf /tmp/vesper-ipa-check
           mkdir -p /tmp/vesper-ipa-check
-          unzip -q build/VESPER-Build-24-unsigned.ipa -d /tmp/vesper-ipa-check
+          unzip -q build/VESPER-Build-25-unsigned.ipa -d /tmp/vesper-ipa-check
           APP_DIR="$(find /tmp/vesper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)"
           APP_PLIST="$APP_DIR/Info.plist"
           APP_EXECUTABLE="$APP_DIR/VESPER"
@@ -77,10 +98,12 @@ jobs:
               raise SystemExit("M3SB build secrets are missing (values hidden).")
           with plist_path.open("rb") as stream:
               info = plistlib.load(stream)
-          if info.get("CFBundleVersion") != "24":
-              raise SystemExit("Expected VESPER Build 24.")
+          if info.get("CFBundleVersion") != "25":
+              raise SystemExit("Expected VESPER Build 25.")
           if info.get("CFBundleDisplayName") != "VESPER" or info.get("CFBundleExecutable") != "VESPER":
               raise SystemExit("The VESPER app display name or executable name is incorrect.")
+          if info.get("UIFileSharingEnabled") or info.get("LSSupportsOpeningDocumentsInPlace"):
+              raise SystemExit("App-wide Documents sharing must remain disabled.")
           if "M3SB_PACKAGE_TOKEN" in info or "M3SB_HMAC_SECRET" in info:
               raise SystemExit("Plaintext M3SB keys must not appear in Info.plist.")
           for name, expected in (("M3SB_PACKAGE_TOKEN_OBFUSCATED", token), ("M3SB_HMAC_SECRET_OBFUSCATED", secret)):
@@ -110,7 +133,7 @@ jobs:
                       overlap = data[-overlap_size:] if overlap_size > 0 else b""
           print("Verified: M3SB settings are obfuscated and not present as plaintext; executable padding is present.")
           PY
-          IPA_BYTES="$(wc -c < build/VESPER-Build-24-unsigned.ipa | tr -d ' ')"
+          IPA_BYTES="$(wc -c < build/VESPER-Build-25-unsigned.ipa | tr -d ' ')"
           echo "Compressed IPA size: ${IPA_BYTES} bytes"
         env:
           M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
@@ -118,5 +141,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: VESPER-Build-24-unsigned-ipa
-          path: build/VESPER-Build-24-unsigned.ipa
+          name: VESPER-Build-25-unsigned-ipa
+          path: build/VESPER-Build-25-unsigned.ipa

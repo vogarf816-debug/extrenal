@@ -9,6 +9,9 @@ enum PatchWorkspaceService {
 
     private static let manifestFilename = ".3105-project.plist"
     private static let manifestSchemaVersion = 1
+    private static let protectedStoreDirectory = ".7c91e4a2"
+    private static let storageMigrationLock = NSRecursiveLock()
+    private static var didMigrateLegacyWorkspaces = false
 
     static func documentsRootURL(fileManager: FileManager = .default) throws -> URL {
         try fileManager.url(
@@ -20,37 +23,83 @@ enum PatchWorkspaceService {
     }
 
     static func patchesRootURL(fileManager: FileManager = .default) throws -> URL {
+        storageMigrationLock.lock()
+        defer { storageMigrationLock.unlock() }
         let documents = try documentsRootURL(fileManager: fileManager)
-        let root = documents
-        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
-        try migrateLegacyWorkspaces(from: documents.appendingPathComponent("Patches", isDirectory: true), to: root, fileManager: fileManager)
+        let applicationSupport = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let protectedRoot = applicationSupport.appendingPathComponent(
+            protectedStoreDirectory,
+            isDirectory: true
+        )
+        let root = protectedRoot.appendingPathComponent("w", isDirectory: true)
+        try createProtectedDirectory(protectedRoot, fileManager: fileManager)
+        try createProtectedDirectory(root, fileManager: fileManager)
+        if !didMigrateLegacyWorkspaces {
+            try migrateLegacyWorkspaces(
+                from: [documents.appendingPathComponent("Patches", isDirectory: true), documents],
+                to: root,
+                fileManager: fileManager
+            )
+            didMigrateLegacyWorkspaces = true
+        }
         return root
     }
 
-    private static func migrateLegacyWorkspaces(from legacyRoot: URL, to root: URL, fileManager: FileManager) throws {
-        guard fileManager.fileExists(atPath: legacyRoot.path) else { return }
-        let entries = try fileManager.contentsOfDirectory(
-            at: legacyRoot,
-            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-            options: [.skipsHiddenFiles]
+    private static func createProtectedDirectory(
+        _ url: URL,
+        fileManager: FileManager
+    ) throws {
+        try fileManager.createDirectory(
+            at: url,
+            withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.complete]
         )
-        for source in entries {
-            let values = try source.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
-            guard values.isDirectory == true,
-                  values.isSymbolicLink != true,
-                  fileManager.fileExists(atPath: source.appendingPathComponent(manifestFilename).path) else {
-                continue
+        try fileManager.setAttributes(
+            [.protectionKey: FileProtectionType.complete],
+            ofItemAtPath: url.path
+        )
+    }
+
+    private static func migrateLegacyWorkspaces(
+        from legacyRoots: [URL],
+        to root: URL,
+        fileManager: FileManager
+    ) throws {
+        for legacyRoot in legacyRoots where legacyRoot.standardizedFileURL != root.standardizedFileURL {
+            guard fileManager.fileExists(atPath: legacyRoot.path) else { continue }
+            let entries = try fileManager.contentsOfDirectory(
+                at: legacyRoot,
+                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                options: [.skipsHiddenFiles]
+            )
+            for source in entries {
+                let values = try source.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                guard values.isDirectory == true,
+                      values.isSymbolicLink != true,
+                      fileManager.fileExists(atPath: source.appendingPathComponent(manifestFilename).path) else {
+                    continue
+                }
+                var destination = root.appendingPathComponent(source.lastPathComponent, isDirectory: true)
+                var suffix = 2
+                while fileManager.fileExists(atPath: destination.path) {
+                    destination = root.appendingPathComponent("\(source.lastPathComponent) \(suffix)", isDirectory: true)
+                    suffix += 1
+                }
+                try fileManager.moveItem(at: source, to: destination)
+                try fileManager.setAttributes(
+                    [.protectionKey: FileProtectionType.complete],
+                    ofItemAtPath: destination.path
+                )
             }
-            var destination = root.appendingPathComponent(source.lastPathComponent, isDirectory: true)
-            var suffix = 2
-            while fileManager.fileExists(atPath: destination.path) {
-                destination = root.appendingPathComponent("\(source.lastPathComponent) \(suffix)", isDirectory: true)
-                suffix += 1
+            if legacyRoot.lastPathComponent == "Patches",
+               (try? fileManager.contentsOfDirectory(atPath: legacyRoot.path).isEmpty) == true {
+                try? fileManager.removeItem(at: legacyRoot)
             }
-            try fileManager.moveItem(at: source, to: destination)
-        }
-        if (try? fileManager.contentsOfDirectory(atPath: legacyRoot.path).isEmpty) == true {
-            try? fileManager.removeItem(at: legacyRoot)
         }
     }
 
@@ -82,7 +131,11 @@ enum PatchWorkspaceService {
         defer { try? fileManager.removeItem(at: staging) }
 
         do {
-            try fileManager.createDirectory(at: staging, withIntermediateDirectories: false)
+            try fileManager.createDirectory(
+                at: staging,
+                withIntermediateDirectories: false,
+                attributes: [.protectionKey: FileProtectionType.complete]
+            )
             for bundleID in project.allBundleIdentifiers {
                 let canonical = try PatchPathValidator.canonicalBundleIdentifier(bundleID)
                 guard canonical == bundleID else { throw PatchPackageError.invalidProject }

@@ -30,53 +30,109 @@ struct PatchPasswordRequest: Identifiable {
 
 enum PatchProjectLibrary {
     private static let bundledFilenamePrefix = "BundledPatch-"
+    private static let protectedStoreDirectory = ".7c91e4a2"
+    private static let storageMigrationLock = NSRecursiveLock()
+    private static var didMigrateLegacyPackages = false
 
     static func packageRootURL(fileManager: FileManager = .default) throws -> URL {
+        storageMigrationLock.lock()
+        defer { storageMigrationLock.unlock() }
         let documents = try fileManager.url(
             for: .documentDirectory,
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
         )
-        let root = documents
-        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
-        try migrateLegacyPackages(to: root, fileManager: fileManager)
-        return root
-    }
-
-    private static func migrateLegacyPackages(to root: URL, fileManager: FileManager) throws {
         let applicationSupport = try fileManager.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
         )
-        let legacyRoot = applicationSupport.appendingPathComponent("PatchProjects", isDirectory: true)
-        guard fileManager.fileExists(atPath: legacyRoot.path) else { return }
-        let packages = try fileManager.contentsOfDirectory(
-            at: legacyRoot,
-            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
-            options: [.skipsHiddenFiles]
-        ).filter { $0.pathExtension.lowercased() == "3105" }
-
-        for source in packages {
-            let values = try source.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
-            guard values.isRegularFile == true, values.isSymbolicLink != true else { continue }
-            let base = source.deletingPathExtension().lastPathComponent
-            var destination = root.appendingPathComponent(source.lastPathComponent)
-            var suffix = 2
-            while fileManager.fileExists(atPath: destination.path) {
-                destination = root.appendingPathComponent("\(base)-\(suffix).3105")
-                suffix += 1
+        let protectedRoot = applicationSupport.appendingPathComponent(
+            protectedStoreDirectory,
+            isDirectory: true
+        )
+        let root = protectedRoot.appendingPathComponent("p", isDirectory: true)
+        try createProtectedDirectory(protectedRoot, fileManager: fileManager)
+        try createProtectedDirectory(root, fileManager: fileManager)
+        if !didMigrateLegacyPackages {
+            let legacyRoot = applicationSupport.appendingPathComponent("PatchProjects", isDirectory: true)
+            try migrateLegacyPackages(from: [documents, legacyRoot], to: root, fileManager: fileManager)
+            let legacyBackups = documents.appendingPathComponent("Backups", isDirectory: true)
+            let protectedBackups = root.appendingPathComponent("Backups", isDirectory: true)
+            if fileManager.fileExists(atPath: legacyBackups.path),
+               !fileManager.fileExists(atPath: protectedBackups.path) {
+                try fileManager.moveItem(at: legacyBackups, to: protectedBackups)
+                try fileManager.setAttributes(
+                    [.protectionKey: FileProtectionType.complete],
+                    ofItemAtPath: protectedBackups.path
+                )
             }
-            try fileManager.moveItem(at: source, to: destination)
+            didMigrateLegacyPackages = true
+        }
+        return root
+    }
+
+    private static func createProtectedDirectory(
+        _ url: URL,
+        fileManager: FileManager
+    ) throws {
+        try fileManager.createDirectory(
+            at: url,
+            withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.complete]
+        )
+        try fileManager.setAttributes(
+            [.protectionKey: FileProtectionType.complete],
+            ofItemAtPath: url.path
+        )
+    }
+
+    private static func migrateLegacyPackages(
+        from roots: [URL],
+        to root: URL,
+        fileManager: FileManager
+    ) throws {
+        for legacyRoot in roots where legacyRoot.standardizedFileURL != root.standardizedFileURL {
+            guard fileManager.fileExists(atPath: legacyRoot.path) else { continue }
+            let packages = try fileManager.contentsOfDirectory(
+                at: legacyRoot,
+                includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+                options: [.skipsHiddenFiles]
+            ).filter { $0.pathExtension.lowercased() == "3105" }
+
+            for source in packages {
+                let values = try source.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+                guard values.isRegularFile == true, values.isSymbolicLink != true else { continue }
+                let base = source.deletingPathExtension().lastPathComponent
+                var destination = root.appendingPathComponent(source.lastPathComponent)
+                var suffix = 2
+                while fileManager.fileExists(atPath: destination.path) {
+                    destination = root.appendingPathComponent("\(base)-\(suffix).3105")
+                    suffix += 1
+                }
+                try fileManager.moveItem(at: source, to: destination)
+                try fileManager.setAttributes(
+                    [.protectionKey: FileProtectionType.complete],
+                    ofItemAtPath: destination.path
+                )
+            }
         }
     }
 
     static func backupRootURL(fileManager: FileManager = .default) throws -> URL {
         let root = try packageRootURL(fileManager: fileManager)
             .appendingPathComponent("Backups", isDirectory: true)
-        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: root,
+            withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.complete]
+        )
+        try fileManager.setAttributes(
+            [.protectionKey: FileProtectionType.complete],
+            ofItemAtPath: root.path
+        )
         return root
     }
 
