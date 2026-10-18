@@ -10,14 +10,18 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @AppStorage("vesperWelcomeShownOnce") private var hasShownWelcome = false
     @State private var showWelcome = false
+    @State private var identityViolation: Bool
     @State private var showSecurityAlert: Bool
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
         setupLogCapture()
 #if !DEBUG
-        _showSecurityAlert = State(initialValue: EmbeddedAppResources.identityWasModified())
+        let violation = EmbeddedAppResources.identityWasModified()
+        _identityViolation = State(initialValue: violation)
+        _showSecurityAlert = State(initialValue: violation)
 #else
+        _identityViolation = State(initialValue: false)
         _showSecurityAlert = State(initialValue: false)
 #endif
         log("app: VESPER launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
@@ -29,15 +33,24 @@ struct ThreeOneOSFiveApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if showSecurityAlert {
+            if identityViolation {
                 Color.black
                     .ignoresSafeArea()
                     .alert("Security Alert", isPresented: $showSecurityAlert) {
+                        Button("Cancel", role: .cancel) {
+                            fatalError("The external name or bundle identifier was modified.")
+                        }
                         Button("OK", role: .destructive) {
                             fatalError("The external name or bundle identifier was modified.")
                         }
                     } message: {
                         Text("The external name or bundle identifier was modified. For security reasons, this product cannot be used after those changes.")
+                    }
+                    .onChange(of: showSecurityAlert) { isPresented in
+                        guard identityViolation, !isPresented else { return }
+                        DispatchQueue.main.async {
+                            showSecurityAlert = true
+                        }
                     }
             } else {
                 Group {
