@@ -40,34 +40,19 @@ struct ContentView: View {
                 RemotePauseView()
             }
         }
-        .overlay {
-            if patchStore.isRemoteSyncing || !patchStore.isInitialPackageSyncReady {
-                RemoteLoadingView(
-                    store: patchStore,
-                    sessionAvailable: licenseManager.clientSessionToken()?.isEmpty == false,
-                    onRetry: {
-                        patchStore.syncVesperDash(
-                            sessionToken: licenseManager.clientSessionToken(),
-                            showCompletionAlert: false,
-                            showProgress: true
-                        )
-                    }
-                )
-            }
-        }
         .sheet(item: $patchStore.passwordRequest, onDismiss: patchStore.cancelUnlock) { _ in
             PatchUnlockPrompt(store: patchStore)
         }
         .onAppear {
             syncPatchStates()
-            patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false, showProgress: true)
+            patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false)
             startRemoteStateChecks()
         }
         .onChange(of: patchStore.isBusy) { isBusy in
             if !isBusy { syncPatchStates() }
         }
         .onChange(of: licenseManager.clientSessionRevision) { _ in
-            patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false, showProgress: true)
+            patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false)
         }
         .onDisappear {
             remoteSyncTask?.cancel()
@@ -86,7 +71,7 @@ struct ContentView: View {
             guard phase == .active, !patchOperationBusy else { return }
             syncPatchStates()
             patchMessage = "READY — SELECT A PATCH"
-            patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false, showProgress: true)
+            patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false)
         }
     }
 
@@ -97,7 +82,7 @@ struct ContentView: View {
                 try? await Task.sleep(for: .seconds(20))
                 guard !Task.isCancelled else { return }
                 guard scenePhase == .active, !patchOperationBusy else { continue }
-                patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false, showProgress: false)
+                patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false)
             }
         }
     }
@@ -120,125 +105,6 @@ struct ContentView: View {
                 .foregroundStyle(.white)
             }
             .allowsHitTesting(true)
-        }
-    }
-
-    private struct RemoteLoadingView: View {
-        @ObservedObject var store: PatchProjectStore
-        let sessionAvailable: Bool
-        let onRetry: () -> Void
-        @Environment(\.appLanguage) private var appLanguage
-        @State private var spinnerRotation = 0.0
-
-        var body: some View {
-            ZStack {
-                LinearGradient(
-                    colors: [AppTheme.referenceCard, AppTheme.consoleBackground],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                    .ignoresSafeArea()
-                VStack(spacing: 18) {
-                    VStack(spacing: 7) {
-                        Text(appLanguage.text("vesper.loading.title"))
-                            .font(.system(size: 18, weight: .black, design: .rounded))
-                            .multilineTextAlignment(.center)
-                        Text(appLanguage.text("vesper.loading.resources"))
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .multilineTextAlignment(.center)
-                        Text(progressText)
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(AppTheme.accent)
-                    }
-                    .foregroundStyle(.white)
-
-                    if store.syncFileNames.isEmpty && store.isBusy {
-                        ProgressView().tint(AppTheme.accent)
-                    } else if store.syncFileNames.isEmpty {
-                        Image(systemName: store.hasManifestSyncError ? "exclamationmark.triangle.fill" : "lock.fill")
-                            .font(.system(size: 32, weight: .semibold))
-                            .foregroundStyle(store.hasManifestSyncError ? .orange : AppTheme.accent)
-                    } else {
-                        ProgressView(value: progress)
-                            .tint(AppTheme.accent)
-                            .scaleEffect(x: 1, y: 1.5, anchor: .center)
-                    }
-
-                    if !store.syncFileNames.isEmpty {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(store.syncFileNames, id: \.self) { name in
-                                    HStack(spacing: 9) {
-                                        let failed = store.syncFailedFileNames.contains(name)
-                                        let finished = store.syncFinishedFileNames.contains(name)
-                                        let downloading = store.syncDownloadingFileNames.contains(name)
-                                        Image(systemName: failed ? "exclamationmark.circle.fill" : (finished ? "checkmark.circle.fill" : (downloading || store.syncCurrentFile == name ? "arrow.down.circle.fill" : "circle")))
-                                            .foregroundStyle(failed ? .orange : (finished ? .green : (downloading || store.syncCurrentFile == name ? AppTheme.accent : .white.opacity(0.35))))
-                                            .rotationEffect(.degrees(downloading || (store.syncCurrentFile == name && !finished && !failed) ? spinnerRotation : 0))
-                                        Text(name)
-                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                            .foregroundStyle(.white.opacity(finished && !failed ? 0.55 : 0.95))
-                                            .lineLimit(1)
-                                        Spacer()
-                                        if failed {
-                                            Text("FAILED")
-                                                .font(.system(size: 9, weight: .black, design: .rounded))
-                                                .foregroundStyle(.orange)
-                                        }
-                                    }
-                                }
-                            }
-                            .padding(14)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .frame(maxHeight: 280)
-                        .background(.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-
-                    if !store.isBusy {
-                        Button(action: onRetry) {
-                            Label(sessionAvailable ? "RETRY DOWNLOADS" : "WAITING FOR ACTIVATION", systemImage: "arrow.clockwise")
-                                .font(.system(size: 12, weight: .black, design: .rounded))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 13)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.accent)
-                        .disabled(!sessionAvailable)
-                    }
-                }
-                .padding(28)
-            }
-            .allowsHitTesting(true)
-            .onAppear {
-                spinnerRotation = 0
-                withAnimation(.linear(duration: 0.85).repeatForever(autoreverses: false)) {
-                    spinnerRotation = 360
-                }
-            }
-        }
-
-        private var progress: Double {
-            guard !store.syncFileNames.isEmpty else { return 0 }
-            return Double(downloadedCount) / Double(store.syncFileNames.count)
-        }
-
-        private var downloadedCount: Int {
-            store.syncFinishedFileNames.subtracting(store.syncFailedFileNames).count
-        }
-
-        private var progressText: String {
-            let total = store.syncFileNames.count
-            let remaining = max(0, total - downloadedCount)
-            guard total > 0 else {
-                if store.hasManifestSyncError { return "CATALOG DOWNLOAD FAILED" }
-                if sessionAvailable { return store.syncCurrentFile.isEmpty ? "CONNECTING TO PATCH SERVER…" : store.syncCurrentFile }
-                return "WAITING FOR ACTIVATION SESSION…"
-            }
-            if !store.syncFailedFileNames.isEmpty {
-                return "\(downloadedCount)/\(total) DOWNLOADED • \(remaining) LEFT • \(store.syncDownloadingFileNames.count) ACTIVE • \(store.syncFailedFileNames.count) FAILED"
-            }
-            return "\(downloadedCount)/\(total) DOWNLOADED • \(remaining) LEFT • \(store.syncDownloadingFileNames.count) ACTIVE"
         }
     }
 
@@ -774,11 +640,11 @@ struct ContentView: View {
                                 Button {
                                     patchStore.syncVesperDash(
                                         sessionToken: licenseManager.clientSessionToken(),
-                                        showCompletionAlert: false,
-                                        showProgress: true
+                                        showCompletionAlert: false
                                     )
                                 } label: {
-                                    Text(patchStore.isBusy && patchStore.syncCurrentFile == remote.name
+                                    Text(patchStore.syncDownloadingFileNames.contains(remote.name)
+                                         || (patchStore.isBusy && patchStore.syncCurrentFile == remote.name)
                                          ? "DOWNLOADING…"
                                          : (patchStore.isBusy
                                             ? "WAITING…"
@@ -798,10 +664,36 @@ struct ContentView: View {
                     }
                 }
             } else {
-                Text("NO \(category.uppercased()) PATCHES — ADD FILES FROM VESPER")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .padding(.vertical, 10)
+                if patchStore.hasManifestSyncError {
+                    Button {
+                        patchStore.syncVesperDash(
+                            sessionToken: licenseManager.clientSessionToken(),
+                            showCompletionAlert: false
+                        )
+                    } label: {
+                        Label("CATALOG FAILED — TAP TO RETRY", systemImage: "arrow.clockwise")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(.orange)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(patchStore.isBusy)
+                } else if patchStore.isBusy {
+                    Label("SYNCING PATCH CATALOG…", systemImage: "arrow.down.circle")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryAccent)
+                        .padding(.vertical, 10)
+                } else if patchStore.hasCompletedInitialSync {
+                    Text("NO \(category.uppercased()) PATCHES — ADD FILES FROM VESPER")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .padding(.vertical, 10)
+                } else {
+                    Text("WAITING FOR ACTIVATION SESSION…")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .padding(.vertical, 10)
+                }
             }
 
         }
