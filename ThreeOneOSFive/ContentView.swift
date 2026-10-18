@@ -630,8 +630,6 @@ struct ContentView: View {
                             )
                         } else {
                             HStack(spacing: 10) {
-                                Image(systemName: "arrow.down.circle.fill")
-                                    .foregroundStyle(AppTheme.secondaryAccent)
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(remote.name)
                                         .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -650,18 +648,18 @@ struct ContentView: View {
                                     Text(injectingRemotePatchKey == remoteKey
                                          ? "INJECTING…"
                                          : (patchStore.failedRemotePatchKeys.contains(remoteKey) ? "RETRY INJECT" : "INJECT"))
-                                        .font(.system(size: 9, weight: .black, design: .rounded))
+                                        .font(.system(size: 12, weight: .black, design: .rounded))
                                         .foregroundStyle(patchStore.failedRemotePatchKeys.contains(remoteKey) ? .orange : AppTheme.secondaryAccent)
                                         .lineLimit(1)
                                         .minimumScaleFactor(0.8)
-                                        .padding(.horizontal, 14)
-                                        .frame(minWidth: 98, minHeight: 34)
-                                        .background {
-                                            SlantedButtonShape()
-                                                .fill(AppTheme.secondaryAccent.opacity(0.12))
-                                        }
+                                        .padding(.horizontal, 16)
+                                        .frame(minWidth: 108, minHeight: 40)
+                                        .background(
+                                            AppTheme.secondaryAccent.opacity(0.12),
+                                            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        )
                                         .overlay {
-                                            SlantedButtonShape()
+                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                                 .stroke(
                                                     patchStore.failedRemotePatchKeys.contains(remoteKey)
                                                         ? Color.orange.opacity(0.82)
@@ -671,7 +669,7 @@ struct ContentView: View {
                                         }
                                 }
                                 .buttonStyle(.plain)
-                                .contentShape(SlantedButtonShape())
+                                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                 .disabled(patchOperationBusy || patchStore.preparingRemotePatchKeys.contains(remoteKey))
                                 .accessibilityLabel("Inject \(remote.name)")
                             }
@@ -1593,21 +1591,6 @@ private struct GridOverlay: View {
             context.stroke(path, with: .color(AppTheme.accent.opacity(0.055)), lineWidth: 1)
         }
         .allowsHitTesting(false)
-    }
-}
-
-private struct SlantedButtonShape: Shape {
-    var slant: CGFloat = 9
-
-    func path(in rect: CGRect) -> Path {
-        let amount = min(slant, min(rect.width / 3, rect.height / 2))
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX + amount, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX - amount, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.closeSubpath()
-        return path
     }
 }
 

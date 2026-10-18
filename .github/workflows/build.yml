@@ -65,8 +65,10 @@ jobs:
           assert '"RETRY INJECT" : "INJECT"' in ui
           assert "INJECTING…" in ui
           assert "injectRemotePatch(remote, targetBundleID: targetBundleID)" in ui
-          assert "SlantedButtonShape()" in ui
-          assert "private struct SlantedButtonShape: Shape" in ui
+          remote_button = ui.split("if hasPreparedProject || isRemoteActive {", 1)[1].split("if patchStore.hasManifestSyncError", 1)[0]
+          assert "arrow.down.circle.fill" not in remote_button
+          assert "RoundedRectangle(cornerRadius: 8, style: .continuous)" in remote_button
+          assert '.font(.system(size: 12, weight: .black, design: .rounded))' in remote_button
           assert "hasPreparedRemoteProject" in ui
           print("Verified: private storage, on-demand non-persistent remote package preparation, and Release stripping are configured.")
           PY
@@ -80,14 +82,14 @@ jobs:
           M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - name: Prepare IPA
-        run: ./build_esign_ready_ipa.sh build/VESPER-Build-29-unsigned.ipa
+        run: ./build_esign_ready_ipa.sh build/VESPER-Build-30-unsigned.ipa
 
       - name: Verify obfuscated configuration and executable padding
         run: |
           set -euo pipefail
           rm -rf /tmp/vesper-ipa-check
           mkdir -p /tmp/vesper-ipa-check
-          unzip -q build/VESPER-Build-29-unsigned.ipa -d /tmp/vesper-ipa-check
+          unzip -q build/VESPER-Build-30-unsigned.ipa -d /tmp/vesper-ipa-check
           APP_DIR="$(find /tmp/vesper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)"
           APP_PLIST="$APP_DIR/Info.plist"
           APP_EXECUTABLE="$APP_DIR/VESPER"
@@ -116,8 +118,8 @@ jobs:
               raise SystemExit("M3SB build secrets are missing (values hidden).")
           with plist_path.open("rb") as stream:
               info = plistlib.load(stream)
-          if info.get("CFBundleVersion") != "29":
-              raise SystemExit("Expected VESPER Build 29.")
+          if info.get("CFBundleVersion") != "30":
+              raise SystemExit("Expected VESPER Build 30.")
           if info.get("CFBundleDisplayName") != "VESPER" or info.get("CFBundleExecutable") != "VESPER":
               raise SystemExit("The VESPER app display name or executable name is incorrect.")
           if info.get("UIFileSharingEnabled") or info.get("LSSupportsOpeningDocumentsInPlace"):
@@ -151,7 +153,7 @@ jobs:
                       overlap = data[-overlap_size:] if overlap_size > 0 else b""
           print("Verified: M3SB settings are obfuscated and not present as plaintext; executable padding is present.")
           PY
-          IPA_BYTES="$(wc -c < build/VESPER-Build-29-unsigned.ipa | tr -d ' ')"
+          IPA_BYTES="$(wc -c < build/VESPER-Build-30-unsigned.ipa | tr -d ' ')"
           echo "Compressed IPA size: ${IPA_BYTES} bytes"
         env:
           M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
@@ -159,5 +161,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: VESPER-Build-29-unsigned-ipa
-          path: build/VESPER-Build-29-unsigned.ipa
+          name: VESPER-Build-30-unsigned-ipa
+          path: build/VESPER-Build-30-unsigned.ipa
