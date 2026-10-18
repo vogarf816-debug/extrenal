@@ -625,18 +625,18 @@ struct ContentView: View {
                                     Text(injectingRemotePatchKey == remoteKey
                                          ? "INJECTING…"
                                          : (patchStore.failedRemotePatchKeys.contains(remoteKey) ? "RETRY INJECT" : "INJECT"))
-                                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                                        .font(.system(size: 11, weight: .bold, design: .rounded))
                                         .foregroundStyle(patchStore.failedRemotePatchKeys.contains(remoteKey) ? .orange : AppTheme.secondaryAccent)
                                         .lineLimit(1)
                                         .minimumScaleFactor(0.8)
-                                        .padding(.horizontal, 16)
-                                        .frame(minWidth: 108, minHeight: 40)
+                                        .padding(.horizontal, 10)
+                                        .frame(minWidth: 82, minHeight: 32)
                                         .background(
                                             AppTheme.secondaryAccent.opacity(0.12),
-                                            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
                                         )
                                         .overlay {
-                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            RoundedRectangle(cornerRadius: 7, style: .continuous)
                                                 .stroke(
                                                     patchStore.failedRemotePatchKeys.contains(remoteKey)
                                                         ? Color.orange.opacity(0.82)
@@ -646,7 +646,7 @@ struct ContentView: View {
                                         }
                                 }
                                 .buttonStyle(.plain)
-                                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                                 .disabled(patchOperationBusy || patchStore.preparingRemotePatchKeys.contains(remoteKey))
                                 .accessibilityLabel("Inject \(remote.name)")
                             }
