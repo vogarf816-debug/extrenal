@@ -36,15 +36,23 @@ enum PatchWorkspaceService {
             protectedStoreDirectory,
             isDirectory: true
         )
-        let root = protectedRoot.appendingPathComponent("w", isDirectory: true)
+        let root = protectedRoot.appendingPathComponent(".w", isDirectory: true)
         try createProtectedDirectory(protectedRoot, fileManager: fileManager)
         try createProtectedDirectory(root, fileManager: fileManager)
         if !didMigrateLegacyWorkspaces {
+            let oldWorkspaceRoot = protectedRoot.appendingPathComponent("w", isDirectory: true)
             try migrateLegacyWorkspaces(
-                from: [documents.appendingPathComponent("Patches", isDirectory: true), documents],
+                from: [
+                    oldWorkspaceRoot,
+                    documents.appendingPathComponent("Patches", isDirectory: true),
+                    documents
+                ],
                 to: root,
                 fileManager: fileManager
             )
+            if (try? fileManager.contentsOfDirectory(atPath: oldWorkspaceRoot.path).isEmpty) == true {
+                try? fileManager.removeItem(at: oldWorkspaceRoot)
+            }
             didMigrateLegacyWorkspaces = true
         }
         return root

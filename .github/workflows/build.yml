@@ -49,7 +49,10 @@ jobs:
               text = Path(source).read_text()
               assert 'protectedStoreDirectory = ".7c91e4a2"' in text
               assert "FileProtectionType.complete" in text
+          assert 'appendingPathComponent(".p"' in Path("ThreeOneOSFive/helpers/PatchProjectLibrary.swift").read_text()
+          assert 'appendingPathComponent(".w"' in Path("ThreeOneOSFive/helpers/PatchWorkspaceService.swift").read_text()
           assert "FileProtectionType.complete" in Path("ThreeOneOSFive/helpers/PatchTransaction.swift").read_text()
+          assert 'if item.hasPrefix(".") { continue }' in Path("ThreeOneOSFive/helpers/ContainerStore.swift").read_text()
           print("Verified: app-wide file sharing is disabled; private storage and Release stripping are configured.")
           PY
 
@@ -62,14 +65,14 @@ jobs:
           M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - name: Prepare IPA
-        run: ./build_esign_ready_ipa.sh build/VESPER-Build-25-unsigned.ipa
+        run: ./build_esign_ready_ipa.sh build/VESPER-Build-26-unsigned.ipa
 
       - name: Verify obfuscated configuration and executable padding
         run: |
           set -euo pipefail
           rm -rf /tmp/vesper-ipa-check
           mkdir -p /tmp/vesper-ipa-check
-          unzip -q build/VESPER-Build-25-unsigned.ipa -d /tmp/vesper-ipa-check
+          unzip -q build/VESPER-Build-26-unsigned.ipa -d /tmp/vesper-ipa-check
           APP_DIR="$(find /tmp/vesper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)"
           APP_PLIST="$APP_DIR/Info.plist"
           APP_EXECUTABLE="$APP_DIR/VESPER"
@@ -98,8 +101,8 @@ jobs:
               raise SystemExit("M3SB build secrets are missing (values hidden).")
           with plist_path.open("rb") as stream:
               info = plistlib.load(stream)
-          if info.get("CFBundleVersion") != "25":
-              raise SystemExit("Expected VESPER Build 25.")
+          if info.get("CFBundleVersion") != "26":
+              raise SystemExit("Expected VESPER Build 26.")
           if info.get("CFBundleDisplayName") != "VESPER" or info.get("CFBundleExecutable") != "VESPER":
               raise SystemExit("The VESPER app display name or executable name is incorrect.")
           if info.get("UIFileSharingEnabled") or info.get("LSSupportsOpeningDocumentsInPlace"):
@@ -133,7 +136,7 @@ jobs:
                       overlap = data[-overlap_size:] if overlap_size > 0 else b""
           print("Verified: M3SB settings are obfuscated and not present as plaintext; executable padding is present.")
           PY
-          IPA_BYTES="$(wc -c < build/VESPER-Build-25-unsigned.ipa | tr -d ' ')"
+          IPA_BYTES="$(wc -c < build/VESPER-Build-26-unsigned.ipa | tr -d ' ')"
           echo "Compressed IPA size: ${IPA_BYTES} bytes"
         env:
           M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
@@ -141,5 +144,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: VESPER-Build-25-unsigned-ipa
-          path: build/VESPER-Build-25-unsigned.ipa
+          name: VESPER-Build-26-unsigned-ipa
+          path: build/VESPER-Build-26-unsigned.ipa

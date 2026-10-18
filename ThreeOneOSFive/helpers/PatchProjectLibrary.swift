@@ -53,21 +53,31 @@ enum PatchProjectLibrary {
             protectedStoreDirectory,
             isDirectory: true
         )
-        let root = protectedRoot.appendingPathComponent("p", isDirectory: true)
+        let root = protectedRoot.appendingPathComponent(".p", isDirectory: true)
         try createProtectedDirectory(protectedRoot, fileManager: fileManager)
         try createProtectedDirectory(root, fileManager: fileManager)
         if !didMigrateLegacyPackages {
             let legacyRoot = applicationSupport.appendingPathComponent("PatchProjects", isDirectory: true)
-            try migrateLegacyPackages(from: [documents, legacyRoot], to: root, fileManager: fileManager)
-            let legacyBackups = documents.appendingPathComponent("Backups", isDirectory: true)
-            let protectedBackups = root.appendingPathComponent("Backups", isDirectory: true)
-            if fileManager.fileExists(atPath: legacyBackups.path),
-               !fileManager.fileExists(atPath: protectedBackups.path) {
-                try fileManager.moveItem(at: legacyBackups, to: protectedBackups)
-                try fileManager.setAttributes(
-                    [.protectionKey: FileProtectionType.complete],
-                    ofItemAtPath: protectedBackups.path
-                )
+            let oldProtectedRoot = applicationSupport.appendingPathComponent(
+                protectedStoreDirectory,
+                isDirectory: true
+            )
+            let oldPackageRoot = oldProtectedRoot.appendingPathComponent("p", isDirectory: true)
+            try migrateLegacyPackages(
+                from: [documents, legacyRoot, oldPackageRoot],
+                to: root,
+                fileManager: fileManager
+            )
+            try migrateLegacyBackupDirectories(
+                from: [
+                    documents.appendingPathComponent("Backups", isDirectory: true),
+                    oldPackageRoot.appendingPathComponent("Backups", isDirectory: true)
+                ],
+                to: root.appendingPathComponent("Backups", isDirectory: true),
+                fileManager: fileManager
+            )
+            if (try? fileManager.contentsOfDirectory(atPath: oldPackageRoot.path).isEmpty) == true {
+                try? fileManager.removeItem(at: oldPackageRoot)
             }
             didMigrateLegacyPackages = true
         }
@@ -118,6 +128,94 @@ enum PatchProjectLibrary {
                     ofItemAtPath: destination.path
                 )
             }
+        }
+    }
+
+    private static func migrateLegacyBackupDirectories(
+        from roots: [URL],
+        to destination: URL,
+        fileManager: FileManager
+    ) throws {
+        for source in roots where fileManager.fileExists(atPath: source.path) {
+            let sourceValues = try source.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+            guard sourceValues.isDirectory == true, sourceValues.isSymbolicLink != true else { continue }
+            if !fileManager.fileExists(atPath: destination.path) {
+                try fileManager.moveItem(at: source, to: destination)
+                try protectTree(at: destination, fileManager: fileManager)
+                continue
+            }
+
+            let projects = try fileManager.contentsOfDirectory(
+                at: source,
+                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                options: [.skipsHiddenFiles]
+            )
+            for projectSource in projects {
+                let values = try projectSource.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                guard values.isDirectory == true, values.isSymbolicLink != true else { continue }
+                let projectDestination = destination.appendingPathComponent(
+                    projectSource.lastPathComponent,
+                    isDirectory: true
+                )
+                if !fileManager.fileExists(atPath: projectDestination.path) {
+                    try fileManager.moveItem(at: projectSource, to: projectDestination)
+                    try protectTree(at: projectDestination, fileManager: fileManager)
+                    continue
+                }
+
+                let transactions = try fileManager.contentsOfDirectory(
+                    at: projectSource,
+                    includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                    options: [.skipsHiddenFiles]
+                )
+                for transaction in transactions {
+                    let values = try transaction.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                    guard values.isDirectory == true, values.isSymbolicLink != true else { continue }
+                    let transactionDestination = projectDestination.appendingPathComponent(
+                        transaction.lastPathComponent,
+                        isDirectory: true
+                    )
+                    guard !fileManager.fileExists(atPath: transactionDestination.path) else { continue }
+                    try fileManager.moveItem(at: transaction, to: transactionDestination)
+                    try protectTree(at: transactionDestination, fileManager: fileManager)
+                }
+                if (try? fileManager.contentsOfDirectory(atPath: projectSource.path).isEmpty) == true {
+                    try? fileManager.removeItem(at: projectSource)
+                }
+            }
+            if (try? fileManager.contentsOfDirectory(atPath: source.path).isEmpty) == true {
+                try? fileManager.removeItem(at: source)
+            }
+        }
+    }
+
+    private static func protectTree(
+        at root: URL,
+        fileManager: FileManager
+    ) throws {
+        let rootValues = try root.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard rootValues.isSymbolicLink != true else { return }
+        try fileManager.setAttributes(
+            [.protectionKey: FileProtectionType.complete],
+            ofItemAtPath: root.path
+        )
+        guard rootValues.isDirectory == true,
+              let enumerator = fileManager.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isSymbolicLinkKey],
+                options: [],
+                errorHandler: { _, _ in false }
+              ) else { return }
+        while let child = enumerator.nextObject() as? URL {
+            let values = try child.resourceValues(forKeys: [.isSymbolicLinkKey])
+            guard values.isSymbolicLink != true else {
+                enumerator.skipDescendants()
+                continue
+            }
+            try fileManager.setAttributes(
+                [.protectionKey: FileProtectionType.complete],
+                ofItemAtPath: child.path
+            )
         }
     }
 
