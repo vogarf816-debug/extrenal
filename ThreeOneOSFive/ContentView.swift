@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var fileSafety: [String: Bool] = [:]
     @StateObject private var patchStore = PatchProjectStore()
     @State private var patchOperationBusy = false
+    @State private var injectingRemotePatchKey: String?
     @State private var patchMessage = "READY — SELECT A PATCH"
     @State private var patchEnabled: [String: Bool] = [:]
     @AppStorage("keepPatchesActiveAfterExit") private var keepPatchesActiveAfterExit = true
@@ -644,24 +645,10 @@ struct ContentView: View {
                                 }
                                 Spacer()
                                 Button {
-                                    guard !patchOperationBusy else { return }
-                                    patchOperationBusy = true
-                                    patchMessage = "PREPARING — \(remote.name)"
-                                    Task { @MainActor in
-                                        do {
-                                            try await patchStore.prepareRemoteProject(
-                                                for: remote,
-                                                sessionToken: licenseManager.clientSessionToken()
-                                            )
-                                            patchMessage = "READY — \(remote.name)"
-                                        } catch {
-                                            patchMessage = "INJECT PREPARATION FAILED — \(error.localizedDescription)"
-                                        }
-                                        patchOperationBusy = false
-                                    }
+                                    injectRemotePatch(remote, targetBundleID: targetBundleID)
                                 } label: {
-                                    Text(patchStore.preparingRemotePatchKeys.contains(remoteKey)
-                                         ? "DOWNLOADING…"
+                                    Text(injectingRemotePatchKey == remoteKey
+                                         ? "INJECTING…"
                                          : (patchStore.failedRemotePatchKeys.contains(remoteKey) ? "RETRY INJECT" : "INJECT"))
                                         .font(.system(size: 9, weight: .black, design: .rounded))
                                         .foregroundStyle(patchStore.failedRemotePatchKeys.contains(remoteKey) ? .orange : AppTheme.secondaryAccent)
@@ -708,6 +695,42 @@ struct ContentView: View {
                 }
             }
 
+        }
+    }
+
+    private func injectRemotePatch(_ remote: RemotePatch, targetBundleID: String) {
+        guard !patchOperationBusy else { return }
+        let remoteKey = patchStore.remotePatchKey(for: remote)
+        patchOperationBusy = true
+        injectingRemotePatchKey = remoteKey
+        patchMessage = "INJECTING… — \(remote.name)"
+
+        Task { @MainActor in
+            do {
+                try await patchStore.prepareRemoteProject(
+                    for: remote,
+                    sessionToken: licenseManager.clientSessionToken()
+                )
+                guard let project = patchStore.preparedRemoteProject(for: remote) else {
+                    throw PatchPackageError.remoteImportFailed
+                }
+                patchStore.rememberRemoteProject(remote, projectID: project.id)
+                _ = try await Task.detached(priority: .userInitiated) {
+                    try DevicePatchService.apply(project: project)
+                }.value
+
+                patchStore.finishRemoteActivation(remote)
+                setPatchState(for: remoteKey, targetBundleID: targetBundleID, enabled: true)
+                syncPatchStates()
+                patchMessage = "Inject Successful — \(remote.name)"
+                PatchAudioFeedback.bypassActivated()
+            } catch {
+                patchStore.discardRemoteProjectMapping(for: remote)
+                patchMessage = "INJECT FAILED — \(error.localizedDescription)"
+                log("patch: remote inject failed for \(remote.name): \(error)")
+            }
+            injectingRemotePatchKey = nil
+            patchOperationBusy = false
         }
     }
 
