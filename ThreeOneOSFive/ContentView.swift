@@ -15,7 +15,7 @@ struct ContentView: View {
     @StateObject private var patchStore = PatchProjectStore()
     @State private var patchOperationBusy = false
     @State private var injectingRemotePatchKey: String?
-    @State private var patchMessage = "READY — SELECT A PATCH"
+    @State private var restoringPatchKey: String?
     @State private var patchEnabled: [String: Bool] = [:]
     @AppStorage("keepPatchesActiveAfterExit") private var keepPatchesActiveAfterExit = true
     private let fileNames: [String] = []
@@ -24,9 +24,9 @@ struct ContentView: View {
 
     var body: some View {
         TabView {
-            appTab(title: appLanguage.text("vesper.tab.aim"), icon: "scope", showsPatchStatus: true) { aimTab }
-            appTab(title: appLanguage.text("vesper.tab.hologram"), icon: "cube.transparent", showsPatchStatus: true) { hologramTab }
-            appTab(title: appLanguage.text("vesper.tab.skin_mod"), icon: "sparkles", showsPatchStatus: true) { skinModTab }
+            appTab(title: appLanguage.text("vesper.tab.aim"), icon: "scope") { aimTab }
+            appTab(title: appLanguage.text("vesper.tab.hologram"), icon: "cube.transparent") { hologramTab }
+            appTab(title: appLanguage.text("vesper.tab.skin_mod"), icon: "sparkles") { skinModTab }
             appTab(title: appLanguage.text("vesper.tab.compatibility"), icon: "iphone") { supportedDeviceTab }
             appTab(title: appLanguage.text("vesper.tab.profile"), icon: "person.crop.circle") { profileTab }
             appTab(title: appLanguage.text("vesper.tab.developer"), icon: "person.crop.circle") { developerTab }
@@ -72,7 +72,6 @@ struct ContentView: View {
             }
             guard phase == .active, !patchOperationBusy else { return }
             syncPatchStates()
-            patchMessage = "READY — SELECT A PATCH"
             patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false)
         }
     }
@@ -110,16 +109,13 @@ struct ContentView: View {
         }
     }
 
-    private func appTab<Content: View>(title: String, icon: String, showsPatchStatus: Bool = false, @ViewBuilder content: () -> Content) -> some View {
+    private func appTab<Content: View>(title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
         NavigationStack {
             ZStack {
                 AnimatedHyperBackdrop().ignoresSafeArea()
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
                         brandHeader
-                        if showsPatchStatus {
-                            patchStatusBanner
-                        }
                         content()
                     }
                     .padding(.horizontal, 16)
@@ -137,25 +133,6 @@ struct ContentView: View {
                 Image(systemName: icon)
             }
         }
-    }
-
-    private var patchStatusBanner: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text("INJECT STATUS")
-                .font(.system(size: 10, weight: .black, design: .rounded))
-                .tracking(1.2)
-                .foregroundStyle(AppTheme.accent)
-            Text(patchMessage)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(AppTheme.accent.opacity(0.42), lineWidth: 1))
     }
 
     private var aimTab: some View {
@@ -648,7 +625,7 @@ struct ContentView: View {
                                     Text(injectingRemotePatchKey == remoteKey
                                          ? "INJECTING…"
                                          : (patchStore.failedRemotePatchKeys.contains(remoteKey) ? "RETRY INJECT" : "INJECT"))
-                                        .font(.system(size: 12, weight: .black, design: .rounded))
+                                        .font(.system(size: 13, weight: .bold, design: .rounded))
                                         .foregroundStyle(patchStore.failedRemotePatchKeys.contains(remoteKey) ? .orange : AppTheme.secondaryAccent)
                                         .lineLimit(1)
                                         .minimumScaleFactor(0.8)
@@ -719,7 +696,6 @@ struct ContentView: View {
         let remoteKey = patchStore.remotePatchKey(for: remote)
         patchOperationBusy = true
         injectingRemotePatchKey = remoteKey
-        patchMessage = "INJECTING… — \(remote.name)"
 
         Task { @MainActor in
             do {
@@ -738,11 +714,9 @@ struct ContentView: View {
                 patchStore.finishRemoteActivation(remote)
                 setPatchState(for: remoteKey, targetBundleID: targetBundleID, enabled: true)
                 syncPatchStates()
-                patchMessage = "Inject Successful — \(remote.name)"
                 PatchAudioFeedback.bypassActivated()
             } catch {
                 patchStore.discardRemoteProjectMapping(for: remote)
-                patchMessage = "INJECT FAILED — \(error.localizedDescription)"
                 log("patch: remote inject failed for \(remote.name): \(error)")
             }
             injectingRemotePatchKey = nil
@@ -761,10 +735,19 @@ struct ContentView: View {
         targetBundleID: String,
         remote: RemotePatch? = nil
     ) -> some View {
-        PatchOptionCard(name: name, target: target, color: color, imageURL: imageURL, statusText: statusText, isEnabled: state, isBusy: patchOperationBusy) {
+        let stateKey = patchStateKey(package, targetBundleID: targetBundleID)
+        PatchOptionCard(
+            name: name,
+            target: target,
+            color: color,
+            imageURL: imageURL,
+            statusText: statusText,
+            isEnabled: state,
+            isRestoring: restoringPatchKey == stateKey,
+            isBusy: patchOperationBusy
+        ) {
             togglePatch(
                 packageFilename: package,
-                displayName: name,
                 state: state,
                 targetBundleID: targetBundleID,
                 remote: remote
@@ -1140,7 +1123,6 @@ struct ContentView: View {
 
     private func togglePatch(
         packageFilename: String,
-        displayName: String,
         state: Binding<Bool>,
         targetBundleID: String = "com.dts.freefireth",
         remote: RemotePatch? = nil
@@ -1153,16 +1135,18 @@ struct ContentView: View {
         let wasEnabled = state.wrappedValue
 
         guard let projectID else {
-            patchMessage = "ERROR — PATCH NOT PREPARED"
             return
         }
         if !wasEnabled, item == nil, remoteProject == nil {
-            patchMessage = "TAP INJECT TO PREPARE THIS PATCH"
             return
         }
 
         patchOperationBusy = true
-        patchMessage = "PROCESSING — \(displayName)"
+        if wasEnabled {
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.76)) {
+                restoringPatchKey = patchStateKey(packageFilename, targetBundleID: targetBundleID)
+            }
+        }
         let project = item?.project ?? remoteProject
         if !wasEnabled, let remote {
             patchStore.rememberRemoteProject(remote, projectID: projectID)
@@ -1180,8 +1164,10 @@ struct ContentView: View {
                         DispatchQueue.main.async {
                             if let remote { self.patchStore.finishRemoteRestore(remote) }
                             self.syncPatchStates()
-                            self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
-                            self.patchMessage = "OFF — NO ACTIVE PATCH FOUND"
+                            withAnimation(.easeOut(duration: 0.24)) {
+                                self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
+                                self.restoringPatchKey = nil
+                            }
                             self.patchOperationBusy = false
                         }
                         return
@@ -1193,7 +1179,6 @@ struct ContentView: View {
                         if let item, item.project == nil {
                             DispatchQueue.main.async {
                                 self.patchStore.requestUnlock(for: item)
-                                self.patchMessage = "PASSWORD REQUIRED — ENTER PACKAGE PASSWORD"
                                 self.patchOperationBusy = false
                             }
                             return
@@ -1201,7 +1186,6 @@ struct ContentView: View {
                         result = .unavailable("PATCH DATA IS NO LONGER PREPARED — TAP INJECT")
                         DispatchQueue.main.async {
                             if let remote { self.patchStore.discardRemoteProjectMapping(for: remote) }
-                            self.patchMessage = "PATCH DATA IS NO LONGER PREPARED — TAP INJECT"
                             self.patchOperationBusy = false
                         }
                         return
@@ -1228,19 +1212,23 @@ struct ContentView: View {
                         self.patchStore.finishRemoteActivation(remote)
                         self.syncPatchStates()
                     }
-                    self.patchMessage = "Inject Successful — \(displayName)"
                     PatchAudioFeedback.bypassActivated()
                 case .restored:
-                    self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
                     if let remote {
                         self.patchStore.finishRemoteRestore(remote)
                         self.syncPatchStates()
                     }
-                    self.patchMessage = "Restore Successful — \(displayName)"
+                    withAnimation(.spring(response: 0.48, dampingFraction: 0.74)) {
+                        self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: false)
+                        self.restoringPatchKey = nil
+                    }
                     PatchAudioFeedback.originalRestored()
                 case .unavailable(let message):
                     if let remote, !wasEnabled { self.patchStore.discardRemoteProjectMapping(for: remote) }
-                    self.patchMessage = message
+                    log("patch: action unavailable: \(message)")
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        self.restoringPatchKey = nil
+                    }
                 }
                 self.patchOperationBusy = false
             }
@@ -1262,6 +1250,7 @@ private struct PatchOptionCard: View {
     let imageURL: URL?
     let statusText: String
     @Binding var isEnabled: Bool
+    let isRestoring: Bool
     let isBusy: Bool
     let action: () -> Void
 
@@ -1305,10 +1294,31 @@ private struct PatchOptionCard: View {
             }
 
             Spacer(minLength: 8)
-            Text(isEnabled ? "ON" : "OFF")
-                .font(.system(size: 10, weight: .black, design: .rounded))
-                .foregroundStyle(isEnabled ? AppTheme.secondaryAccent : .white.opacity(0.5))
-                .frame(width: 28, alignment: .trailing)
+            Group {
+                if isRestoring {
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrow.uturn.backward.circle.fill")
+                            .rotationEffect(.degrees(isRestoring ? 360 : 0))
+                            .animation(
+                                isRestoring
+                                    ? .linear(duration: 0.9).repeatForever(autoreverses: false)
+                                    : .easeOut(duration: 0.2),
+                                value: isRestoring
+                            )
+                        Text("RESTORING…")
+                            .font(.system(size: 9, weight: .black, design: .rounded))
+                    }
+                    .foregroundStyle(AppTheme.accent)
+                    .transition(.opacity.combined(with: .scale(scale: 0.88)))
+                } else {
+                    Text(isEnabled ? "ON" : "OFF")
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .foregroundStyle(isEnabled ? AppTheme.secondaryAccent : .white.opacity(0.5))
+                        .frame(width: 28, alignment: .trailing)
+                        .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                }
+            }
+            .animation(.spring(response: 0.42, dampingFraction: 0.76), value: isRestoring)
 
             Toggle("", isOn: Binding(
                 get: { isEnabled },
@@ -1322,20 +1332,73 @@ private struct PatchOptionCard: View {
         }
         .frame(maxWidth: .infinity, minHeight: 58)
         .padding(.horizontal, 14)
-        .background(
-            LinearGradient(colors: [AppTheme.referenceCard.opacity(0.92), Color.black.opacity(0.28)], startPoint: .leading, endPoint: .trailing)
+        .background {
+            ZStack {
+                LinearGradient(
+                    colors: [AppTheme.referenceCard.opacity(0.92), Color.black.opacity(0.28)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                if isRestoring {
+                    RestoreSweepBackground()
+                        .transition(.opacity)
+                }
+            }
+        }
+        .shadow(
+            color: isRestoring ? AppTheme.accent.opacity(0.32) : (isEnabled ? color.opacity(0.28) : .clear),
+            radius: isRestoring ? 18 : 12,
+            y: 3
         )
-        .shadow(color: isEnabled ? color.opacity(0.28) : .clear, radius: 12, y: 3)
+        .animation(.easeInOut(duration: 0.36), value: isRestoring)
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(color.opacity(isEnabled ? 0.55 : 0.18))
                 .frame(height: 1)
         }
-        .opacity(isBusy ? 0.55 : 1)
+        .opacity(isBusy && !isRestoring ? 0.55 : 1)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(statusText.isEmpty ? "\(name), \(target), \(isEnabled ? "On" : "Off")" : "\(name), \(target), \(statusText), \(isEnabled ? "On" : "Off")")
     }
 }
+
+private struct RestoreSweepBackground: View {
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { timeline in
+            GeometryReader { geometry in
+                let width = geometry.size.width
+                let height = geometry.size.height
+                let bandWidth = width * 0.62
+                let duration = 2.8
+                let progress = timeline.date.timeIntervalSinceReferenceDate
+                    .truncatingRemainder(dividingBy: duration) / duration
+                let x = -bandWidth + CGFloat(progress) * (width + bandWidth * 2)
+
+                ZStack {
+                    LinearGradient(
+                        colors: [
+                            .clear,
+                            AppTheme.secondaryAccent.opacity(0.05),
+                            AppTheme.accent.opacity(0.20),
+                            AppTheme.secondaryAccent.opacity(0.09),
+                            .clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(width: bandWidth, height: height * 1.8)
+                    .rotationEffect(.degrees(16))
+                    .blur(radius: 13)
+                    .position(x: x, y: height / 2)
+                }
+                .frame(width: width, height: height)
+                .clipped()
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 enum EmbeddedAppResources {
     private static let payloadMagic = Array("VSPRPAY1".utf8)
     private static let footerMagic = Array("VSPRFTR1".utf8)
