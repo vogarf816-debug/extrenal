@@ -719,9 +719,26 @@ struct ContentView: View {
                                     }
                                 }
                                 Spacer()
-                                Text(patchStore.syncCurrentFile == remote.name ? "DOWNLOADING…" : (patchStore.isBusy ? "WAITING…" : "PACKAGE NOT READY"))
-                                    .font(.system(size: 8, weight: .black, design: .rounded))
-                                    .foregroundStyle(AppTheme.secondaryAccent)
+                                Button {
+                                    patchStore.syncVesperDash(
+                                        sessionToken: licenseManager.clientSessionToken(),
+                                        showCompletionAlert: false,
+                                        showProgress: true
+                                    )
+                                } label: {
+                                    Text(patchStore.isBusy && patchStore.syncCurrentFile == remote.name
+                                         ? "DOWNLOADING…"
+                                         : (patchStore.isBusy
+                                            ? "WAITING…"
+                                            : (patchStore.syncFailedFileNames.contains(remote.name)
+                                               ? "FAILED • TAP RETRY"
+                                               : "TAP TO DOWNLOAD")))
+                                        .font(.system(size: 8, weight: .black, design: .rounded))
+                                        .foregroundStyle(patchStore.syncFailedFileNames.contains(remote.name) ? .orange : AppTheme.secondaryAccent)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(patchStore.isBusy)
+                                .accessibilityLabel("Download or retry \(remote.name)")
                             }
                             .padding(14)
                             .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))

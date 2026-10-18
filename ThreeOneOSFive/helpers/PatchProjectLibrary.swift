@@ -32,15 +32,45 @@ enum PatchProjectLibrary {
     private static let bundledFilenamePrefix = "BundledPatch-"
 
     static func packageRootURL(fileManager: FileManager = .default) throws -> URL {
-        let base = try fileManager.url(
+        let documents = try fileManager.url(
+            for: .documentDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let root = documents
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        try migrateLegacyPackages(to: root, fileManager: fileManager)
+        return root
+    }
+
+    private static func migrateLegacyPackages(to root: URL, fileManager: FileManager) throws {
+        let applicationSupport = try fileManager.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
         )
-        let root = base.appendingPathComponent("PatchProjects", isDirectory: true)
-        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
-        return root
+        let legacyRoot = applicationSupport.appendingPathComponent("PatchProjects", isDirectory: true)
+        guard fileManager.fileExists(atPath: legacyRoot.path) else { return }
+        let packages = try fileManager.contentsOfDirectory(
+            at: legacyRoot,
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        ).filter { $0.pathExtension.lowercased() == "3105" }
+
+        for source in packages {
+            let values = try source.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            guard values.isRegularFile == true, values.isSymbolicLink != true else { continue }
+            let base = source.deletingPathExtension().lastPathComponent
+            var destination = root.appendingPathComponent(source.lastPathComponent)
+            var suffix = 2
+            while fileManager.fileExists(atPath: destination.path) {
+                destination = root.appendingPathComponent("\(base)-\(suffix).3105")
+                suffix += 1
+            }
+            try fileManager.moveItem(at: source, to: destination)
+        }
     }
 
     static func backupRootURL(fileManager: FileManager = .default) throws -> URL {

@@ -21,9 +21,37 @@ enum PatchWorkspaceService {
 
     static func patchesRootURL(fileManager: FileManager = .default) throws -> URL {
         let documents = try documentsRootURL(fileManager: fileManager)
-        let root = documents.appendingPathComponent("Patches", isDirectory: true)
+        let root = documents
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        try migrateLegacyWorkspaces(from: documents.appendingPathComponent("Patches", isDirectory: true), to: root, fileManager: fileManager)
         return root
+    }
+
+    private static func migrateLegacyWorkspaces(from legacyRoot: URL, to root: URL, fileManager: FileManager) throws {
+        guard fileManager.fileExists(atPath: legacyRoot.path) else { return }
+        let entries = try fileManager.contentsOfDirectory(
+            at: legacyRoot,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        )
+        for source in entries {
+            let values = try source.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+            guard values.isDirectory == true,
+                  values.isSymbolicLink != true,
+                  fileManager.fileExists(atPath: source.appendingPathComponent(manifestFilename).path) else {
+                continue
+            }
+            var destination = root.appendingPathComponent(source.lastPathComponent, isDirectory: true)
+            var suffix = 2
+            while fileManager.fileExists(atPath: destination.path) {
+                destination = root.appendingPathComponent("\(source.lastPathComponent) \(suffix)", isDirectory: true)
+                suffix += 1
+            }
+            try fileManager.moveItem(at: source, to: destination)
+        }
+        if (try? fileManager.contentsOfDirectory(atPath: legacyRoot.path).isEmpty) == true {
+            try? fileManager.removeItem(at: legacyRoot)
+        }
     }
 
     static func createWorkspace(

@@ -30,7 +30,7 @@ struct PatchStoreAlert: Identifiable {
 @MainActor
 final class PatchProjectStore: ObservableObject {
     private static let initialSyncCompletedKey = "vesperdash.initialSyncCompleted.v6"
-    private static let authoritativeResetKey = "vesperdash.authoritativeReset.v3"
+    private static let authoritativeResetKey = "vesperdash.authoritativeReset.v4"
     private static let remoteEntriesKey = "vesperdash.remoteEntries.v3"
     private static let remoteCategoriesKey = "vesperdash.remoteCategories.v3"
     private static let remoteImagesKey = "vesperdash.remoteImages.v3"
@@ -51,6 +51,7 @@ final class PatchProjectStore: ObservableObject {
     @Published private(set) var remoteBundleIDs: [String: String] = [:]
     @Published private(set) var syncFileNames: [String] = []
     @Published private(set) var syncFinishedFileNames: Set<String> = []
+    @Published private(set) var syncFailedFileNames: Set<String> = []
     @Published private(set) var syncCurrentFile = ""
     @Published var passwordRequest: PatchPasswordRequest?
     @Published var alert: PatchStoreAlert?
@@ -192,6 +193,7 @@ final class PatchProjectStore: ObservableObject {
                         )
                     } catch {
                         log("patch: remote .3105 download failed for \(remote.name): \(error)")
+                        await self?.recordSyncFailure(remote.name)
                     }
                     await self?.finishSyncFile(remote.name)
                 }
@@ -234,10 +236,16 @@ final class PatchProjectStore: ObservableObject {
     private func beginSyncFiles(_ names: [String]) {
         syncFileNames = names
         syncFinishedFileNames = []
+        syncFailedFileNames = []
     }
 
     private func beginSyncFile(_ name: String) {
         syncCurrentFile = name
+        syncFailedFileNames.remove(name)
+    }
+
+    private func recordSyncFailure(_ name: String) {
+        syncFailedFileNames.insert(name)
     }
 
     private func finishSyncFile(_ name: String) {
@@ -247,17 +255,8 @@ final class PatchProjectStore: ObservableObject {
     private func performAuthoritativeResetIfNeeded() {
         let defaults = UserDefaults.standard
         guard !defaults.bool(forKey: Self.authoritativeResetKey) else { return }
-        let fileManager = FileManager.default
-        if let root = try? PatchProjectLibrary.packageRootURL(fileManager: fileManager) {
-            for url in (try? fileManager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [] {
-                try? fileManager.removeItem(at: url)
-            }
-        }
-        if let root = try? PatchWorkspaceService.patchesRootURL(fileManager: fileManager) {
-            for url in (try? fileManager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [] {
-                try? fileManager.removeItem(at: url)
-            }
-        }
+        // Reset catalog metadata only. Package and workspace files are user data;
+        // the first sync after an update must never delete them.
         remoteCategories = [:]
         remoteImageURLs = [:]
         remoteStatusTexts = [:]
