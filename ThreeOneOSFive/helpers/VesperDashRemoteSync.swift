@@ -22,7 +22,7 @@ struct VesperDashManifest: Decodable {
     let package_passwords: [String]?
 }
 
-struct RemotePatch: Codable, Identifiable {
+struct RemotePatch: Codable, Identifiable, Sendable {
     let id: String
     let name: String
     let category: String?
@@ -72,6 +72,29 @@ private struct ManifestHTTPError: LocalizedError {
 
 enum VesperDashRemoteSync {
     static let manifestURL = URL(string: VesperStringVault.vesperDashPatchesURL)!
+
+    static func downloadPackageFile(
+        for remote: RemotePatch,
+        sessionToken: String,
+        using session: URLSession,
+        into directory: URL
+    ) async throws -> URL {
+        guard let url = validDownloadURL(for: remote) else {
+            throw PatchPackageError.remoteImportFailed
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 60
+        request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
+        let (temporaryURL, response) = try await session.download(for: request)
+        defer { try? FileManager.default.removeItem(at: temporaryURL) }
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode) else {
+            throw PatchPackageError.remoteImportFailed
+        }
+        let destination = directory.appendingPathComponent("\(UUID().uuidString).download")
+        try FileManager.default.moveItem(at: temporaryURL, to: destination)
+        return destination
+    }
 
     static func fetchManifest(sessionToken: String) async throws -> VesperDashManifest {
         let deadline = Date().addingTimeInterval(120)

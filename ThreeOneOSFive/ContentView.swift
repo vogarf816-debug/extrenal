@@ -171,9 +171,10 @@ struct ContentView: View {
                                     HStack(spacing: 9) {
                                         let failed = store.syncFailedFileNames.contains(name)
                                         let finished = store.syncFinishedFileNames.contains(name)
-                                        Image(systemName: failed ? "exclamationmark.circle.fill" : (finished ? "checkmark.circle.fill" : (store.syncCurrentFile == name ? "arrow.down.circle.fill" : "circle")))
-                                            .foregroundStyle(failed ? .orange : (finished ? .green : (store.syncCurrentFile == name ? AppTheme.accent : .white.opacity(0.35))))
-                                            .rotationEffect(.degrees(store.syncCurrentFile == name && !finished && !failed ? spinnerRotation : 0))
+                                        let downloading = store.syncDownloadingFileNames.contains(name)
+                                        Image(systemName: failed ? "exclamationmark.circle.fill" : (finished ? "checkmark.circle.fill" : (downloading || store.syncCurrentFile == name ? "arrow.down.circle.fill" : "circle")))
+                                            .foregroundStyle(failed ? .orange : (finished ? .green : (downloading || store.syncCurrentFile == name ? AppTheme.accent : .white.opacity(0.35))))
+                                            .rotationEffect(.degrees(downloading || (store.syncCurrentFile == name && !finished && !failed) ? spinnerRotation : 0))
                                         Text(name)
                                             .font(.system(size: 11, weight: .semibold, design: .rounded))
                                             .foregroundStyle(.white.opacity(finished && !failed ? 0.55 : 0.95))
@@ -235,9 +236,9 @@ struct ContentView: View {
                 return "WAITING FOR ACTIVATION SESSION…"
             }
             if !store.syncFailedFileNames.isEmpty {
-                return "\(downloadedCount)/\(total) DOWNLOADED • \(remaining) LEFT • \(store.syncFailedFileNames.count) FAILED"
+                return "\(downloadedCount)/\(total) DOWNLOADED • \(remaining) LEFT • \(store.syncDownloadingFileNames.count) ACTIVE • \(store.syncFailedFileNames.count) FAILED"
             }
-            return "\(downloadedCount)/\(total) DOWNLOADED • \(remaining) LEFT"
+            return "\(downloadedCount)/\(total) DOWNLOADED • \(remaining) LEFT • \(store.syncDownloadingFileNames.count) ACTIVE"
         }
     }
 

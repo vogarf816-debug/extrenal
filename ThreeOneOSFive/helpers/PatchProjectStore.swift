@@ -54,6 +54,7 @@ final class PatchProjectStore: ObservableObject {
     @Published private(set) var syncFileNames: [String] = []
     @Published private(set) var syncFinishedFileNames: Set<String> = []
     @Published private(set) var syncFailedFileNames: Set<String> = []
+    @Published private(set) var syncDownloadingFileNames: Set<String> = []
     @Published private(set) var syncCurrentFile = ""
     @Published var passwordRequest: PatchPasswordRequest?
     @Published var alert: PatchStoreAlert?
@@ -111,6 +112,7 @@ final class PatchProjectStore: ObservableObject {
         syncFileNames = []
         syncFinishedFileNames = []
         syncFailedFileNames = []
+        syncDownloadingFileNames = []
         syncCurrentFile = "PREPARING DOWNLOADS"
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
@@ -145,37 +147,115 @@ final class PatchProjectStore: ObservableObject {
                         )
                     }
                 }
-                let session = URLSession(configuration: .ephemeral)
+                let configuration = URLSessionConfiguration.ephemeral
+                configuration.httpMaximumConnectionsPerHost = 4
+                let session = URLSession(configuration: configuration)
                 defer { session.invalidateAndCancel() }
+                let downloadDirectory = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("vesper-patch-sync-\(UUID().uuidString)", isDirectory: true)
+                try FileManager.default.createDirectory(at: downloadDirectory, withIntermediateDirectories: true)
+                defer { try? FileManager.default.removeItem(at: downloadDirectory) }
+                var pending: [RemotePatch] = []
+                var pendingDigests = Set<String>()
                 for remote in manifest.patches {
+                    if await self?.existingPackageURL(matchingDigest: remote.sha256) != nil {
+                        continue
+                    }
+                    if pendingDigests.insert(remote.sha256.lowercased()).inserted {
+                        pending.append(remote)
+                    }
+                }
+
+                var downloadedByDigest: [String: URL] = [:]
+                var failedDigests = Set<String>()
+                if !pending.isEmpty {
+                    await self?.setSyncCurrentFile("DOWNLOADING PATCHES IN PARALLEL")
+                    var nextIndex = 0
+                    await withTaskGroup(of: (String, URL?, String?).self) { group in
+                        for _ in 0..<min(4, pending.count) {
+                            let remote = pending[nextIndex]
+                            nextIndex += 1
+                            await self?.setSyncDownloadActive(remote.name, active: true)
+                            group.addTask {
+                                do {
+                                    let fileURL = try await VesperDashRemoteSync.downloadPackageFile(
+                                        for: remote,
+                                        sessionToken: sessionToken,
+                                        using: session,
+                                        into: downloadDirectory
+                                    )
+                                    return (remote.sha256.lowercased(), fileURL, nil)
+                                } catch {
+                                    return (remote.sha256.lowercased(), nil, String(describing: error))
+                                }
+                            }
+                        }
+
+                        while let result = await group.next() {
+                            let digest = result.0
+                            let remote = pending.first { $0.sha256.caseInsensitiveCompare(digest) == .orderedSame }
+                            if let remote {
+                                await self?.setSyncDownloadActive(remote.name, active: false)
+                                if let fileURL = result.1 {
+                                    downloadedByDigest[digest] = fileURL
+                                } else {
+                                    failedDigests.insert(digest)
+                                    log("patch: remote .3105 download failed for \(remote.name): \(result.2 ?? "unknown error")")
+                                    await self?.recordSyncFailure(remote.name)
+                                    await self?.finishSyncFile(remote.name)
+                                }
+                            }
+
+                            if nextIndex < pending.count {
+                                let remote = pending[nextIndex]
+                                nextIndex += 1
+                                await self?.setSyncDownloadActive(remote.name, active: true)
+                                group.addTask {
+                                    do {
+                                        let fileURL = try await VesperDashRemoteSync.downloadPackageFile(
+                                            for: remote,
+                                            sessionToken: sessionToken,
+                                            using: session,
+                                            into: downloadDirectory
+                                        )
+                                        return (remote.sha256.lowercased(), fileURL, nil)
+                                    } catch {
+                                        return (remote.sha256.lowercased(), nil, String(describing: error))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                for remote in manifest.patches {
+                    let digest = remote.sha256.lowercased()
+                    if let localURL = await self?.existingPackageURL(matchingDigest: remote.sha256) {
+                        await self?.recordRemoteBundleID(
+                            remoteBundleID: remote.bundle_id,
+                            filename: localURL.lastPathComponent
+                        )
+                        await self?.finishSyncFile(remote.name)
+                        continue
+                    }
+                    guard !failedDigests.contains(digest),
+                          let packageFileURL = downloadedByDigest[digest] else {
+                        await self?.recordSyncFailure(remote.name)
+                        await self?.finishSyncFile(remote.name)
+                        continue
+                    }
+
                     await self?.beginSyncFile(remote.name)
                     do {
-                        if let localURL = await self?.existingPackageURL(matchingDigest: remote.sha256) {
-                            await self?.recordRemoteBundleID(
-                                remoteBundleID: remote.bundle_id,
-                                filename: localURL.lastPathComponent
-                            )
-                            await self?.finishSyncFile(remote.name)
-                            continue
-                        }
-                        guard let url = VesperDashRemoteSync.validDownloadURL(for: remote) else {
-                            throw PatchPackageError.remoteImportFailed
-                        }
-                        var request = URLRequest(url: url)
-                        request.timeoutInterval = 60
-                        request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
-                        let (data, response) = try await session.data(for: request)
-                        guard let http = response as? HTTPURLResponse,
-                              (200..<300).contains(http.statusCode),
-                              data.starts(with: Data("3105PATCH\0".utf8)),
+                        let data = try Data(contentsOf: packageFileURL, options: .mappedIfSafe)
+                        guard data.starts(with: Data("3105PATCH\0".utf8)),
                               VesperDashDigest.hex(data).caseInsensitiveCompare(remote.sha256) == .orderedSame else {
                             throw PatchPackageError.remoteImportFailed
                         }
                         let summary = try PatchPackageCodec.inspect(data)
                         var decoded: DecodedPatchPackage?
                         let serverPasswords = (manifest.package_passwords ?? []).filter { !$0.isEmpty }
-                        let candidatePasswords = serverPasswords
-                        for password in candidatePasswords {
+                        for password in serverPasswords {
                             if let candidate = try? PatchPackageCodec.decode(data, password: password) {
                                 decoded = candidate
                                 break
@@ -200,7 +280,8 @@ final class PatchProjectStore: ObservableObject {
                             filename: localFilename
                         )
                     } catch {
-                        log("patch: remote .3105 download failed for \(remote.name): \(error)")
+                        failedDigests.insert(digest)
+                        log("patch: remote .3105 install failed for \(remote.name): \(error)")
                         await self?.recordSyncFailure(remote.name)
                     }
                     await self?.finishSyncFile(remote.name)
@@ -251,11 +332,21 @@ final class PatchProjectStore: ObservableObject {
         syncFileNames = names
         syncFinishedFileNames = []
         syncFailedFileNames = []
+        syncDownloadingFileNames = []
     }
 
     private func beginSyncFile(_ name: String) {
         syncCurrentFile = name
         syncFailedFileNames.remove(name)
+        syncDownloadingFileNames.remove(name)
+    }
+
+    private func setSyncDownloadActive(_ name: String, active: Bool) {
+        if active {
+            syncDownloadingFileNames.insert(name)
+        } else {
+            syncDownloadingFileNames.remove(name)
+        }
     }
 
     private func recordSyncFailure(_ name: String) {
@@ -264,6 +355,11 @@ final class PatchProjectStore: ObservableObject {
 
     private func finishSyncFile(_ name: String) {
         syncFinishedFileNames.insert(name)
+        syncDownloadingFileNames.remove(name)
+    }
+
+    private func setSyncCurrentFile(_ name: String) {
+        syncCurrentFile = name
     }
 
     private func allRemotePackagesReady(_ patches: [RemotePatch]) -> Bool {
