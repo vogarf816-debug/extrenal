@@ -1,0 +1,26 @@
+[Unit]
+Description=Vesper Reseller Credit and Key Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vesperdash
+Group=www-data
+WorkingDirectory=/opt/vesperdash/app
+EnvironmentFile=/etc/vesperdash-reseller-bot.env
+Environment=RESELLER_BOT_DB=/var/lib/vesperdash-reseller-bot/reseller.sqlite3
+ExecStart=/opt/vesperdash/venv/bin/python /opt/vesperdash/app/vesper_reseller_bot.py
+Restart=on-failure
+RestartSec=5
+UMask=0077
+StateDirectory=vesperdash-reseller-bot
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/vesperdash-reseller-bot
+
+[Install]
+WantedBy=multi-user.target
