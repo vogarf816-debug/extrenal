@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from telegram_stars_bot import PLANS, StarsKeyBot
+from telegram_stars_bot import BotError, PLANS, StarsKeyBot
 
 
 class TelegramStarsBotTests(unittest.TestCase):
@@ -55,21 +55,16 @@ class TelegramStarsBotTests(unittest.TestCase):
         self.assertEqual(invoice["provider_token"], "")
         self.assertEqual(invoice["prices"], [{"label": "1 DAY KEY", "amount": 150}])
 
-    def test_customer_and_admin_menus_are_english_without_emoji(self):
+    def test_customer_and_admin_menus_are_english_and_include_emojis(self):
         menus = [self.bot.user_menu(12001), self.bot.user_menu(9001), self.bot.admin_menu()]
         labels = [button["text"] for menu in menus for row in menu["inline_keyboard"] for button in row]
         text = " ".join(labels)
+        self.assertIn("⭐", text)
+        self.assertIn("⏱️", text)
+        self.assertIn("📦", text)
         for character in text:
             codepoint = ord(character)
             self.assertFalse(0x0600 <= codepoint <= 0x08FF, f"Arabic character found: {character}")
-            self.assertFalse(
-                0x1F000 <= codepoint <= 0x1FAFF
-                or 0x2300 <= codepoint <= 0x23FF
-                or 0x2600 <= codepoint <= 0x27FF
-                or 0x2B00 <= codepoint <= 0x2BFF
-                or codepoint == 0xFE0F,
-                f"Emoji found: {character}",
-            )
 
     def test_stock_is_encrypted_and_duplicate_keys_are_not_added(self):
         self.assertEqual(self.add_stock(values=("PRIVATE-KEY-123", "PRIVATE-KEY-123", "SECOND-KEY")), (2, 1))
@@ -105,12 +100,58 @@ class TelegramStarsBotTests(unittest.TestCase):
             self.bot.handle_successful_payment(message)
         delivered = [call.args[1]["text"] for call in api.call_args_list if call.args[0] == "sendMessage"]
         self.assertTrue(any("PRIVATE-KEY-123" in text for text in delivered))
+        admin_messages = [call.args[1] for call in api.call_args_list if call.args[0] == "sendMessage" and call.args[1]["chat_id"] == 9001]
+        self.assertEqual(len(admin_messages), 1)
+        self.assertIn("New VESPER sale", admin_messages[0]["text"])
+        self.assertIn("150 Stars", admin_messages[0]["text"])
+        self.assertIn("@buyer", admin_messages[0]["text"])
+        self.assertNotIn("PRIVATE-KEY-123", admin_messages[0]["text"])
         with self.bot.db() as conn:
             self.assertEqual(conn.execute("SELECT status FROM keys").fetchone()["status"], "sold")
-            self.assertEqual(conn.execute("SELECT status FROM orders").fetchone()["status"], "delivered")
+            order = conn.execute("SELECT status,admin_notified_at FROM orders").fetchone()
+            self.assertEqual(order["status"], "delivered")
+            self.assertIsNotNone(order["admin_notified_at"])
         with patch.object(self.bot, "api", side_effect=self.fake_api) as api:
             self.bot.handle_successful_payment(message)
         self.assertFalse(any(call.args[0] == "sendMessage" for call in api.call_args_list))
+
+    def test_failed_sale_notification_is_retried_without_reselling_the_key(self):
+        self.add_stock(values=("PRIVATE-KEY-123",))
+        payload = self.create_invoice()
+        self.assertEqual(self.reserve(payload), (True, ""))
+        message = {
+            "from": self.user,
+            "successful_payment": {
+                "invoice_payload": payload, "currency": "XTR", "total_amount": 150,
+                "telegram_payment_charge_id": "charge-retry",
+            },
+        }
+        fail_admin_once = True
+        delivered_admin_messages = []
+
+        def flaky_api(method, payload=None):
+            nonlocal fail_admin_once
+            if method == "sendMessage" and payload["chat_id"] == 9001:
+                if fail_admin_once:
+                    fail_admin_once = False
+                    raise BotError("simulated admin notification failure")
+                delivered_admin_messages.append(payload["text"])
+                return {"message_id": 2}
+            return self.fake_api(method, payload)
+
+        with patch.object(self.bot, "api", side_effect=flaky_api):
+            self.bot.handle_successful_payment(message)
+        with self.bot.db() as conn:
+            order = conn.execute("SELECT status,admin_notified_at FROM orders").fetchone()
+            self.assertEqual(order["status"], "delivered")
+            self.assertIsNone(order["admin_notified_at"])
+
+        with patch.object(self.bot, "api", side_effect=flaky_api):
+            self.bot.retry_pending_admin_notifications()
+        self.assertEqual(len(delivered_admin_messages), 1)
+        self.assertIn("New VESPER sale", delivered_admin_messages[0])
+        with self.bot.db() as conn:
+            self.assertIsNotNone(conn.execute("SELECT admin_notified_at FROM orders").fetchone()[0])
 
     def test_precheckout_rejects_wrong_user_or_wrong_amount_without_reserving(self):
         self.add_stock()
