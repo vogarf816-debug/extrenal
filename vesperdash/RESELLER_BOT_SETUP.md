@@ -8,7 +8,9 @@ This is a **new, independent Telegram bot**. It does not reuse the existing Star
 - When the administrator adds credit to a new reseller ID, the bot generates a login username and one-time password. The bot shows the credentials only in the administrator's private chat. Share them privately with the intended reseller.
 - A login works only from the Telegram account whose ID the administrator approved. Passwords are stored as salted PBKDF2 hashes, not plaintext. Five failed attempts trigger a 15-minute lock; successful sessions expire after 30 days. Resetting credentials revokes the old session.
 - The home screen never lists reseller prices. After login, the reseller must tap **Open Reseller Portal** to view plans, prices, and balance. Non-approved users see only the invite-only message.
+- In the signed-in portal, credit packages are hidden behind a separate **Buy credit with Stars** button. Their prices appear only after that button is tapped, not on the `/start` or portal overview screen.
 - The administrator adds keys to this bot's separate stock by plan. Keys are Fernet-encrypted in this bot's database. On purchase, the bot atomically deducts credit, marks one key sold, delivers it privately, and notifies the administrator without including the key.
+- Stars payments use Telegram's `XTR` invoices. Credit is added only after Telegram confirms successful payment; duplicate payment updates cannot add credit twice, and invalid or mismatched payments are automatically refunded where Telegram permits.
 - Failed deliveries remain pending and are retried after the bot restarts and periodically while it runs.
 
 ## Reseller plans
@@ -17,7 +19,15 @@ This is a **new, independent Telegram bot**. It does not reuse the existing Star
 - 7 day key: 2.50 credits
 - 31 day key: 5.00 credits
 
-The amounts are internal credit units. The administrator grants them manually; the bot has no automatic credit top-up or external payment integration.
+The administrator can grant internal credits manually as well as through Stars packages.
+
+## Credit packages (Telegram Stars)
+
+- 30 credits — 1,500 Stars
+- 60 credits — 3,000 Stars
+- 100 credits — 5,000 Stars
+
+These prices are shown only after a signed-in reseller opens the portal and taps **Buy credit with Stars**.
 
 ## Suggested public bot description
 

@@ -1,9 +1,11 @@
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from vesper_reseller_bot import (
+    CREDIT_PACKAGES,
     RESELLER_PLANS,
     BotError,
     VesperResellerBot,
@@ -116,8 +118,153 @@ class VesperResellerBotTests(unittest.TestCase):
                 "message": {"chat": {"id": 12345}},
                 "data": "reseller_home",
             })
-        self.assertIn("0.99 credits", self.sent[-1]["text"])
-        self.assertIn("31 days — 5.00 credits", self.sent[-1]["text"])
+        self.assertNotIn("0.99 credits", self.sent[-1]["text"])
+        self.assertNotIn("31 days — 5.00 credits", self.sent[-1]["text"])
+        self.assertNotIn("1,500 Stars", self.sent[-1]["text"])
+        portal_buttons = self.sent[-1]["reply_markup"]["inline_keyboard"]
+        self.assertIn("reseller_keyshop", [row[0]["callback_data"] for row in portal_buttons])
+        self.assertIn("reseller_topup", [row[0]["callback_data"] for row in portal_buttons])
+        with patch.object(self.bot, "api", side_effect=self.fake_api):
+            self.bot.handle_callback({
+                "id": "keyshop-button-1",
+                "from": {"id": 12345},
+                "message": {"chat": {"id": 12345}},
+                "data": "reseller_keyshop",
+            })
+        self.assertIn("0.99 credits", str(self.sent[-1]["reply_markup"]))
+        self.assertIn("31 days — 5.00 credits", str(self.sent[-1]["reply_markup"]))
+
+    def test_stars_package_prices_are_shown_only_after_topup_tab_is_opened(self):
+        self.assertEqual(CREDIT_PACKAGES, {
+            "c30": {"credits": 3000, "stars": 1500},
+            "c60": {"credits": 6000, "stars": 3000},
+            "c100": {"credits": 10000, "stars": 5000},
+        })
+        credentials, _ = self.create_reseller(user_id=12345)
+        self.assertTrue(self.login(12345, credentials))
+        with patch.object(self.bot, "api", side_effect=self.fake_api):
+            self.bot.reseller_intro(12345)
+        self.assertNotIn("1,500 Stars", self.sent[-1]["text"])
+        self.assertNotIn("30.00 credits — 1,500", str(self.sent[-1]["reply_markup"]))
+        with patch.object(self.bot, "api", side_effect=self.fake_api):
+            self.bot.handle_callback({
+                "id": "topup-tab-1",
+                "from": {"id": 12345},
+                "message": {"chat": {"id": 12345}},
+                "data": "reseller_topup",
+            })
+        markup = str(self.sent[-1]["reply_markup"])
+        self.assertIn("1,500 Stars", markup)
+        self.assertIn("3,000 Stars", markup)
+        self.assertIn("5,000 Stars", markup)
+
+    def test_stars_topup_invoice_credits_once_and_notifies_admin(self):
+        credentials, initial_balance = self.create_reseller(user_id=12345)
+        self.assertTrue(self.login(12345, credentials))
+        api_calls = []
+
+        def record_api(method, payload=None):
+            api_calls.append((method, payload or {}))
+            return self.fake_api(method, payload)
+
+        with patch.object(self.bot, "api", side_effect=record_api):
+            topup_id = self.bot.create_topup_invoice(12345, "c30")
+            with self.bot.db() as conn:
+                topup = conn.execute("SELECT * FROM credit_topups WHERE id=?", (topup_id,)).fetchone()
+            invoice = next(payload for method, payload in api_calls if method == "sendInvoice")
+            self.assertEqual((invoice["currency"], invoice["provider_token"]), ("XTR", ""))
+            self.assertEqual(invoice["prices"], [{"label": "30.00 credits", "amount": 1500}])
+            self.bot.process_update({"pre_checkout_query": {
+                "id": "precheckout-1", "from": {"id": 12345}, "invoice_payload": topup["payload"],
+                "currency": "XTR", "total_amount": 1500,
+            }})
+            answer = next(payload for method, payload in api_calls if method == "answerPreCheckoutQuery")
+            self.assertTrue(answer["ok"])
+            update = {"message": {
+                "chat": {"id": 12345, "type": "private"}, "from": {"id": 12345, "username": "reseller"},
+                "successful_payment": {
+                    "invoice_payload": topup["payload"], "currency": "XTR", "total_amount": 1500,
+                    "telegram_payment_charge_id": "charge-30-stars",
+                },
+            }}
+            self.bot.process_update(update)
+            self.bot.process_update(update)
+
+        with self.bot.db() as conn:
+            balance = conn.execute("SELECT balance_credits FROM resellers WHERE user_id=12345").fetchone()[0]
+            ledger = conn.execute("SELECT amount_credits,kind FROM reseller_ledger WHERE kind='stars_topup'").fetchall()
+            topup = conn.execute("SELECT status,charge_id,admin_notified_at FROM credit_topups WHERE id=?", (topup_id,)).fetchone()
+        self.assertEqual(balance, initial_balance + 3000)
+        self.assertEqual([(row[0], row[1]) for row in ledger], [(3000, "stars_topup")])
+        self.assertEqual(topup["status"], "paid")
+        self.assertEqual(topup["charge_id"], "charge-30-stars")
+        self.assertIsNotNone(topup["admin_notified_at"])
+        self.assertEqual(sum("Reseller credit purchased" in row["text"] for row in self.sent), 1)
+
+    def test_precheckout_rejects_wrong_amount_and_unrecognized_payment_is_refunded(self):
+        credentials, _ = self.create_reseller(user_id=12345)
+        self.assertTrue(self.login(12345, credentials))
+        api_calls = []
+
+        def record_api(method, payload=None):
+            api_calls.append((method, payload or {}))
+            return self.fake_api(method, payload)
+
+        with patch.object(self.bot, "api", side_effect=record_api):
+            topup_id = self.bot.create_topup_invoice(12345, "c60")
+            with self.bot.db() as conn:
+                topup = conn.execute("SELECT payload FROM credit_topups WHERE id=?", (topup_id,)).fetchone()
+            self.bot.process_update({"pre_checkout_query": {
+                "id": "precheckout-wrong", "from": {"id": 12345}, "invoice_payload": topup["payload"],
+                "currency": "XTR", "total_amount": 1500,
+            }})
+            answer = next(payload for method, payload in api_calls if method == "answerPreCheckoutQuery")
+            self.assertFalse(answer["ok"])
+            self.bot.process_update({"message": {
+                "chat": {"id": 12345, "type": "private"}, "from": {"id": 12345},
+                "successful_payment": {
+                    "invoice_payload": topup["payload"], "currency": "XTR", "total_amount": 1500,
+                    "telegram_payment_charge_id": "charge-invalid-amount",
+                },
+            }})
+        refund = next(payload for method, payload in api_calls if method == "refundStarPayment")
+        self.assertEqual(refund, {"user_id": 12345, "telegram_payment_charge_id": "charge-invalid-amount"})
+        with self.bot.db() as conn:
+            balance = conn.execute("SELECT balance_credits FROM resellers WHERE user_id=12345").fetchone()[0]
+            status = conn.execute("SELECT status FROM credit_topups WHERE id=?", (topup_id,)).fetchone()[0]
+        self.assertEqual(balance, 1000)
+        self.assertEqual(status, "refunded")
+
+    def test_old_credit_ledger_migrates_without_losing_rows(self):
+        db_path = Path(self.temp.name) / "legacy.sqlite3"
+        conn = sqlite3.connect(db_path)
+        conn.execute("CREATE TABLE resellers (user_id INTEGER PRIMARY KEY)")
+        conn.execute("INSERT INTO resellers(user_id) VALUES(12345)")
+        conn.execute("""CREATE TABLE reseller_ledger (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            amount_credits INTEGER NOT NULL,
+            kind TEXT NOT NULL CHECK(kind IN ('admin_credit','key_purchase')),
+            source_id TEXT NOT NULL UNIQUE,
+            admin_id INTEGER,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES resellers(user_id)
+        )""")
+        conn.execute("INSERT INTO reseller_ledger VALUES(1,12345,1000,'admin_credit','legacy-credit',9001,1)")
+        conn.execute("CREATE INDEX idx_reseller_ledger_user ON reseller_ledger(user_id,created_at DESC)")
+        conn.commit()
+        conn.close()
+
+        bot = VesperResellerBot("test-token", 9001, str(db_path))
+        with bot.db() as conn:
+            old_row = conn.execute("SELECT amount_credits,kind FROM reseller_ledger WHERE source_id='legacy-credit'").fetchone()
+            conn.execute(
+                "INSERT INTO reseller_ledger(user_id,amount_credits,kind,source_id,created_at) "
+                "VALUES(12345,3000,'stars_topup','stars-charge-1',2)"
+            )
+            new_row = conn.execute("SELECT amount_credits,kind FROM reseller_ledger WHERE source_id='stars-charge-1'").fetchone()
+        self.assertEqual((old_row[0], old_row[1]), (1000, "admin_credit"))
+        self.assertEqual((new_row[0], new_row[1]), (3000, "stars_topup"))
 
     def test_purchase_deducts_credit_marks_stock_sold_and_delivers_key(self):
         credentials, _ = self.create_reseller(credit=1000)

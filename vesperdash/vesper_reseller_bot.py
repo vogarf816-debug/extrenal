@@ -24,6 +24,12 @@ RESELLER_PLANS = {
     "d7": {"label": "7 DAY KEY", "display": "7 days", "credits": 250},
     "d31": {"label": "31 DAY KEY", "display": "31 days", "credits": 500},
 }
+CREDIT_PACKAGES = {
+    "c30": {"credits": 3000, "stars": 1500},
+    "c60": {"credits": 6000, "stars": 3000},
+    "c100": {"credits": 10000, "stars": 5000},
+}
+TOPUP_INVOICE_TTL = 30 * 60
 SESSION_TTL = 30 * 24 * 60 * 60
 LOGIN_LOCK_SECONDS = 15 * 60
 MAX_LOGIN_ATTEMPTS = 5
@@ -154,10 +160,25 @@ class VesperResellerBot:
                     id INTEGER PRIMARY KEY,
                     user_id INTEGER NOT NULL,
                     amount_credits INTEGER NOT NULL,
-                    kind TEXT NOT NULL CHECK(kind IN ('admin_credit','key_purchase')),
+                    kind TEXT NOT NULL CHECK(kind IN ('admin_credit','key_purchase','stars_topup')),
                     source_id TEXT NOT NULL UNIQUE,
                     admin_id INTEGER,
                     created_at INTEGER NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES resellers(user_id)
+                );
+                CREATE TABLE IF NOT EXISTS credit_topups (
+                    id TEXT PRIMARY KEY,
+                    payload TEXT NOT NULL UNIQUE,
+                    user_id INTEGER NOT NULL,
+                    package TEXT NOT NULL,
+                    credits INTEGER NOT NULL,
+                    stars INTEGER NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'invoice_created'
+                        CHECK(status IN ('invoice_created','invoice_failed','paid','refund_pending','refunded')),
+                    created_at INTEGER NOT NULL,
+                    paid_at INTEGER,
+                    charge_id TEXT UNIQUE,
+                    admin_notified_at INTEGER,
                     FOREIGN KEY(user_id) REFERENCES resellers(user_id)
                 );
                 CREATE TABLE IF NOT EXISTS reseller_sales (
@@ -184,6 +205,29 @@ class VesperResellerBot:
                 CREATE INDEX IF NOT EXISTS idx_reseller_sales_pending ON reseller_sales(status,created_at);
                 CREATE INDEX IF NOT EXISTS idx_reseller_ledger_user ON reseller_ledger(user_id,created_at DESC);
             """)
+            ledger_sql = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='reseller_ledger'"
+            ).fetchone()[0]
+            if "'stars_topup'" not in ledger_sql:
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute("ALTER TABLE reseller_ledger RENAME TO reseller_ledger_old")
+                conn.execute("DROP INDEX IF EXISTS idx_reseller_ledger_user")
+                conn.execute("""CREATE TABLE reseller_ledger (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    amount_credits INTEGER NOT NULL,
+                    kind TEXT NOT NULL CHECK(kind IN ('admin_credit','key_purchase','stars_topup')),
+                    source_id TEXT NOT NULL UNIQUE,
+                    admin_id INTEGER,
+                    created_at INTEGER NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES resellers(user_id)
+                )""")
+                conn.execute("""INSERT INTO reseller_ledger
+                    (id,user_id,amount_credits,kind,source_id,admin_id,created_at)
+                    SELECT id,user_id,amount_credits,kind,source_id,admin_id,created_at
+                    FROM reseller_ledger_old""")
+                conn.execute("DROP TABLE reseller_ledger_old")
+                conn.execute("CREATE INDEX idx_reseller_ledger_user ON reseller_ledger(user_id,created_at DESC)")
 
     def api(self, method: str, payload: dict | None = None):
         data = json.dumps(payload or {}, ensure_ascii=False).encode("utf-8")
@@ -225,15 +269,29 @@ class VesperResellerBot:
 
     def reseller_menu(self):
         rows = [
-            [{"text": f"🔑 {plan['display']} — {format_credits(plan['credits'])}", "callback_data": f"reseller_buy:{code}"}]
-            for code, plan in RESELLER_PLANS.items()
-        ]
-        rows.extend([
+            [{"text": "🔑 Buy a key with credits", "callback_data": "reseller_keyshop"}],
             [{"text": "💳 My credit balance", "callback_data": "reseller_balance"}],
+            [{"text": "⭐ Buy credit with Stars", "callback_data": "reseller_topup"}],
             [{"text": "📜 Purchase history", "callback_data": "reseller_history"}],
             [{"text": "↩️ Reseller home", "callback_data": "reseller_landing"}],
             [{"text": "🚪 Log out", "callback_data": "reseller_logout"}],
-        ])
+        ]
+        return self.inline(rows)
+
+    def reseller_key_menu(self):
+        rows = [
+            [{"text": f"🔑 {plan['display']} — {format_credits(plan['credits'])}", "callback_data": f"reseller_buy:{code}"}]
+            for code, plan in RESELLER_PLANS.items()
+        ]
+        rows.append([{"text": "↩️ Back to reseller portal", "callback_data": "reseller_home"}])
+        return self.inline(rows)
+
+    def reseller_topup_menu(self):
+        rows = [
+            [{"text": f"⭐ {format_credits(package['credits'])} — {package['stars']:,} Stars", "callback_data": f"reseller_topup:{code}"}]
+            for code, package in CREDIT_PACKAGES.items()
+        ]
+        rows.append([{"text": "↩️ Back to reseller portal", "callback_data": "reseller_home"}])
         return self.inline(rows)
 
     def reseller_landing_menu(self):
@@ -283,11 +341,10 @@ class VesperResellerBot:
         balance = self.reseller_balance(user_id) or 0
         text = (
             "🧑‍💼 <b>VESPER RESELLER PROGRAM</b>\n"
-            "Buy license keys using credits added by the administrator to your approved Telegram account. "
+            "Buy credits with Telegram Stars or use credits added by the administrator. "
             "The bot delivers each key privately after purchase. Your reseller login is linked to your approved Telegram ID.\n\n"
             f"💳 Credit balance: <b>{format_credits(balance)}</b>\n\n"
-            "📋 <b>Reseller plans</b>\n"
-            "1 day — 0.99 credits\n7 days — 2.50 credits\n31 days — 5.00 credits"
+            "Choose <b>Buy a key with credits</b> to view key plans, or <b>Buy credit with Stars</b> to see top-up packages."
         )
         return self.send(user_id, text, self.reseller_menu())
 
@@ -374,10 +431,14 @@ class VesperResellerBot:
                 "SELECT s.id,s.user_id,s.plan,s.credits,s.status,s.created_at,r.telegram_username "
                 "FROM reseller_sales s JOIN resellers r ON r.user_id=s.user_id ORDER BY s.created_at DESC LIMIT 20"
             ).fetchall()
+            topups = conn.execute(
+                "SELECT count(*),coalesce(sum(stars),0),coalesce(sum(credits),0) FROM credit_topups WHERE status='paid'"
+            ).fetchone()
         lines = [
             "📊 <b>Reseller sales</b>",
             f"Completed or pending keys: <b>{totals[0]}</b>",
             f"Credits used: <b>{format_credits(totals[1])}</b>",
+            f"Stars top-ups: <b>{topups[0]}</b> | Stars collected: <b>{topups[1]:,}</b> | Credits added: <b>{format_credits(topups[2])}</b>",
         ]
         for row in rows:
             plan = RESELLER_PLANS[row["plan"]]
@@ -435,6 +496,177 @@ class VesperResellerBot:
             )
             balance = conn.execute("SELECT balance_credits FROM resellers WHERE user_id=?", (int(user_id),)).fetchone()[0]
         return balance, credentials, False
+
+    def create_topup_invoice(self, user_id: int, package_code: str):
+        package = CREDIT_PACKAGES.get(package_code)
+        if not package:
+            raise ValueError("Unknown credit package.")
+        if not self.is_authenticated(user_id):
+            raise PermissionError("Sign in to the reseller portal before buying credits.")
+        topup_id = uuid.uuid4().hex
+        payload = f"vesper-topup:{uuid.uuid4().hex}"
+        now = int(time.time())
+        with self.db() as conn:
+            conn.execute(
+                "INSERT INTO credit_topups(id,payload,user_id,package,credits,stars,status,created_at) "
+                "VALUES(?,?,?,?,?,?,'invoice_created',?)",
+                (topup_id, payload, int(user_id), package_code, package["credits"], package["stars"], now),
+            )
+        try:
+            self.api("sendInvoice", {
+                "chat_id": int(user_id),
+                "title": f"{format_credits(package['credits'])} reseller credit",
+                "description": f"Add {format_credits(package['credits'])} to your VESPER reseller balance.",
+                "payload": payload,
+                "provider_token": "",
+                "currency": "XTR",
+                "prices": [{"label": f"{format_credits(package['credits'])}", "amount": package["stars"]}],
+                "start_parameter": "reseller-credit",
+            })
+        except BotError:
+            with self.db() as conn:
+                conn.execute("UPDATE credit_topups SET status='invoice_failed' WHERE id=? AND status='invoice_created'", (topup_id,))
+            raise
+        return topup_id
+
+    def answer_pre_checkout(self, query):
+        query_id = str(query.get("id", ""))
+        user_id = int(query.get("from", {}).get("id", 0))
+        payload = str(query.get("invoice_payload", ""))
+        error = "This invoice is invalid or expired. Please sign in and create a new one."
+        valid = False
+        with self.db() as conn:
+            topup = conn.execute("SELECT * FROM credit_topups WHERE payload=?", (payload,)).fetchone()
+        if (topup and topup["status"] == "invoice_created"
+                and topup["user_id"] == user_id
+                and query.get("currency") == "XTR"
+                and int(query.get("total_amount", -1)) == topup["stars"]
+                and int(time.time()) - topup["created_at"] <= TOPUP_INVOICE_TTL
+                and self.is_authenticated(user_id)):
+            valid = True
+        try:
+            answer = {"pre_checkout_query_id": query_id, "ok": valid}
+            if not valid:
+                answer["error_message"] = error
+            self.api("answerPreCheckoutQuery", answer)
+        except BotError:
+            logging.warning("Could not answer Telegram reseller pre-checkout query")
+
+    def _notify_topup(self, topup_id: str):
+        with self.db() as conn:
+            row = conn.execute(
+                "SELECT id,user_id,credits,stars,admin_notified_at FROM credit_topups WHERE id=? AND status='paid'",
+                (topup_id,),
+            ).fetchone()
+        if not row or row["admin_notified_at"] is not None:
+            return
+        text = (
+            "⭐ <b>Reseller credit purchased</b>\n\n"
+            f"👤 Reseller ID: <code>{row['user_id']}</code>\n"
+            f"💳 Credit added: <b>{format_credits(row['credits'])}</b>\n"
+            f"⭐ Paid: <b>{row['stars']:,} Stars</b>\n"
+            f"🧾 Top-up: <code>{html_escape(topup_id)}</code>"
+        )
+        try:
+            self.send(self.admin_id, text)
+        except BotError:
+            logging.warning("Could not notify administrator about reseller Stars top-up")
+            return
+        with self.db() as conn:
+            conn.execute(
+                "UPDATE credit_topups SET admin_notified_at=? WHERE id=? AND admin_notified_at IS NULL",
+                (int(time.time()), topup_id),
+            )
+
+    def retry_pending_topup_notifications(self):
+        with self.db() as conn:
+            rows = conn.execute(
+                "SELECT id FROM credit_topups WHERE status='paid' AND admin_notified_at IS NULL ORDER BY created_at LIMIT 100"
+            ).fetchall()
+        for row in rows:
+            self._notify_topup(row["id"])
+
+    def _refund_unmatched_payment(self, user_id: int, charge_id: str, payload: str, reason: str):
+        with self.db() as conn:
+            conn.execute("UPDATE credit_topups SET status='refund_pending' WHERE payload=? AND status!='paid'", (payload,))
+        try:
+            self.api("refundStarPayment", {"user_id": int(user_id), "telegram_payment_charge_id": charge_id})
+        except BotError:
+            logging.error("Automatic refund failed for an unmatched reseller Stars payment")
+            self.notify_admin("⚠️ A reseller Stars payment could not be matched to a valid top-up and its automatic refund failed. Review Telegram payments.")
+            return False
+        with self.db() as conn:
+            conn.execute("UPDATE credit_topups SET status='refunded' WHERE payload=? AND status='refund_pending'", (payload,))
+        try:
+            self.send(user_id, f"⚠️ We could not apply this payment ({html_escape(reason)}), so Telegram Stars were refunded.")
+        except BotError:
+            pass
+        return True
+
+    def handle_successful_payment(self, message):
+        payer = message.get("from", {})
+        user_id = int(payer.get("id", 0))
+        payment = message.get("successful_payment", {})
+        payload = str(payment.get("invoice_payload", ""))
+        charge_id = str(payment.get("telegram_payment_charge_id", ""))
+        reason = "unknown invoice"
+        topup_id = None
+        balance = None
+        duplicate = False
+        credited = False
+        with self.db() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            topup = conn.execute("SELECT * FROM credit_topups WHERE payload=?", (payload,)).fetchone()
+            prior_charge = conn.execute("SELECT id FROM credit_topups WHERE charge_id=?", (charge_id,)).fetchone() if charge_id else None
+            if topup and topup["status"] == "paid" and topup["charge_id"] == charge_id:
+                duplicate = True
+                topup_id = topup["id"]
+                row = conn.execute("SELECT balance_credits FROM resellers WHERE user_id=?", (user_id,)).fetchone()
+                balance = row[0] if row else 0
+            elif (not charge_id or not topup or topup["status"] != "invoice_created"
+                  or (prior_charge and prior_charge["id"] != topup["id"])):
+                reason = "unknown, already used, or invalid invoice"
+            elif topup["user_id"] != user_id:
+                reason = "invoice belongs to another Telegram account"
+            elif payment.get("currency") != "XTR" or int(payment.get("total_amount", -1)) != topup["stars"]:
+                reason = "paid amount or currency does not match the invoice"
+            else:
+                active = conn.execute("SELECT active FROM resellers WHERE user_id=?", (user_id,)).fetchone()
+                if not active or not active["active"]:
+                    reason = "reseller account is no longer active"
+                else:
+                    now = int(time.time())
+                    conn.execute(
+                        "UPDATE resellers SET balance_credits=balance_credits+?,telegram_username=?,updated_at=? WHERE user_id=? AND active=1",
+                        (topup["credits"], (payer.get("username") or "")[:64], now, user_id),
+                    )
+                    conn.execute(
+                        "INSERT INTO reseller_ledger(user_id,amount_credits,kind,source_id,created_at) VALUES(?,?,'stars_topup',?,?)",
+                        (user_id, topup["credits"], f"stars-topup:{charge_id}", now),
+                    )
+                    conn.execute(
+                        "UPDATE credit_topups SET status='paid',paid_at=?,charge_id=? WHERE id=? AND status='invoice_created'",
+                        (now, charge_id, topup["id"]),
+                    )
+                    balance = conn.execute("SELECT balance_credits FROM resellers WHERE user_id=?", (user_id,)).fetchone()[0]
+                    topup_id = topup["id"]
+                    credited = True
+        if duplicate:
+            return
+        if not credited:
+            self._refund_unmatched_payment(user_id, charge_id, payload, reason)
+            return
+        package = CREDIT_PACKAGES[topup["package"]]
+        try:
+            self.send(
+                user_id,
+                f"✅ <b>Credit top-up successful</b>\nAdded: <b>{format_credits(package['credits'])}</b>\n"
+                f"Paid: <b>{package['stars']:,} Stars</b>\nNew balance: <b>{format_credits(balance)}</b>",
+                self.reseller_menu(),
+            )
+        except BotError:
+            logging.warning("Could not send reseller Stars top-up confirmation")
+        self._notify_topup(topup_id)
 
     def reset_reseller_login(self, user_id: int):
         now = int(time.time())
@@ -734,9 +966,28 @@ class VesperResellerBot:
             if not self.is_authenticated(user_id):
                 return self.send(chat_id, "🔐 Please sign in again with /login USERNAME PASSWORD.")
             return self.reseller_history(user_id)
+        if data == "reseller_topup":
+            if not self.is_authenticated(user_id):
+                return self.send(chat_id, "🔐 Please sign in again with /login USERNAME PASSWORD.")
+            return self.send(chat_id, "⭐ <b>Buy reseller credit with Telegram Stars</b>\nChoose a package:", self.reseller_topup_menu())
+        if data.startswith("reseller_topup:"):
+            if not self.is_authenticated(user_id):
+                return self.send(chat_id, "🔐 Please sign in again with /login USERNAME PASSWORD.")
+            package_code = data.split(":", 1)[1]
+            try:
+                self.create_topup_invoice(user_id, package_code)
+            except (ValueError, PermissionError) as exc:
+                return self.send(chat_id, html_escape(exc), self.reseller_menu())
+            except BotError:
+                return self.send(chat_id, "⚠️ Telegram could not create the Stars invoice. No credit was added; please try again.", self.reseller_menu())
+            return
         if data == "reseller_logout":
             self.logout(user_id)
             return self.send(chat_id, "🚪 You have been logged out. Reseller prices are hidden until you sign in again.")
+        if data == "reseller_keyshop":
+            if not self.is_authenticated(user_id):
+                return self.send(chat_id, "🔐 Please sign in again with /login USERNAME PASSWORD.")
+            return self.send(chat_id, "🔑 <b>Buy a key with reseller credits</b>\nChoose a key plan:", self.reseller_key_menu())
         if data.startswith("reseller_buy:"):
             if not self.is_authenticated(user_id):
                 return self.send(chat_id, "🔐 Please sign in again with /login USERNAME PASSWORD.")
@@ -833,6 +1084,8 @@ class VesperResellerBot:
             return self.send(chat_id, result, self.admin_reseller_menu())
 
     def handle_message(self, message):
+        if "successful_payment" in message:
+            return self.handle_successful_payment(message)
         chat = message.get("chat", {})
         user = message.get("from", {})
         chat_id = int(chat.get("id", 0))
@@ -882,6 +1135,8 @@ class VesperResellerBot:
     def process_update(self, update):
         if "callback_query" in update:
             return self.handle_callback(update["callback_query"])
+        if "pre_checkout_query" in update:
+            return self.answer_pre_checkout(update["pre_checkout_query"])
         if "message" in update:
             return self.handle_message(update["message"])
 
@@ -904,15 +1159,17 @@ class VesperResellerBot:
                 offset = int(row[0])
         logging.info("VESPER reseller bot polling started")
         self.retry_pending_notifications()
+        self.retry_pending_topup_notifications()
         self.retry_pending_deliveries()
         last_retry = time.monotonic()
         while True:
             try:
                 if time.monotonic() - last_retry >= 60:
                     self.retry_pending_notifications()
+                    self.retry_pending_topup_notifications()
                     self.retry_pending_deliveries()
                     last_retry = time.monotonic()
-                updates = self.api("getUpdates", {"offset": offset, "timeout": 30, "allowed_updates": ["message", "callback_query"]}) or []
+                updates = self.api("getUpdates", {"offset": offset, "timeout": 30, "allowed_updates": ["message", "callback_query", "pre_checkout_query"]}) or []
                 for update in updates:
                     try:
                         self.process_update(update)
