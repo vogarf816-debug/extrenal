@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -81,6 +82,35 @@ class TelegramStarsBotTests(unittest.TestCase):
         self.assertEqual(bot._add_keys("AUTO-STORED-KEY", "d1"), (1, 0))
         restarted = StarsKeyBot("123456:fake-token-for-tests", 9001, str(db_path))
         self.assertEqual(restarted._add_keys("AUTO-STORED-KEY", "d1"), (0, 1))
+
+    def test_legacy_paid_orders_are_not_reannounced_after_migration(self):
+        db_path = Path(self.tmp.name, "legacy-shop.sqlite3")
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("""
+                CREATE TABLE orders (
+                    id TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    username TEXT NOT NULL DEFAULT '',
+                    plan TEXT NOT NULL,
+                    stars INTEGER NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'invoice_created',
+                    key_id INTEGER,
+                    created_at INTEGER NOT NULL,
+                    reservation_expires_at INTEGER,
+                    paid_at INTEGER,
+                    delivered_at INTEGER,
+                    charge_id TEXT UNIQUE
+                )
+            """)
+            conn.execute(
+                "INSERT INTO orders(id,user_id,plan,stars,status,created_at,paid_at) VALUES(?,?,?,?,?,?,?)",
+                ("old-order", 12001, "d1", 150, "delivered", 100, 123456),
+            )
+
+        StarsKeyBot("123456:fake-token-for-tests", 9001, str(db_path))
+        with sqlite3.connect(db_path) as conn:
+            notified_at = conn.execute("SELECT admin_notified_at FROM orders WHERE id='old-order'").fetchone()[0]
+        self.assertEqual(notified_at, 123456)
 
     def test_key_is_reserved_only_after_valid_precheckout_and_delivered_after_payment(self):
         self.add_stock(values=("PRIVATE-KEY-123",))

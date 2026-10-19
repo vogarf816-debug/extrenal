@@ -121,6 +121,7 @@ class StarsKeyBot:
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(orders)")}
             if "admin_notified_at" not in columns:
                 conn.execute("ALTER TABLE orders ADD COLUMN admin_notified_at INTEGER")
+                conn.execute("UPDATE orders SET admin_notified_at=paid_at WHERE paid_at IS NOT NULL")
 
     def api(self, method: str, payload: dict | None = None):
         data = json.dumps(payload or {}, ensure_ascii=False).encode("utf-8")
