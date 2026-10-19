@@ -19,10 +19,10 @@ from pathlib import Path
 from cryptography.fernet import Fernet, InvalidToken
 
 PLANS = {
-    "h1": {"label": "1 HOUR KEY", "display": "ساعة وحدة", "stars": 30, "emoji": "⏱️"},
-    "d1": {"label": "1 DAY KEY", "display": "نهار واحد", "stars": 150, "emoji": "🌙"},
-    "d7": {"label": "7 DAY KEY", "display": "7 أيام", "stars": 250, "emoji": "🔥"},
-    "d31": {"label": "31 DAY KEY", "display": "31 يوم", "stars": 650, "emoji": "👑"},
+    "h1": {"label": "1 HOUR KEY", "display": "1 hour", "stars": 30},
+    "d1": {"label": "1 DAY KEY", "display": "1 day", "stars": 150},
+    "d7": {"label": "7 DAY KEY", "display": "7 days", "stars": 250},
+    "d31": {"label": "31 DAY KEY", "display": "31 days", "stars": 650},
 }
 ORDER_TTL = 30 * 60
 RESERVATION_TTL = 15 * 60
@@ -151,19 +151,19 @@ class StarsKeyBot:
     def user_menu(self, user_id: int):
         rows = []
         for code, plan in PLANS.items():
-            rows.append([{"text": f"{plan['emoji']} {plan['display']}  ·  {plan['stars']} ⭐", "callback_data": f"buy:{code}"}])
-        rows.append([{"text": "📦 مشترياتي / My purchases", "callback_data": "my_orders"}])
+            rows.append([{"text": f"{plan['display']} — {plan['stars']} Stars", "callback_data": f"buy:{code}"}])
+        rows.append([{"text": "My purchases", "callback_data": "my_orders"}])
         if user_id == self.admin_id:
-            rows.append([{"text": "🛠 لوحة الإدارة / Admin", "callback_data": "admin"}])
+            rows.append([{"text": "Admin panel", "callback_data": "admin"}])
         return self.inline(rows)
 
     def admin_menu(self):
         return self.inline([
-            [{"text": "➕ زيد مفاتيح للمخزون", "callback_data": "admin_add"}],
-            [{"text": "📦 المخزون المتوفر", "callback_data": "admin_stock"}],
-            [{"text": "🧹 حذف مفتاح غير مباع", "callback_data": "admin_remove"}],
-            [{"text": "📊 المبيعات", "callback_data": "admin_sales"}],
-            [{"text": "⬅️ القائمة الرئيسية", "callback_data": "home"}],
+            [{"text": "Add keys to stock", "callback_data": "admin_add"}],
+            [{"text": "View stock", "callback_data": "admin_stock"}],
+            [{"text": "Remove unsold key", "callback_data": "admin_remove"}],
+            [{"text": "Sales report", "callback_data": "admin_sales"}],
+            [{"text": "Main menu", "callback_data": "home"}],
         ])
 
     def _expire_old_orders(self, conn):
@@ -199,7 +199,7 @@ class StarsKeyBot:
             self._expire_old_orders(conn)
             available = conn.execute("SELECT 1 FROM keys WHERE plan=? AND status='available' LIMIT 1", (plan_code,)).fetchone()
             if not available:
-                return self.send(user["id"], f"حالياً سالا مخزون <b>{plan['display']}</b>. جرب من بعد أو تواصل مع الأدمن.", self.user_menu(user["id"]))
+                return self.send(user["id"], f"<b>{plan['display'].title()}</b> keys are currently out of stock. Please try again later.", self.user_menu(user["id"]))
             conn.execute(
                 "INSERT INTO orders(id,user_id,username,plan,stars,status,created_at) VALUES(?,?,?,?,?,'invoice_created',?)",
                 (order_id, user["id"], (user.get("username") or "")[:64], plan_code, plan["stars"], now),
@@ -208,7 +208,7 @@ class StarsKeyBot:
             return self.api("sendInvoice", {
                 "chat_id": user["id"],
                 "title": f"{plan['label']} — VESPER",
-                "description": f"مفتاح VESPER لمدة {plan['display']}. الدفع عبر Telegram Stars فقط.",
+                "description": f"VESPER license key valid for {plan['display']}. Pay with Telegram Stars.",
                 "payload": payload,
                 "provider_token": "",
                 "currency": "XTR",
@@ -230,19 +230,19 @@ class StarsKeyBot:
             self._expire_old_orders(conn)
             order = conn.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone()
             if not order or order["user_id"] != user_id or order["status"] not in ("invoice_created", "reserved"):
-                return False, "الطلب غير صالح أو انتهت صلاحيته. ابدأ شراءً جديداً."
+                return False, "This invoice is invalid or has expired. Please start a new purchase."
             plan = PLANS.get(order["plan"])
             if query.get("currency") != "XTR" or int(query.get("total_amount", -1)) != plan["stars"]:
-                return False, "معلومات الدفع لا تطابق السعر. لم يتم قبول الطلب."
+                return False, "The payment amount does not match the price. The payment was not accepted."
             if order["status"] == "reserved" and order["key_id"]:
                 conn.execute("UPDATE orders SET reservation_expires_at=? WHERE id=?", (now + RESERVATION_TTL, order_id))
                 return True, ""
             key = conn.execute("SELECT id FROM keys WHERE plan=? AND status='available' ORDER BY id LIMIT 1", (order["plan"],)).fetchone()
             if not key:
-                return False, "نفد المخزون قبل إتمام الدفع. لم يتم قبول الطلب."
+                return False, "This key is out of stock. The payment was not accepted."
             changed = conn.execute("UPDATE keys SET status='reserved',reserved_order=? WHERE id=? AND status='available'", (order_id, key["id"])).rowcount
             if changed != 1:
-                return False, "المفتاح لم يعد متوفراً. لم يتم قبول الطلب."
+                return False, "This key is no longer available. The payment was not accepted."
             conn.execute("UPDATE orders SET status='reserved',key_id=?,reservation_expires_at=? WHERE id=?", (key["id"], now + RESERVATION_TTL, order_id))
             return True, ""
 
@@ -305,10 +305,10 @@ class StarsKeyBot:
         plan = PLANS[self._order_plan(order_id)]
         safe_key = html_escape(key_value)
         text = (
-            "✅ <b>تم الدفع بنجاح!</b>\n\n"
-            f"{plan['emoji']} <b>{plan['label']}</b>\n"
-            f"🔑 المفتاح ديالك:\n<code>{safe_key}</code>\n\n"
-            "احتافظ بالمفتاح وما تشاركوش مع حتى واحد."
+            "<b>Payment successful.</b>\n\n"
+            f"<b>{plan['label']}</b>\n"
+            f"Your key:\n<code>{safe_key}</code>\n\n"
+            "Keep this key private. Do not share it with anyone."
         )
         self.send(chat_id, text)
         with self.db() as conn:
@@ -328,8 +328,8 @@ class StarsKeyBot:
             try:
                 self._deliver_paid(order_id, key_value, user_id)
             except BotError:
-                self.send(user_id, "وصل الدفع ولكن تعذر إرسال المفتاح الآن. راسل الدعم أو اضغط /start لإعادة المحاولة.")
-                self.notify_admin(f"⚠️ تعذر تسليم طلب مدفوع <code>{html_escape(order_id)}</code>؛ سيعاد الإرسال عند /start.")
+                self.send(user_id, "Your payment was received, but we could not deliver the key yet. Send /start to retry.")
+                self.notify_admin(f"A paid order could not be delivered: <code>{html_escape(order_id)}</code>. It will be retried when the buyer sends /start.")
         elif status in ("invalid_amount", "unreserved", "key_missing", "unmatched", "duplicate_charge"):
             self._refund_payment(user_id, payment, result, status)
         elif status == "duplicate":
@@ -339,17 +339,17 @@ class StarsKeyBot:
     def _refund_payment(self, user_id, payment, order_id, reason):
         charge_id = str(payment.get("telegram_payment_charge_id", ""))
         if not charge_id:
-            self.notify_admin(f"⚠️ دفعة غير متطابقة؛ تعذر تحديد عملية الاسترجاع. السبب: {html_escape(reason)}")
+            self.notify_admin(f"Unmatched payment; unable to identify a refund transaction. Reason: {html_escape(reason)}")
             return
         try:
             self.api("refundStarPayment", {"user_id": user_id, "telegram_payment_charge_id": charge_id})
             if isinstance(order_id, str):
                 with self.db() as conn:
                     conn.execute("UPDATE orders SET status='refunded' WHERE id=? AND status!='delivered'", (order_id,))
-            self.send(user_id, "⚠️ ما قدرناش نكملو الطلب، وتم إرجاع Stars تلقائياً.")
-            self.notify_admin(f"⚠️ أُرجعت دفعة غير مكتملة تلقائياً. السبب: {html_escape(reason)}")
+            self.send(user_id, "We could not complete your order, so your Stars payment has been refunded automatically.")
+            self.notify_admin(f"An incomplete payment was refunded automatically. Reason: {html_escape(reason)}")
         except BotError:
-            self.notify_admin(f"🚨 فشل استرجاع دفعة! السبب: {html_escape(reason)}. راجعها من Telegram بالأمر <code>/refundstar</code>.")
+            self.notify_admin(f"Automatic Stars refund failed. Reason: {html_escape(reason)}. Review the payment in Telegram.")
 
     def notify_admin(self, text):
         try:
@@ -372,11 +372,11 @@ class StarsKeyBot:
         with self.db() as conn:
             rows = conn.execute("SELECT plan,stars,status,created_at FROM orders WHERE user_id=? ORDER BY created_at DESC LIMIT 10", (user_id,)).fetchall()
         if not rows:
-            return self.send(user_id, "مازال ما عندك حتى طلب. اختار المدة باش تشري مفتاح.", self.user_menu(user_id))
-        lines = ["<b>📦 آخر الطلبات ديالك</b>"]
+            return self.send(user_id, "You do not have any purchases yet. Choose a plan to get started.", self.user_menu(user_id))
+        lines = ["<b>Your recent purchases</b>"]
         for row in rows:
-            status = {"delivered": "مسلّم ✅", "paid_delivery_pending": "مدفوع - جاري التسليم ⏳", "refunded": "مرجع ↩️", "invoice_created": "في انتظار الدفع", "reserved": "في انتظار الدفع", "expired": "منتهي"}.get(row["status"], row["status"])
-            lines.append(f"• {PLANS[row['plan']]['label']} — {row['stars']} ⭐ — {status}")
+            status = {"delivered": "Delivered", "paid_delivery_pending": "Paid — delivery pending", "refunded": "Refunded", "invoice_created": "Awaiting payment", "reserved": "Awaiting payment", "expired": "Expired"}.get(row["status"], row["status"])
+            lines.append(f"{PLANS[row['plan']]['label']} — {row['stars']} Stars — {status}")
         return self.send(user_id, "\n".join(lines), self.user_menu(user_id))
 
     def _add_keys(self, text, plan_code):
@@ -390,7 +390,7 @@ class StarsKeyBot:
             if not value:
                 continue
             if len(value) > 512:
-                raise ValueError("كل مفتاح خاصو يكون أقل من 512 حرف.")
+                raise ValueError("Each key must be 512 characters or fewer.")
             if value in seen:
                 repeated_in_message += 1
                 continue
@@ -399,7 +399,7 @@ class StarsKeyBot:
         if not candidates:
             return 0, 0
         if len(candidates) > MAX_KEYS_PER_MESSAGE:
-            raise ValueError(f"الحد هو {MAX_KEYS_PER_MESSAGE} مفتاح فكل رسالة.")
+            raise ValueError(f"You can add at most {MAX_KEYS_PER_MESSAGE} keys per message.")
         added = 0
         now = int(time.time())
         with self.db() as conn:
@@ -423,22 +423,22 @@ class StarsKeyBot:
             self._expire_old_orders(conn)
             rows = conn.execute("SELECT plan,status,count(*) AS n FROM keys GROUP BY plan,status").fetchall()
         counts = {(row["plan"], row["status"]): row["n"] for row in rows}
-        lines = ["<b>📦 المخزون الحالي</b>"]
+        lines = ["<b>Current stock</b>"]
         for code, plan in PLANS.items():
             available = counts.get((code, "available"), 0)
             reserved = counts.get((code, "reserved"), 0)
             sold = counts.get((code, "sold"), 0)
-            lines.append(f"{plan['emoji']} {plan['label']} · {plan['stars']} ⭐\nمتوفر: <b>{available}</b> | محجوز: {reserved} | مباع: {sold}")
+            lines.append(f"{plan['label']} — {plan['stars']} Stars\nAvailable: <b>{available}</b> | Reserved: {reserved} | Sold: {sold}")
         return "\n\n".join(lines)
 
     def _sales_text(self):
         with self.db() as conn:
             rows = conn.execute("SELECT status,count(*) AS n,coalesce(sum(stars),0) AS stars FROM orders GROUP BY status").fetchall()
             paid = conn.execute("SELECT count(*),coalesce(sum(stars),0) FROM orders WHERE status IN ('delivered','paid_delivery_pending')").fetchone()
-        status_names = {"delivered": "تسلّم", "paid_delivery_pending": "مدفوع غير مسلّم", "refunded": "مُرجع", "invoice_created": "فواتير مفتوحة", "reserved": "دفع جاري", "expired": "منتهي", "invoice_failed": "فشل إرسال الفاتورة"}
-        lines = ["<b>📊 تقرير المبيعات</b>", f"مبيعات مكتملة: <b>{paid[0]}</b>", f"إجمالي Stars المحصلة: <b>{paid[1]} ⭐</b>"]
+        status_names = {"delivered": "Delivered", "paid_delivery_pending": "Paid — delivery pending", "refunded": "Refunded", "invoice_created": "Open invoices", "reserved": "Payment in progress", "expired": "Expired", "invoice_failed": "Invoice failed"}
+        lines = ["<b>Sales report</b>", f"Completed sales: <b>{paid[0]}</b>", f"Stars collected: <b>{paid[1]} Stars</b>"]
         for row in rows:
-            lines.append(f"{status_names.get(row['status'], row['status'])}: {row['n']} ({row['stars']} ⭐)")
+            lines.append(f"{status_names.get(row['status'], row['status'])}: {row['n']} ({row['stars']} Stars)")
         return "\n".join(lines)
 
     def _remove_stock_keyboard(self):
@@ -447,8 +447,8 @@ class StarsKeyBot:
             for code, plan in PLANS.items():
                 row = conn.execute("SELECT count(*) FROM keys WHERE plan=? AND status='available'", (code,)).fetchone()
                 if row[0]:
-                    rows.append([{"text": f"حذف مفتاح {plan['display']} ({row[0]})", "callback_data": f"admin_del:{code}"}])
-        rows.append([{"text": "⬅️ رجوع", "callback_data": "admin"}])
+                    rows.append([{"text": f"Remove one {plan['display']} key ({row[0]} available)", "callback_data": f"admin_del:{code}"}])
+        rows.append([{"text": "Back to admin", "callback_data": "admin"}])
         return self.inline(rows)
 
     def _remove_one(self, plan_code):
@@ -470,7 +470,7 @@ class StarsKeyBot:
         except BotError:
             pass
         if data == "home":
-            return self.send(chat_id, "<b>✨ VESPER KEY SHOP</b>\nاختار المدة، خلّص بـTelegram Stars، والمفتاح يوصلك مباشرة بعد الدفع.", self.user_menu(user_id))
+            return self.send(chat_id, "<b>VESPER KEY SHOP</b>\nChoose a plan and pay with Telegram Stars. Your key will be delivered here after payment.", self.user_menu(user_id))
         if data == "my_orders":
             self.retry_pending_delivery(user_id)
             return self.my_orders(user_id)
@@ -481,31 +481,31 @@ class StarsKeyBot:
         if data == "admin":
             if user_id != self.admin_id:
                 return
-            return self.send(chat_id, "<b>🛠 لوحة إدارة VESPER</b>\nالمفاتيح تُخزّن مشفّرة داخل قاعدة البيانات.", self.admin_menu())
+            return self.send(chat_id, "<b>VESPER Admin Panel</b>\nLicense keys are encrypted in the local database.", self.admin_menu())
         if user_id != self.admin_id or chat_id != user_id:
             return
         if data == "admin_add":
-            rows = [[{"text": f"{plan['label']} · {plan['stars']} ⭐", "callback_data": f"admin_add_plan:{code}"}] for code, plan in PLANS.items()]
-            rows.append([{"text": "إلغاء", "callback_data": "admin"}])
-            return self.send(chat_id, "اختار نوع المفاتيح اللي غادي تزيد للمخزون:", self.inline(rows))
+            rows = [[{"text": f"{plan['label']} — {plan['stars']} Stars", "callback_data": f"admin_add_plan:{code}"}] for code, plan in PLANS.items()]
+            rows.append([{"text": "Cancel", "callback_data": "admin"}])
+            return self.send(chat_id, "Choose the key plan to add to stock:", self.inline(rows))
         if data.startswith("admin_add_plan:"):
             code = data.split(":", 1)[1]
             if code not in PLANS:
                 return
             self.pending_admin[user_id] = code
-            return self.send(chat_id, f"لسّق المفاتيح ديال <b>{PLANS[code]['label']}</b>، مفتاح واحد فكل سطر.\nغادي نحاول نمسح رسالتك من بعد ما نسجلهم. كتب /cancel للإلغاء.")
+            return self.send(chat_id, f"Send <b>{PLANS[code]['label']}</b> keys, one per line.\nThe bot will try to delete your message after saving the keys. Send /cancel to stop.")
         if data == "admin_stock":
             return self.send(chat_id, self._stock_text(), self.admin_menu())
         if data == "admin_sales":
             return self.send(chat_id, self._sales_text(), self.admin_menu())
         if data == "admin_remove":
-            return self.send(chat_id, "اختار الفئة. غادي يتحذف أقدم مفتاح غير مباع فقط:", self._remove_stock_keyboard())
+            return self.send(chat_id, "Choose a plan. The oldest unsold key will be removed:", self._remove_stock_keyboard())
         if data.startswith("admin_del:"):
             code = data.split(":", 1)[1]
             if code not in PLANS:
                 return
             removed = self._remove_one(code)
-            return self.send(chat_id, "تم حذف مفتاح واحد من المخزون." if removed else "ما كاين حتى مفتاح غير مباع فهاد الفئة.", self._remove_stock_keyboard())
+            return self.send(chat_id, "One unsold key was removed from stock." if removed else "There are no unsold keys in this plan.", self._remove_stock_keyboard())
 
     def handle_message(self, message):
         chat = message.get("chat", {})
@@ -521,7 +521,7 @@ class StarsKeyBot:
         if text.startswith("/cancel"):
             if user_id == self.admin_id:
                 self.pending_admin.pop(user_id, None)
-                return self.send(chat_id, "تلغى الإجراء.", self.admin_menu())
+                return self.send(chat_id, "Operation cancelled.", self.admin_menu())
             return
         if user_id == self.admin_id and user_id in self.pending_admin and not text.startswith("/"):
             plan_code = self.pending_admin.pop(user_id)
@@ -533,24 +533,24 @@ class StarsKeyBot:
                     self.api("deleteMessage", {"chat_id": chat_id, "message_id": message["message_id"]})
                 except BotError:
                     pass
-                return self.send(chat_id, f"ما تقبلاتش اللائحة: {html_escape(str(exc))}\nعاود برسالة أصغر أو كتب /cancel.")
+                return self.send(chat_id, f"The key list was rejected: {html_escape(str(exc))}\nSend a smaller list or use /cancel.")
             try:
                 self.api("deleteMessage", {"chat_id": chat_id, "message_id": message["message_id"]})
             except BotError:
                 pass
-            return self.send(chat_id, f"✅ تزادو <b>{added}</b> مفاتيح للمخزون.\nتجاوزت مفاتيح مكررة: {duplicate}.", self.admin_menu())
+            return self.send(chat_id, f"Added <b>{added}</b> keys to stock.\nDuplicate keys skipped: {duplicate}.", self.admin_menu())
         if text.startswith("/start") or text.startswith("/shop"):
             try:
                 self.retry_pending_delivery(user_id)
             except BotError:
                 pass
-            return self.send(chat_id, "<b>✨ VESPER KEY SHOP</b>\nاختار المدة، خلّص بـTelegram Stars، والمفتاح يوصلك مباشرة بعد الدفع.\n\n<i>الدفع والشراء كيدوزو داخل Telegram.</i>", self.user_menu(user_id))
+            return self.send(chat_id, "<b>VESPER KEY SHOP</b>\nChoose a plan and pay with Telegram Stars. Your key will be delivered here after payment.\n\n<i>Purchases are completed securely inside Telegram.</i>", self.user_menu(user_id))
         if text.startswith("/admin"):
             if user_id != self.admin_id:
-                return self.send(chat_id, "هاد الأمر خاص بالإدارة فقط.")
-            return self.send(chat_id, "<b>🛠 لوحة إدارة VESPER</b>", self.admin_menu())
+                return self.send(chat_id, "This command is for the administrator only.")
+            return self.send(chat_id, "<b>VESPER Admin Panel</b>", self.admin_menu())
         if text.startswith("/help"):
-            return self.send(chat_id, "استعمل /start باش تشوف الأسعار. من بعد الدفع الناجح، المفتاح كيوصلك هنا مباشرة. للدعم تواصل مع الإدارة.", self.user_menu(user_id))
+            return self.send(chat_id, "Use /start to view plans and prices. After successful payment, your key will be sent here. Contact the administrator for support.", self.user_menu(user_id))
 
     def process_update(self, update):
         if "pre_checkout_query" in update:
@@ -563,10 +563,10 @@ class StarsKeyBot:
     def run(self):
         try:
             self.api("setMyCommands", {"commands": [
-                {"command": "start", "description": "فتح متجر المفاتيح"},
-                {"command": "shop", "description": "عرض المدد والأسعار"},
-                {"command": "help", "description": "مساعدة"},
-                {"command": "admin", "description": "لوحة الإدارة"},
+                {"command": "start", "description": "Open the key shop"},
+                {"command": "shop", "description": "View plans and prices"},
+                {"command": "help", "description": "Get help"},
+                {"command": "admin", "description": "Open the admin panel"},
             ]})
         except BotError as exc:
             logging.error("Could not initialize Telegram commands (%s)", exc)

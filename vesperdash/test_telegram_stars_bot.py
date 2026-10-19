@@ -55,6 +55,22 @@ class TelegramStarsBotTests(unittest.TestCase):
         self.assertEqual(invoice["provider_token"], "")
         self.assertEqual(invoice["prices"], [{"label": "1 DAY KEY", "amount": 150}])
 
+    def test_customer_and_admin_menus_are_english_without_emoji(self):
+        menus = [self.bot.user_menu(12001), self.bot.user_menu(9001), self.bot.admin_menu()]
+        labels = [button["text"] for menu in menus for row in menu["inline_keyboard"] for button in row]
+        text = " ".join(labels)
+        for character in text:
+            codepoint = ord(character)
+            self.assertFalse(0x0600 <= codepoint <= 0x08FF, f"Arabic character found: {character}")
+            self.assertFalse(
+                0x1F000 <= codepoint <= 0x1FAFF
+                or 0x2300 <= codepoint <= 0x23FF
+                or 0x2600 <= codepoint <= 0x27FF
+                or 0x2B00 <= codepoint <= 0x2BFF
+                or codepoint == 0xFE0F,
+                f"Emoji found: {character}",
+            )
+
     def test_stock_is_encrypted_and_duplicate_keys_are_not_added(self):
         self.assertEqual(self.add_stock(values=("PRIVATE-KEY-123", "PRIVATE-KEY-123", "SECOND-KEY")), (2, 1))
         raw_db = Path(self.tmp.name, "shop.sqlite3").read_bytes()
