@@ -1,0 +1,26 @@
+[Unit]
+Description=Vesper Telegram Stars Key Shop
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vesperdash
+Group=www-data
+WorkingDirectory=/opt/vesperdash/app
+EnvironmentFile=/etc/vesperdash-telegram-bot.env
+Environment=TELEGRAM_STARS_DB=/var/lib/vesperdash-telegram-bot/telegram-stars.sqlite3
+ExecStart=/opt/vesperdash/venv/bin/python /opt/vesperdash/app/telegram_stars_bot.py
+Restart=on-failure
+RestartSec=5
+UMask=0077
+StateDirectory=vesperdash-telegram-bot
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/vesperdash-telegram-bot
+
+[Install]
+WantedBy=multi-user.target
