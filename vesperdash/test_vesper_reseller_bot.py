@@ -94,7 +94,7 @@ class VesperResellerBotTests(unittest.TestCase):
         self.assertEqual(row["failed_attempts"], 0)
         self.assertFalse(self.login(12345, credentials))
 
-    def test_reseller_prices_are_hidden_until_approved_account_logs_in(self):
+    def test_reseller_prices_are_hidden_on_home_until_portal_button_is_pressed(self):
         with patch.object(self.bot, "api", side_effect=self.fake_api):
             self.bot.handle_message({"chat": {"id": 456, "type": "private"}, "from": {"id": 456}, "text": "/start"})
         self.assertNotIn("0.99 credits", self.sent[-1]["text"])
@@ -105,6 +105,17 @@ class VesperResellerBotTests(unittest.TestCase):
         self.assertTrue(self.login(12345, credentials))
         with patch.object(self.bot, "api", side_effect=self.fake_api):
             self.bot.handle_message({"chat": {"id": 12345, "type": "private"}, "from": {"id": 12345}, "text": "/start"})
+        self.assertNotIn("0.99 credits", self.sent[-1]["text"])
+        self.assertNotIn("31 days — 5.00 credits", self.sent[-1]["text"])
+        portal_button = self.sent[-1]["reply_markup"]["inline_keyboard"][0][0]
+        self.assertEqual(portal_button["callback_data"], "reseller_home")
+        with patch.object(self.bot, "api", side_effect=self.fake_api):
+            self.bot.handle_callback({
+                "id": "portal-button-1",
+                "from": {"id": 12345},
+                "message": {"chat": {"id": 12345}},
+                "data": "reseller_home",
+            })
         self.assertIn("0.99 credits", self.sent[-1]["text"])
         self.assertIn("31 days — 5.00 credits", self.sent[-1]["text"])
 

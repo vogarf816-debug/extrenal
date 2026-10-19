@@ -231,9 +231,13 @@ class VesperResellerBot:
         rows.extend([
             [{"text": "💳 My credit balance", "callback_data": "reseller_balance"}],
             [{"text": "📜 Purchase history", "callback_data": "reseller_history"}],
+            [{"text": "↩️ Reseller home", "callback_data": "reseller_landing"}],
             [{"text": "🚪 Log out", "callback_data": "reseller_logout"}],
         ])
         return self.inline(rows)
+
+    def reseller_landing_menu(self):
+        return self.inline([[{"text": "🧑‍💼 Open Reseller Portal", "callback_data": "reseller_home"}]])
 
     def admin_reseller_menu(self):
         return self.inline([
@@ -718,6 +722,10 @@ class VesperResellerBot:
             if not self.is_authenticated(user_id):
                 return self.send(chat_id, "🔐 Your reseller session is not active. Sign in with /login USERNAME PASSWORD.")
             return self.reseller_intro(user_id)
+        if data == "reseller_landing":
+            if not self.is_authenticated(user_id):
+                return self.send(chat_id, "🔐 Your reseller session is not active. Sign in with /login USERNAME PASSWORD.")
+            return self.send(chat_id, "✅ Reseller account signed in. Tap below to open your private reseller plans and credit.", self.reseller_landing_menu())
         if data == "reseller_balance":
             if not self.is_authenticated(user_id):
                 return self.send(chat_id, "🔐 Please sign in again with /login USERNAME PASSWORD.")
@@ -846,7 +854,7 @@ class VesperResellerBot:
             if len(parts) != 3:
                 return self.send(chat_id, "🔐 Use <code>/login USERNAME PASSWORD</code> in this private chat.")
             if self.authenticate(user_id, parts[1], parts[2], user.get("username") or ""):
-                return self.send(chat_id, "✅ Reseller login successful. Your session lasts 30 days and is tied to this Telegram account.", self.reseller_menu())
+                return self.send(chat_id, "✅ Reseller login successful. Your session lasts 30 days and is tied to this Telegram account. Tap below whenever you want to view your plans and credit.", self.reseller_landing_menu())
             return self.send(chat_id, "⛔ Login failed. Check your credentials and approved Telegram account; repeated failures temporarily lock login.")
         if command == "/logout":
             self.logout(user_id)
@@ -856,7 +864,7 @@ class VesperResellerBot:
             if user_id == self.admin_id:
                 return self.send(chat_id, "🛠️ <b>VESPER RESELLER BOT</b>\nManage key stock, approved reseller IDs and credit.", self.admin_menu())
             if self.is_authenticated(user_id):
-                return self.reseller_intro(user_id)
+                return self.send(chat_id, "🧑‍💼 <b>VESPER RESELLER ACCESS</b>\nYour account is signed in. Reseller prices and credit are hidden from this screen; tap the portal button to open them.", self.reseller_landing_menu())
             if self.is_reseller(user_id):
                 return self.send(chat_id, "🔐 <b>VESPER RESELLER ACCESS</b>\nThis account is approved. Sign in with the credentials issued by the administrator: <code>/login USERNAME PASSWORD</code>.\n\nYour login is linked to your Telegram ID; reseller prices stay hidden until sign-in.")
             return self.send(chat_id, "🔒 <b>VESPER RESELLER ACCESS</b>\nThis bot is invite-only. Contact the administrator and provide your Telegram ID. Approved resellers receive login credentials privately.")
