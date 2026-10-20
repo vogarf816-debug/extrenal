@@ -67,6 +67,16 @@ class TelegramStarsBotTests(unittest.TestCase):
             codepoint = ord(character)
             self.assertFalse(0x0600 <= codepoint <= 0x08FF, f"Arabic character found: {character}")
 
+    def test_admin_can_update_plan_and_text_settings_without_code_changes(self):
+        self.bot._update_plan("d1", {"stars": "999", "display": "custom day", "label": "CUSTOM KEY", "enabled": "1"})
+        self.bot._set_text("home", "CUSTOM HOME {display}")
+        self.assertEqual(self.bot.plans()["d1"]["stars"], 999)
+        self.assertEqual(self.bot.plans()["d1"]["display"], "custom day")
+        self.assertEqual(self.bot._text("home"), "CUSTOM HOME {display}")
+        self.assertIn("999 Stars", str(self.bot.user_menu(12001)))
+        self.assertIn("admin_plans", str(self.bot.admin_menu()))
+        self.assertIn("admin_texts", str(self.bot.admin_menu()))
+
     def test_stock_is_encrypted_and_duplicate_keys_are_not_added(self):
         self.assertEqual(self.add_stock(values=("PRIVATE-KEY-123", "PRIVATE-KEY-123", "SECOND-KEY")), (2, 1))
         raw_db = Path(self.tmp.name, "shop.sqlite3").read_bytes()

@@ -1,6 +1,6 @@
 # Telegram Stars key shop
 
-The standalone bot sells preloaded license keys for Telegram Stars. Prices are fixed in `telegram_stars_bot.py`:
+The standalone bot sells preloaded license keys for Telegram Stars. Prices and customer-facing messages are stored in the protected SQLite database and can be changed from the Telegram admin panel; no code edit is required:
 
 | Key | Price |
 |---|---:|
@@ -48,7 +48,13 @@ sudo journalctl -u vesperdash-telegram-bot.service -n 100 --no-pager
 
 ## Admin workflow
 
-Open the bot in Telegram using the account whose ID is configured in `TELEGRAM_ADMIN_ID`; the bot grants admin controls only to that ID. Use the admin menu to add keys for a plan (paste one key per line), review available/reserved/sold stock, and view sales. Keys are encrypted at rest. Back up the database and its adjacent `.fernet` key together; losing the key makes encrypted stock unrecoverable. Keep both files access-restricted.
+Open the bot in Telegram using the account whose ID is configured in `TELEGRAM_ADMIN_ID`; the bot grants admin controls only to that ID. The admin panel can:
+
+- add keys for any plan (paste one key per line), review available/reserved/sold stock, remove unsold keys, and view sales;
+- open **Edit prices & plans** and change a plan's `stars`, `display`, `label`, or `enabled` flag. For example, send `stars=200` and `display=2 days`, one setting per line;
+- open **Edit bot texts** and replace the home, help, invoice, out-of-stock, payment, refund, empty-orders, admin panel, and sale-notification messages. HTML is supported, and placeholders such as `{label}`, `{display}`, `{key}`, `{stars}`, `{buyer}`, `{user_id}`, and `{order_id}` remain available where applicable.
+
+All changes apply immediately to new messages and invoices. Existing paid orders keep the price recorded at the time of purchase. Keys are encrypted at rest. Back up the database and its adjacent `.fernet` key together; losing the key makes encrypted stock unrecoverable. Keep both files access-restricted.
 
 Users choose a plan, receive a native Stars invoice, and are delivered a key in a private chat only after Telegram confirms successful payment. A key is reserved only after valid pre-checkout, duplicate callbacks cannot deliver or charge twice, and failed delivery/refund paths are recorded for admin review. Telegram's Stars refunds and payment lifecycle are governed by Telegram; test with a private bot before advertising it.
 
