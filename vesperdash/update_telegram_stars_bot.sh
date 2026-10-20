@@ -14,8 +14,8 @@ fi
 install -d -m 0755 "$APP_DIR/vesperdash"
 cd "$APP_DIR"
 
-curl -fsSL 'https://raw.githubusercontent.com/vogarf816-debug/extrenal/main/vesperdash/telegram_stars_bot.py' -o "$TMP_DIR/telegram_stars_bot.py"
-curl -fsSL 'https://raw.githubusercontent.com/vogarf816-debug/extrenal/main/vesperdash/telegram-stars-bot.service' -o "$TMP_DIR/telegram-stars-bot.service"
+curl -fsSL 'https://gist.githubusercontent.com/vogarf816-debug/3aa2c5b2f1437fd7da35d9db47e1a004/raw/2e4f67a10aafc86044b8d04e473b365f09d5c8be/telegram_stars_bot.py' -o "$TMP_DIR/telegram_stars_bot.py"
+curl -fsSL 'https://gist.githubusercontent.com/vogarf816-debug/3aa2c5b2f1437fd7da35d9db47e1a004/raw/d83bc5d2a2d7e3d13423423536c3c6255a4a41ab/telegram-stars-bot.service' -o "$TMP_DIR/telegram-stars-bot.service"
 python3 -m py_compile "$TMP_DIR/telegram_stars_bot.py"
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
