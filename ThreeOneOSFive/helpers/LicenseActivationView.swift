@@ -26,7 +26,7 @@ struct LicenseActivationView: View {
                                 .padding(.bottom, 18)
 
                             VStack(spacing: 6) {
-                                Text("BABA EXTERNAL")
+                                Text("VESPER")
                                     .font(.system(size: 26, weight: .black, design: .rounded))
                                     .tracking(1.1)
                                     .foregroundStyle(.white)
@@ -38,7 +38,7 @@ struct LicenseActivationView: View {
                                     .tracking(2.2)
                                     .foregroundStyle(AppTheme.secondaryAccent)
 
-                                Text("BABA EXTERNAL • OFFICIAL ACCESS")
+                                Text("VESPER • OFFICIAL ACCESS")
                                     .font(.system(size: 10, weight: .bold, design: .rounded))
                                     .tracking(0.8)
                                     .foregroundStyle(.white.opacity(0.50))
@@ -55,7 +55,7 @@ struct LicenseActivationView: View {
                                 .offset(y: introVisible ? 0 : 20)
                                 .id("activation-card")
 
-                            Text("BABA EXTERNAL • SECURE LICENSE CHECK")
+                            Text("VESPER • SECURE LICENSE CHECK")
                                 .font(.system(size: 9, weight: .bold, design: .rounded))
                                 .tracking(0.7)
                                 .foregroundStyle(.white.opacity(0.38))
@@ -111,7 +111,7 @@ struct LicenseActivationView: View {
                 .rotationEffect(.degrees(ringRotating ? 360 : 0))
                 .animation(.linear(duration: 14).repeatForever(autoreverses: false), value: ringRotating)
 
-            Image("BabaPanelBranding")
+            Image("VesperEmblem")
                 .resizable()
                 .scaledToFill()
                 .frame(width: 86, height: 86)
@@ -122,7 +122,7 @@ struct LicenseActivationView: View {
         .scaleEffect(logoBreathing ? 1.02 : 0.96)
         .animation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true), value: logoBreathing)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Baba External")
+        .accessibilityLabel("Vesper")
     }
 
     private var activationCard: some View {
@@ -141,7 +141,7 @@ struct LicenseActivationView: View {
                         .font(.system(size: 14, weight: .black, design: .rounded))
                         .tracking(0.4)
                         .foregroundStyle(.white)
-                    Text("BABA EXTERNAL • LICENSE")
+                    Text("VESPER • LICENSE")
                         .font(.system(size: 9, weight: .bold, design: .rounded))
                         .tracking(1.2)
                         .foregroundStyle(AppTheme.secondaryAccent)
@@ -152,7 +152,7 @@ struct LicenseActivationView: View {
                     .font(.system(size: 18))
             }
 
-            Text("Enter your Baba External license key to unlock the panel.")
+            Text("Enter your Vesper license key to unlock the panel.")
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.66))
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -193,7 +193,7 @@ struct LicenseActivationView: View {
                 Text("You Don't Have Key?")
                     .foregroundStyle(.white.opacity(0.68))
                 Button("Contact") {
-                    if let url = URL(string: "https://t.me/BABAPANELSTOREonlybaba18") {
+                    if let url = URL(string: "https://t.me/YAGAMIxIOS") {
                         UIApplication.shared.open(url)
                     }
                 }

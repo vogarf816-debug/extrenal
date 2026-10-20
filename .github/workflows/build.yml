@@ -139,8 +139,8 @@ jobs:
               info = plistlib.load(stream)
           if info.get("CFBundleVersion") != "34":
               raise SystemExit("Expected VESPER Build 34.")
-          if info.get("CFBundleDisplayName") != "Baba External" or info.get("CFBundleExecutable") != "VESPER":
-              raise SystemExit("The Baba External display name or VESPER executable name is incorrect.")
+          if info.get("CFBundleDisplayName") != "VESPER" or info.get("CFBundleExecutable") != "VESPER":
+              raise SystemExit("The VESPER app display name or executable name is incorrect.")
           if info.get("UIFileSharingEnabled") or info.get("LSSupportsOpeningDocumentsInPlace"):
               raise SystemExit("App-wide Documents sharing must remain disabled.")
           if "M3SB_PACKAGE_TOKEN" in info or "M3SB_HMAC_SECRET" in info:
