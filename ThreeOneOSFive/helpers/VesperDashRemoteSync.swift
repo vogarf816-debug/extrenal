@@ -84,7 +84,8 @@ enum VesperDashRemoteSync {
             throw PatchPackageError.remoteImportFailed
         }
         var request = URLRequest(url: url)
-        request.timeoutInterval = 60
+        request.timeoutInterval = 180
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
         let (temporaryURL, response) = try await session.download(for: request)
         defer { try? FileManager.default.removeItem(at: temporaryURL) }

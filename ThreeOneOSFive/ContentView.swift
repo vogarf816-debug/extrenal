@@ -623,8 +623,8 @@ struct ContentView: View {
                                     injectRemotePatch(remote, targetBundleID: targetBundleID)
                                 } label: {
                                     Text(injectingRemotePatchKey == remoteKey
-                                         ? "INJECTING…"
-                                         : (patchStore.failedRemotePatchKeys.contains(remoteKey) ? "RETRY INJECT" : "INJECT"))
+                                         ? "DOWNLOADING…"
+                                         : (patchStore.failedRemotePatchKeys.contains(remoteKey) ? "RETRY DOWNLOAD" : "TAP TO DOWNLOAD"))
                                         .font(.system(size: 11, weight: .bold, design: .rounded))
                                         .foregroundStyle(patchStore.failedRemotePatchKeys.contains(remoteKey) ? .orange : AppTheme.secondaryAccent)
                                         .lineLimit(1)
@@ -648,7 +648,7 @@ struct ContentView: View {
                                 .buttonStyle(.plain)
                                 .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                                 .disabled(patchOperationBusy || patchStore.preparingRemotePatchKeys.contains(remoteKey))
-                                .accessibilityLabel("Inject \(remote.name)")
+                                .accessibilityLabel("Tap to download and inject \(remote.name)")
                             }
                             .padding(14)
                             .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -1294,39 +1294,35 @@ private struct PatchOptionCard: View {
             }
 
             Spacer(minLength: 8)
-            Group {
-                if isRestoring {
-                    HStack(spacing: 5) {
-                        Image(systemName: "arrow.uturn.backward.circle.fill")
-                            .rotationEffect(.degrees(isRestoring ? 360 : 0))
-                            .animation(
-                                isRestoring
-                                    ? .linear(duration: 0.9).repeatForever(autoreverses: false)
-                                    : .easeOut(duration: 0.2),
-                                value: isRestoring
-                            )
-                        Text("RESTORING…")
-                            .font(.system(size: 9, weight: .black, design: .rounded))
-                    }
-                    .foregroundStyle(AppTheme.accent)
-                    .transition(.opacity.combined(with: .scale(scale: 0.88)))
-                } else {
-                    Text(isEnabled ? "ON" : "OFF")
-                        .font(.system(size: 10, weight: .black, design: .rounded))
-                        .foregroundStyle(isEnabled ? AppTheme.secondaryAccent : .white.opacity(0.5))
-                        .frame(width: 28, alignment: .trailing)
-                        .transition(.opacity.combined(with: .scale(scale: 0.92)))
+            Button(action: action) {
+                HStack(spacing: 5) {
+                    Image(systemName: isRestoring
+                          ? "arrow.uturn.backward.circle.fill"
+                          : (isEnabled ? "checkmark.seal.fill" : "arrow.down.circle.fill"))
+                        .rotationEffect(.degrees(isRestoring ? 360 : 0))
+                        .animation(
+                            isRestoring
+                                ? .linear(duration: 0.9).repeatForever(autoreverses: false)
+                                : .easeOut(duration: 0.2),
+                            value: isRestoring
+                        )
+                    Text(isRestoring ? "RESTORING…" : (isEnabled ? "INJECTED" : "INJECT"))
+                        .font(.system(size: 9, weight: .black, design: .rounded))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(isRestoring ? AppTheme.accent : (isEnabled ? AppTheme.secondaryAccent : color))
+                .padding(.horizontal, 9)
+                .frame(minWidth: 82, minHeight: 32)
+                .background(
+                    (isEnabled ? AppTheme.secondaryAccent : color).opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke((isEnabled ? AppTheme.secondaryAccent : color).opacity(0.72), lineWidth: 1.1)
                 }
             }
-            .animation(.spring(response: 0.42, dampingFraction: 0.76), value: isRestoring)
-
-            Toggle("", isOn: Binding(
-                get: { isEnabled },
-                set: { _ in action() }
-            ))
-            .labelsHidden()
-            .tint(color)
-            .scaleEffect(1.05)
+            .buttonStyle(.plain)
             .disabled(isBusy)
         }
         }
@@ -1358,7 +1354,7 @@ private struct PatchOptionCard: View {
         }
         .opacity(isBusy && !isRestoring ? 0.55 : 1)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(statusText.isEmpty ? "\(name), \(target), \(isEnabled ? "On" : "Off")" : "\(name), \(target), \(statusText), \(isEnabled ? "On" : "Off")")
+        .accessibilityLabel(statusText.isEmpty ? "\(name), \(target), \(isEnabled ? "Injected" : "Not injected")" : "\(name), \(target), \(statusText), \(isEnabled ? "Injected" : "Not injected")")
     }
 }
 

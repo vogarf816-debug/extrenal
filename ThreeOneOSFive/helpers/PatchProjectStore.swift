@@ -352,7 +352,13 @@ final class PatchProjectStore: ObservableObject {
                     .appendingPathComponent("vesper-inject-\(UUID().uuidString)", isDirectory: true)
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 defer { try? FileManager.default.removeItem(at: directory) }
-                let session = URLSession(configuration: .ephemeral)
+                let configuration = URLSessionConfiguration.ephemeral
+                configuration.waitsForConnectivity = true
+                configuration.timeoutIntervalForRequest = 30
+                configuration.timeoutIntervalForResource = 300
+                configuration.allowsExpensiveNetworkAccess = true
+                configuration.allowsConstrainedNetworkAccess = true
+                let session = URLSession(configuration: configuration)
                 defer { session.invalidateAndCancel() }
                 let packageURL = try await VesperDashRemoteSync.downloadPackageFile(
                     for: remote,
