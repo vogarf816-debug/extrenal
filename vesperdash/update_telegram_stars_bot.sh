@@ -11,7 +11,7 @@ if [[ "$(id -u)" -ne 0 ]]; then
   exit 2
 fi
 
-install -d -m 0755 "$APP_DIR/vesperdash"
+install -d -m 0755 "$APP_DIR"
 cd "$APP_DIR"
 
 curl -fsSL 'https://gist.githubusercontent.com/vogarf816-debug/3aa2c5b2f1437fd7da35d9db47e1a004/raw/2e4f67a10aafc86044b8d04e473b365f09d5c8be/telegram_stars_bot.py' -o "$TMP_DIR/telegram_stars_bot.py"
@@ -19,10 +19,10 @@ curl -fsSL 'https://gist.githubusercontent.com/vogarf816-debug/3aa2c5b2f1437fd7d
 python3 -m py_compile "$TMP_DIR/telegram_stars_bot.py"
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
-if [[ -f "$APP_DIR/vesperdash/telegram_stars_bot.py" ]]; then
-  cp -a "$APP_DIR/vesperdash/telegram_stars_bot.py" "$APP_DIR/vesperdash/telegram_stars_bot.py.bak.$STAMP"
+if [[ -f "$APP_DIR/telegram_stars_bot.py" ]]; then
+  cp -a "$APP_DIR/telegram_stars_bot.py" "$APP_DIR/telegram_stars_bot.py.bak.$STAMP"
 fi
-install -o root -g root -m 0644 "$TMP_DIR/telegram_stars_bot.py" "$APP_DIR/vesperdash/telegram_stars_bot.py"
+install -o root -g root -m 0644 "$TMP_DIR/telegram_stars_bot.py" "$APP_DIR/telegram_stars_bot.py"
 install -o root -g root -m 0644 "$TMP_DIR/telegram-stars-bot.service" "/etc/systemd/system/$SERVICE"
 systemctl daemon-reload
 systemctl enable "$SERVICE" >/dev/null
