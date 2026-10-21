@@ -1275,7 +1275,7 @@ private struct PatchOptionCard: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(name)
+                Text(isEnabled ? "INJECTED" : name)
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                 Text(target)
