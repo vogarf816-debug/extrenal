@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from functools import wraps
 
-from flask import Flask, jsonify, request, send_from_directory, abort, make_response
+from flask import Flask, jsonify, request, send_from_directory, abort, make_response, redirect
 from werkzeug.utils import secure_filename
 
 ROOT = Path(__file__).resolve().parent
@@ -37,6 +37,7 @@ VESPERDASH_PACKAGE_PASSWORDS = os.environ.get("VESPERDASH_PACKAGE_PASSWORDS", ""
 MAX_UPLOAD = int(os.environ.get("VESPERDASH_MAX_UPLOAD", str(80 * 1024 * 1024)))
 ALLOWED_BUNDLES = {"com.dts.freefireth", "com.dts.freefiremax"}
 ALLOWED_CATEGORIES = {"aim", "esp", "hologram", "skin"}
+VESPER_IPA_DOWNLOAD_URL = "https://github.com/vogarf816-debug/extrenal/releases/download/vesper-build-39532761081/VESPER-Build-34-unsigned.ipa"
 
 app = Flask(__name__, static_folder=str(ROOT / "static"), static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD
@@ -350,6 +351,12 @@ def too_large(_):
 @app.get("/health")
 def health():
     return jsonify(ok=True, service="vesperdash", time=int(time.time()))
+
+
+@app.get("/download/vesper.ipa")
+def download_vesper_ipa():
+    """Stable website URL for the current Vesper unsigned IPA release."""
+    return redirect(VESPER_IPA_DOWNLOAD_URL, code=302)
 
 
 @app.post("/api/auth/login")
