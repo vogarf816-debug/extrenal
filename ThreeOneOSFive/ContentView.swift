@@ -1295,9 +1295,8 @@ private struct PatchOptionCard: View {
                 Text(isRestoring ? "RESTORING…" : (isEnabled ? "INJECTED" : "INJECT"))
                     .font(.system(size: 9, weight: .black, design: .rounded))
                     .lineLimit(1)
+                    .frame(width: 92, height: 32, alignment: .center)
                 .foregroundStyle(isRestoring ? AppTheme.accent : (isEnabled ? AppTheme.secondaryAccent : color))
-                .padding(.horizontal, 9)
-                .frame(minWidth: 82, minHeight: 32)
                 .background(
                     (isEnabled ? AppTheme.secondaryAccent : color).opacity(0.12),
                     in: RoundedRectangle(cornerRadius: 7, style: .continuous)
