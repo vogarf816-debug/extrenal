@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-latest
@@ -179,7 +182,13 @@ jobs:
           M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
           M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: VESPER-Build-34-unsigned-ipa
-          path: build/VESPER-Build-34-unsigned.ipa
+      - name: Publish IPA release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="vesper-build-${GITHUB_RUN_ID}"
+          gh release create "$TAG" build/VESPER-Build-34-unsigned.ipa \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "VESPER Build ${GITHUB_RUN_ID}" \
+            --notes "Unsigned VESPER IPA built from ${GITHUB_SHA}." \
+            --target "$GITHUB_SHA"
