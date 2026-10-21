@@ -1275,13 +1275,14 @@ private struct PatchOptionCard: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(isEnabled ? "INJECTED" : name)
+                Text(name)
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                Text(target)
+                Text(isEnabled ? "INJECTED" : target)
                     .font(.system(size: 9, weight: .bold, design: .rounded))
                     .tracking(0.8)
                     .foregroundStyle(color.opacity(0.9))
+                    .frame(height: 12, alignment: .leading)
                 if !statusText.isEmpty {
                     Text(statusText)
                         .font(.system(size: 10, weight: .medium, design: .rounded))
