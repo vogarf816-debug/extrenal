@@ -1271,10 +1271,7 @@ private struct PatchOptionCard: View {
                 .background(Color.black.opacity(0.28))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             } else {
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: 15, weight: .black))
-                    .foregroundStyle(color)
-                    .frame(width: 24)
+                Color.clear.frame(width: 24)
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -1295,21 +1292,9 @@ private struct PatchOptionCard: View {
 
             Spacer(minLength: 8)
             Button(action: action) {
-                HStack(spacing: 5) {
-                    Image(systemName: isRestoring
-                          ? "arrow.uturn.backward.circle.fill"
-                          : (isEnabled ? "checkmark.seal.fill" : "arrow.down.circle.fill"))
-                        .rotationEffect(.degrees(isRestoring ? 360 : 0))
-                        .animation(
-                            isRestoring
-                                ? .linear(duration: 0.9).repeatForever(autoreverses: false)
-                                : .easeOut(duration: 0.2),
-                            value: isRestoring
-                        )
-                    Text(isRestoring ? "RESTORING…" : (isEnabled ? "INJECTED" : "INJECT"))
-                        .font(.system(size: 9, weight: .black, design: .rounded))
-                        .lineLimit(1)
-                }
+                Text(isRestoring ? "RESTORING…" : (isEnabled ? "INJECTED" : "INJECT"))
+                    .font(.system(size: 9, weight: .black, design: .rounded))
+                    .lineLimit(1)
                 .foregroundStyle(isRestoring ? AppTheme.accent : (isEnabled ? AppTheme.secondaryAccent : color))
                 .padding(.horizontal, 9)
                 .frame(minWidth: 82, minHeight: 32)
@@ -1328,26 +1313,14 @@ private struct PatchOptionCard: View {
         }
         .frame(maxWidth: .infinity, minHeight: 58)
         .padding(.horizontal, 14)
-        .background {
-            ZStack {
-                LinearGradient(
-                    colors: [AppTheme.referenceCard.opacity(0.92), Color.black.opacity(0.28)],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                if isRestoring {
-                    RestoreSweepBackground()
-                        .transition(.opacity)
-                }
-            }
-        }
-        .shadow(
-            color: isRestoring ? AppTheme.accent.opacity(0.32) : (isEnabled ? color.opacity(0.28) : .clear),
-            radius: isRestoring ? 18 : 12,
-            y: 3
+        .background(
+            LinearGradient(
+                colors: [AppTheme.referenceCard.opacity(0.92), Color.black.opacity(0.28)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
         )
-        .animation(.easeInOut(duration: 0.36), value: isRestoring)
-        .opacity(isBusy && !isRestoring ? 0.55 : 1)
+        .shadow(color: isEnabled ? color.opacity(0.28) : .clear, radius: 12, y: 3)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(statusText.isEmpty ? "\(name), \(target), \(isEnabled ? "Injected" : "Not injected")" : "\(name), \(target), \(statusText), \(isEnabled ? "Injected" : "Not injected")")
     }
