@@ -283,18 +283,26 @@ class StarsKeyBot:
         ])
 
     def user_menu(self, user_id: int):
+        rows = [
+            [{"text": "Vesper Keys", "callback_data": "ios:keys"}],
+            [{"text": "Digital Files", "callback_data": "ios:files"}],
+        ]
+        rows.append([{"text": "My purchases", "callback_data": "my_orders"}])
+        if user_id == self.admin_id:
+            rows.append([{"text": "Admin panel", "callback_data": "admin"}])
+        return self.inline(rows)
+
+    def keys_menu(self, user_id: int):
         rows = []
         for code, plan in self.plans().items():
             rows.append([{"text": f"⏱️ {plan['display']} — ⭐ {plan['stars']} Stars", "callback_data": f"buy:{code}"}])
-        rows.append([{"text": "📁 Digital files shop", "callback_data": "files:home"}])
-        rows.append([{"text": "🧾 My purchases", "callback_data": "my_orders"}])
-        if user_id == self.admin_id:
-            rows.append([{"text": "🛠️ Admin panel", "callback_data": "admin"}])
+        rows.append([{"text": "Back to iOS", "callback_data": "platform:ios"}])
         return self.inline(rows)
 
     def admin_menu(self):
         return self.inline([
-            [{"text": "➕ Add keys", "callback_data": "admin_add"}],
+            [{"text": "Add Vesper keys", "callback_data": "admin_add"}],
+            [{"text": "Add digital product", "callback_data": "files:add"}],
             [{"text": "💰 Edit prices & plans", "callback_data": "admin_plans"}],
             [{"text": "✍️ Edit bot texts", "callback_data": "admin_texts"}],
             [{"text": "📦 View stock", "callback_data": "admin_stock"}],
@@ -666,9 +674,17 @@ class StarsKeyBot:
         if data == "open_store":
             return self.send(chat_id, "<b>Open Store</b>\nChoose a platform:", self.platform_menu())
         if data == "platform:ios":
-            return self.send(chat_id, self._text("home") + "\n\n<b>iOS Store</b>", self.user_menu(user_id))
+            return self.send(chat_id, "<b>iOS Store</b>\nChoose a category:", self.user_menu(user_id))
         if data == "platform:android":
             return self.send(chat_id, "<b>Android</b>\n\nComing soon.", self.welcome_menu())
+        if data == "ios:keys":
+            return self.send(chat_id, self._text("home") + "\n\n<b>Vesper Keys</b>", self.keys_menu(user_id))
+        if data == "ios:files":
+            return self.files.handle_callback({**callback, "data": "home"})
+        if data == "files:add":
+            if user_id != self.admin_id:
+                return
+            return self.files.handle_callback({**callback, "data": "admin_add"})
         if data == "my_orders":
             self.retry_pending_delivery(user_id)
             return self.my_orders(user_id)
