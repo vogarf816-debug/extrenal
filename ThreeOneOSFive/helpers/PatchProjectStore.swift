@@ -207,7 +207,7 @@ final class PatchProjectStore: ObservableObject {
 
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
-                let manifest = try await VesperDashRemoteSync.fetchManifest(sessionToken: sessionToken)
+                let manifest = try await fetchManifestWithRetry(sessionToken: sessionToken)
                 let catalog = manifest.all_patches ?? manifest.patches
                 let fingerprint = await self?.manifestFingerprint(for: manifest) ?? ""
                 guard await self?.shouldProcessManifest(fingerprint) == true else {
@@ -224,6 +224,21 @@ final class PatchProjectStore: ObservableObject {
                 await self?.failRemoteSync()
             }
         }
+    }
+
+    private func fetchManifestWithRetry(sessionToken: String) async throws -> VesperDashManifest {
+        var lastError: Error?
+        for attempt in 0..<3 {
+            do {
+                return try await VesperDashRemoteSync.fetchManifest(sessionToken: sessionToken)
+            } catch {
+                lastError = error
+                if attempt < 2 {
+                    try? await Task.sleep(nanoseconds: UInt64(250_000_000 * (attempt + 1)))
+                }
+            }
+        }
+        throw lastError ?? PatchPackageError.remoteImportFailed
     }
 
     func remotePatchKey(for remote: RemotePatch) -> String {
@@ -360,12 +375,27 @@ final class PatchProjectStore: ObservableObject {
                 configuration.allowsConstrainedNetworkAccess = true
                 let session = URLSession(configuration: configuration)
                 defer { session.invalidateAndCancel() }
-                let packageURL = try await VesperDashRemoteSync.downloadPackageFile(
-                    for: remote,
-                    sessionToken: sessionToken,
-                    using: session,
-                    into: directory
-                )
+                var packageURL: URL?
+                var lastDownloadError: Error?
+                for attempt in 0..<3 {
+                    do {
+                        packageURL = try await VesperDashRemoteSync.downloadPackageFile(
+                            for: remote,
+                            sessionToken: sessionToken,
+                            using: session,
+                            into: directory
+                        )
+                        break
+                    } catch {
+                        lastDownloadError = error
+                        if attempt < 2 {
+                            try? await Task.sleep(nanoseconds: UInt64(300_000_000 * (attempt + 1)))
+                        }
+                    }
+                }
+                guard let packageURL else {
+                    throw lastDownloadError ?? PatchPackageError.remoteImportFailed
+                }
                 packageData = try Data(contentsOf: packageURL, options: .mappedIfSafe)
             }
             let passwords = (manifest.package_passwords ?? []).filter { !$0.isEmpty }

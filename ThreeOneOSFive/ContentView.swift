@@ -657,19 +657,10 @@ struct ContentView: View {
                 }
             } else {
                 if patchStore.hasManifestSyncError {
-                    Button {
-                        patchStore.syncVesperDash(
-                            sessionToken: licenseManager.clientSessionToken(),
-                            showCompletionAlert: false
-                        )
-                    } label: {
-                        Label("CATALOG FAILED — TAP TO RETRY", systemImage: "arrow.clockwise")
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
-                            .foregroundStyle(.orange)
-                            .padding(.vertical, 10)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(patchStore.isBusy)
+                    Label("SYNCING PATCH CATALOG…", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.secondaryAccent)
+                        .padding(.vertical, 10)
                 } else if patchStore.isBusy {
                     Label("SYNCING PATCH CATALOG…", systemImage: "arrow.down.circle")
                         .font(.system(size: 10, weight: .bold, design: .rounded))
