@@ -15,12 +15,9 @@ struct ThreeOneOSFiveApp: App {
 
     init() {
         setupLogCapture()
-#if !DEBUG
-        let violation = EmbeddedAppResources.identityWasModified()
-        _identityViolation = State(initialValue: violation)
-#else
+        // Bundle name, executable name, display name and icon may differ after
+        // signing/repackaging; do not block or terminate the app for that.
         _identityViolation = State(initialValue: false)
-#endif
         log("app: VESPER launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
     }
 
@@ -113,9 +110,7 @@ private struct VesperSecurityAlertView: View {
         }
         .preferredColorScheme(.dark)
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                fatalError("The external name or bundle identifier was modified.")
-            }
+            log("integrity: legacy identity alert disabled")
         }
     }
 }

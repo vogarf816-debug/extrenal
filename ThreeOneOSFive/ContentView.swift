@@ -1400,40 +1400,6 @@ enum EmbeddedAppResources {
         resources[name]
     }
 
-    static func identityWasModified() -> Bool {
-        let bundle = Bundle.main
-        guard bundle.bundleURL.lastPathComponent == "VESPER.app" else {
-            log("integrity: bundle folder name changed")
-            return true
-        }
-        guard bundle.executableURL?.lastPathComponent == "VESPER" else {
-            log("integrity: executable name changed")
-            return true
-        }
-        let runtimeInfo = bundle.infoDictionary ?? [:]
-        let bundleIdentifier = runtimeInfo["CFBundleIdentifier"] as? String
-        guard runtimeInfo["CFBundleDisplayName"] as? String == "VESPER",
-              runtimeInfo["CFBundleExecutable"] as? String == "VESPER",
-              let bundleIdentifier, !bundleIdentifier.isEmpty else {
-            log("integrity: app or bundle identity changed")
-            return true
-        }
-        let iconNames = ["AppIcon60x60@2x.png", "AppIcon76x76@2x~ipad.png"]
-        guard iconNames.allSatisfy({ resources[$0] != nil }) else {
-            log("integrity: icon reference payload unavailable; skipping image comparison")
-            return false
-        }
-        for name in iconNames {
-            guard let embeddedData = resources[name] else { continue }
-            let fileURL = bundle.bundleURL.appendingPathComponent(name)
-            guard let onDisk = try? Data(contentsOf: fileURL), onDisk == embeddedData else {
-                log("integrity: app icon changed or missing: \(name)")
-                return true
-            }
-        }
-        return false
-    }
-
     private static func readUInt64(_ bytes: [UInt8], at offset: Int) -> UInt64? {
         guard offset >= 0, offset + 8 <= bytes.count else { return nil }
         var value: UInt64 = 0
