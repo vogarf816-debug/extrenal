@@ -1271,10 +1271,7 @@ private struct PatchOptionCard: View {
                 .background(Color.black.opacity(0.28))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             } else {
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: 15, weight: .black))
-                    .foregroundStyle(color)
-                    .frame(width: 24)
+                Color.clear.frame(width: 24)
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -1332,31 +1329,14 @@ private struct PatchOptionCard: View {
         }
         .frame(maxWidth: .infinity, minHeight: 58)
         .padding(.horizontal, 14)
-        .background {
-            ZStack {
-                LinearGradient(
-                    colors: [AppTheme.referenceCard.opacity(0.92), Color.black.opacity(0.28)],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                if isRestoring {
-                    RestoreSweepBackground()
-                        .transition(.opacity)
-                }
-            }
-        }
-        .shadow(
-            color: isRestoring ? AppTheme.accent.opacity(0.32) : (isEnabled ? color.opacity(0.28) : .clear),
-            radius: isRestoring ? 18 : 12,
-            y: 3
+        .background(
+            LinearGradient(
+                colors: [AppTheme.referenceCard.opacity(0.92), Color.black.opacity(0.28)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
         )
-        .animation(.easeInOut(duration: 0.36), value: isRestoring)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(color.opacity(isEnabled ? 0.55 : 0.18))
-                .frame(height: 1)
-        }
-        .opacity(isBusy && !isRestoring ? 0.55 : 1)
+        .shadow(color: isEnabled ? color.opacity(0.28) : .clear, radius: 12, y: 3)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(statusText.isEmpty ? "\(name), \(target), \(isEnabled ? "On" : "Off")" : "\(name), \(target), \(statusText), \(isEnabled ? "On" : "Off")")
     }
