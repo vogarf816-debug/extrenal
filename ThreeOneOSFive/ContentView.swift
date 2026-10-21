@@ -623,8 +623,8 @@ struct ContentView: View {
                                     injectRemotePatch(remote, targetBundleID: targetBundleID)
                                 } label: {
                                     Text(injectingRemotePatchKey == remoteKey
-                                         ? "DOWNLOADING…"
-                                         : (patchStore.failedRemotePatchKeys.contains(remoteKey) ? "RETRY DOWNLOAD" : "TAP TO DOWNLOAD"))
+                                         ? "INJECTING…"
+                                         : (patchStore.failedRemotePatchKeys.contains(remoteKey) ? "RETRY INJECT" : "INJECT"))
                                         .font(.system(size: 11, weight: .bold, design: .rounded))
                                         .foregroundStyle(patchStore.failedRemotePatchKeys.contains(remoteKey) ? .orange : AppTheme.secondaryAccent)
                                         .lineLimit(1)
@@ -648,7 +648,7 @@ struct ContentView: View {
                                 .buttonStyle(.plain)
                                 .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                                 .disabled(patchOperationBusy || patchStore.preparingRemotePatchKeys.contains(remoteKey))
-                                .accessibilityLabel("Tap to download and inject \(remote.name)")
+                                .accessibilityLabel("Inject \(remote.name)")
                             }
                             .padding(14)
                             .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -1347,11 +1347,6 @@ private struct PatchOptionCard: View {
             y: 3
         )
         .animation(.easeInOut(duration: 0.36), value: isRestoring)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(color.opacity(isEnabled ? 0.55 : 0.18))
-                .frame(height: 1)
-        }
         .opacity(isBusy && !isRestoring ? 0.55 : 1)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(statusText.isEmpty ? "\(name), \(target), \(isEnabled ? "Injected" : "Not injected")" : "\(name), \(target), \(statusText), \(isEnabled ? "Injected" : "Not injected")")
