@@ -30,8 +30,8 @@ ORDER_TTL = 30 * 60
 RESERVATION_TTL = 15 * 60
 MAX_KEYS_PER_MESSAGE = 200
 DEFAULT_TEXTS = {
-    "welcome": "👋 <b>Welcome to VESPER Store</b>\n\nChoose a platform to continue.",
-    "home": "🔐 <b>VESPER KEY SHOP</b>\nChoose a plan and pay with Telegram Stars. Your key will be delivered here after payment.",
+    "welcome": "<b>Welcome to VESPER Store</b>\n\nPress Open Store to continue.",
+    "home": "<b>VESPER KEY SHOP</b>\nChoose a plan and pay with Telegram Stars. Your key will be delivered here after payment.",
     "help": "ℹ️ Use /start to view plans and prices. After successful payment, your key will be sent here. Contact the administrator for support.",
     "invoice_title": "🔐 {label} — VESPER",
     "invoice_description": "🛡️ VESPER license key valid for {display}. Pay with Telegram Stars.",
@@ -272,16 +272,14 @@ class StarsKeyBot:
 
     def platform_menu(self):
         return self.inline([
-            [{"text": "🍎 iOS", "callback_data": "platform:ios"}],
-            [{"text": "🤖 Android", "callback_data": "platform:android"}],
-            [{"text": "↩️ Back", "callback_data": "welcome"}],
+            [{"text": "iOS", "callback_data": "platform:ios"}],
+            [{"text": "Android", "callback_data": "platform:android"}],
+            [{"text": "Back", "callback_data": "welcome"}],
         ])
 
     def welcome_menu(self):
         return self.inline([
-            [{"text": "🛍️ Open Store", "callback_data": "open_store"}],
-            [{"text": "🍎 iOS", "callback_data": "platform:ios"},
-             {"text": "🤖 Android", "callback_data": "platform:android"}],
+            [{"text": "Open Store", "callback_data": "open_store"}],
         ])
 
     def user_menu(self, user_id: int):
@@ -666,11 +664,11 @@ class StarsKeyBot:
         if data in ("home", "welcome"):
             return self.send(chat_id, self._text("welcome"), self.welcome_menu())
         if data == "open_store":
-            return self.send(chat_id, "🛍️ <b>Open Store</b>\nChoose a platform:", self.platform_menu())
+            return self.send(chat_id, "<b>Open Store</b>\nChoose a platform:", self.platform_menu())
         if data == "platform:ios":
-            return self.send(chat_id, self._text("home") + "\n\n🍎 <b>iOS Store</b>", self.user_menu(user_id))
+            return self.send(chat_id, self._text("home") + "\n\n<b>iOS Store</b>", self.user_menu(user_id))
         if data == "platform:android":
-            return self.send(chat_id, "🤖 <b>Android</b>\n\nComing soon.", self.welcome_menu())
+            return self.send(chat_id, "<b>Android</b>\n\nComing soon.", self.welcome_menu())
         if data == "my_orders":
             self.retry_pending_delivery(user_id)
             return self.my_orders(user_id)
@@ -800,7 +798,7 @@ class StarsKeyBot:
                 pass
             return self.send(chat_id, self._text("welcome"), self.welcome_menu())
         if text.startswith("/shop"):
-            return self.send(chat_id, "🛍️ <b>Open Store</b>\nChoose a platform:", self.platform_menu())
+            return self.send(chat_id, "<b>Open Store</b>\nChoose a platform:", self.platform_menu())
         if text.startswith("/admin"):
             if user_id != self.admin_id:
                 return self.send(chat_id, "⛔ This command is for the administrator only.")
