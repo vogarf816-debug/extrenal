@@ -15,17 +15,7 @@ struct ThreeOneOSFiveApp: App {
 
     init() {
         setupLogCapture()
-#if !DEBUG
-        let violation = EmbeddedAppResources.identityWasModified()
-        // Re-signing and device-specific packaging may rewrite bundle metadata.
-        // Keep this as a diagnostic and never terminate or block the app.
-        if violation {
-            log("integrity: non-fatal bundle identity mismatch")
-        }
         _identityViolation = State(initialValue: false)
-#else
-        _identityViolation = State(initialValue: false)
-#endif
         log("app: Baba External launching — iOS \(AppInfo.osVersion) (\(AppInfo.osBuild)) \(AppInfo.machineName)")
     }
 
