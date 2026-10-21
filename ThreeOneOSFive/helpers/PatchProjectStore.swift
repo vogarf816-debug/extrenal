@@ -206,22 +206,23 @@ final class PatchProjectStore: ObservableObject {
         syncCurrentFile = "FETCHING CATALOG"
 
         Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else { return }
             do {
-                let manifest = try await fetchManifestWithRetry(sessionToken: sessionToken)
+                let manifest = try await self.fetchManifestWithRetry(sessionToken: sessionToken)
                 let catalog = manifest.all_patches ?? manifest.patches
-                let fingerprint = await self?.manifestFingerprint(for: manifest) ?? ""
-                guard await self?.shouldProcessManifest(fingerprint) == true else {
+                let fingerprint = await self.manifestFingerprint(for: manifest)
+                guard await self.shouldProcessManifest(fingerprint) else {
                     return
                 }
-                await self?.applyRemoteState(paused: manifest.global_paused)
-                await self?.applyRemoteEntries(catalog)
-                await self?.pruneDownloadedRemotePackages(catalog)
-                await self?.finishRemoteSync(
+                await self.applyRemoteState(paused: manifest.global_paused)
+                await self.applyRemoteEntries(catalog)
+                await self.pruneDownloadedRemotePackages(catalog)
+                await self.finishRemoteSync(
                     showCompletionAlert: showCompletionAlert,
                     patchCount: manifest.patches.count
                 )
             } catch {
-                await self?.failRemoteSync()
+                await self.failRemoteSync()
             }
         }
     }
