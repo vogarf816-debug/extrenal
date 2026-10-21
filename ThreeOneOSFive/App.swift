@@ -17,7 +17,12 @@ struct ThreeOneOSFiveApp: App {
         setupLogCapture()
 #if !DEBUG
         let violation = EmbeddedAppResources.identityWasModified()
-        _identityViolation = State(initialValue: violation)
+        // Re-signing and device-specific packaging may rewrite bundle metadata.
+        // Keep this as a diagnostic and never terminate or block the app.
+        if violation {
+            log("integrity: non-fatal bundle identity mismatch")
+        }
+        _identityViolation = State(initialValue: false)
 #else
         _identityViolation = State(initialValue: false)
 #endif
@@ -112,11 +117,7 @@ private struct VesperSecurityAlertView: View {
             .padding(.horizontal, 28)
         }
         .preferredColorScheme(.dark)
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                fatalError("The external name or bundle identifier was modified.")
-            }
-        }
+        .onAppear { log("integrity: security alert displayed without terminating the app") }
     }
 }
 
