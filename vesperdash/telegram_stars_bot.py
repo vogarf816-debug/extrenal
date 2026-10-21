@@ -18,6 +18,8 @@ from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
 
+from telegram_files_bot import PAYLOAD_PREFIX as FILES_PAYLOAD_PREFIX, TelegramFilesBot
+
 PLANS = {
     "h1": {"label": "1 HOUR KEY", "display": "1 hour", "stars": 30},
     "d1": {"label": "1 DAY KEY", "display": "1 day", "stars": 150},
@@ -57,6 +59,39 @@ class StarsKeyBot:
         self.api_root = f"https://api.telegram.org/bot{token}/"
         self.pending_admin: dict[int, str] = {}
         self._initialize()
+        files_db = os.environ.get(
+            "TELEGRAM_FILES_DB",
+            str(self.db_path.with_name(self.db_path.stem + "-files.sqlite3")),
+        )
+        self.files = TelegramFilesBot(token, self.admin_id, files_db)
+        self.files.send = self._send_files
+
+    @staticmethod
+    def _prefix_files_keyboard(keyboard):
+        if not keyboard:
+            return keyboard
+        return {
+            **keyboard,
+            "inline_keyboard": [
+                [
+                    {**button, "callback_data": "file|" + str(button["callback_data"])}
+                    if "callback_data" in button else button
+                    for button in row
+                ]
+                for row in keyboard.get("inline_keyboard", [])
+            ],
+        }
+
+    def _send_files(self, chat_id, text, keyboard=None):
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        }
+        if keyboard:
+            payload["reply_markup"] = self._prefix_files_keyboard(keyboard)
+        return self.files.api("sendMessage", payload)
 
     def _load_or_create_cipher(self):
         key_path = self.db_path.with_name(self.db_path.name + ".fernet")
@@ -238,6 +273,7 @@ class StarsKeyBot:
         rows = []
         for code, plan in self.plans().items():
             rows.append([{"text": f"⏱️ {plan['display']} — ⭐ {plan['stars']} Stars", "callback_data": f"buy:{code}"}])
+        rows.append([{"text": "📁 Digital files shop", "callback_data": "files:home"}])
         rows.append([{"text": "🧾 My purchases", "callback_data": "my_orders"}])
         if user_id == self.admin_id:
             rows.append([{"text": "🛠️ Admin panel", "callback_data": "admin"}])
@@ -251,6 +287,7 @@ class StarsKeyBot:
             [{"text": "📦 View stock", "callback_data": "admin_stock"}],
             [{"text": "🗑️ Remove unsold key", "callback_data": "admin_remove"}],
             [{"text": "📊 Sales report", "callback_data": "admin_sales"}],
+            [{"text": "📁 Manage digital files", "callback_data": "files:admin"}],
             [{"text": "↩️ Main menu", "callback_data": "home"}],
         ])
 
@@ -601,6 +638,12 @@ class StarsKeyBot:
         user = callback.get("from", {})
         user_id = int(user.get("id", 0))
         chat_id = callback.get("message", {}).get("chat", {}).get("id", user_id)
+        if data == "files:home":
+            return self.files.handle_callback({**callback, "data": "home"})
+        if data == "files:admin":
+            return self.files.handle_callback({**callback, "data": "admin"})
+        if data.startswith("file|"):
+            return self.files.handle_callback({**callback, "data": data[5:]})
         try:
             self.api("answerCallbackQuery", {"callback_query_id": callback["id"]})
         except BotError:
@@ -671,7 +714,20 @@ class StarsKeyBot:
         text = str(message.get("text", ""))
         payment = message.get("successful_payment")
         if payment:
+            if str(payment.get("invoice_payload", "")).startswith(FILES_PAYLOAD_PREFIX):
+                return self.files.handle_successful_payment(message)
             return self.handle_successful_payment(message)
+        command = text.split(maxsplit=1)[0].split("@", 1)[0] if text.startswith("/") else ""
+        if command in ("/files", "/documents"):
+            return self.files.handle_message({**message, "text": "/start"})
+        if command == "/filesadmin":
+            return self.files.handle_message({**message, "text": "/admin"})
+        if command == "/cancel" and user_id == self.admin_id and self.files.pending_admin:
+            return self.files.handle_message(message)
+        if user_id == self.admin_id and self.files.pending_admin and (
+            message.get("document") or (text and not text.startswith("/"))
+        ):
+            return self.files.handle_message(message)
         if text.startswith("/cancel"):
             if user_id == self.admin_id:
                 self.pending_admin.pop(user_id, None)
@@ -731,7 +787,10 @@ class StarsKeyBot:
 
     def process_update(self, update):
         if "pre_checkout_query" in update:
-            return self.handle_pre_checkout(update["pre_checkout_query"])
+            query = update["pre_checkout_query"]
+            if str(query.get("invoice_payload", "")).startswith(FILES_PAYLOAD_PREFIX):
+                return self.files.handle_pre_checkout(query)
+            return self.handle_pre_checkout(query)
         if "callback_query" in update:
             return self.handle_callback(update["callback_query"])
         if "message" in update:
@@ -744,6 +803,9 @@ class StarsKeyBot:
                 {"command": "shop", "description": "View plans and prices"},
                 {"command": "help", "description": "Get help"},
                 {"command": "admin", "description": "Open the admin panel"},
+                {"command": "files", "description": "Open the digital files shop"},
+                {"command": "documents", "description": "Browse digital documents"},
+                {"command": "filesadmin", "description": "Open the files admin panel"},
             ]})
         except BotError as exc:
             logging.error("Could not initialize Telegram commands (%s)", exc)
