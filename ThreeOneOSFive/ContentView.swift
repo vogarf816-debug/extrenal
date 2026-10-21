@@ -1326,43 +1326,6 @@ private struct PatchOptionCard: View {
     }
 }
 
-private struct RestoreSweepBackground: View {
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { timeline in
-            GeometryReader { geometry in
-                let width = geometry.size.width
-                let height = geometry.size.height
-                let bandWidth = width * 0.62
-                let duration = 2.8
-                let progress = timeline.date.timeIntervalSinceReferenceDate
-                    .truncatingRemainder(dividingBy: duration) / duration
-                let x = -bandWidth + CGFloat(progress) * (width + bandWidth * 2)
-
-                ZStack {
-                    LinearGradient(
-                        colors: [
-                            .clear,
-                            AppTheme.secondaryAccent.opacity(0.05),
-                            AppTheme.accent.opacity(0.20),
-                            AppTheme.secondaryAccent.opacity(0.09),
-                            .clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(width: bandWidth, height: height * 1.8)
-                    .rotationEffect(.degrees(16))
-                    .blur(radius: 13)
-                    .position(x: x, y: height / 2)
-                }
-                .frame(width: width, height: height)
-                .clipped()
-            }
-        }
-        .allowsHitTesting(false)
-    }
-}
-
 enum EmbeddedAppResources {
     private static let payloadMagic = Array("VSPRPAY1".utf8)
     private static let footerMagic = Array("VSPRFTR1".utf8)

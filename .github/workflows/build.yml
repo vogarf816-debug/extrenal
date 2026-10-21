@@ -89,8 +89,6 @@ jobs:
           assert "patchStatusBanner" not in ui
           assert "patchMessage" not in ui
           assert "RESTORING…" in ui
-          assert "RestoreSweepBackground()" in ui
-          assert "TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false))" in ui
           assert "hasPreparedRemoteProject" in ui
           assert 'm3sbVerifyPath' in Path("ThreeOneOSFive/helpers/VesperDashRemoteSync.swift").read_text()
           print("Verified: private storage, on-demand AES-GCM encrypted single-file remote package vault, and Release stripping are configured.")
