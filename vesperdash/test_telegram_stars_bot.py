@@ -56,13 +56,14 @@ class TelegramStarsBotTests(unittest.TestCase):
         self.assertEqual(invoice["provider_token"], "")
         self.assertEqual(invoice["prices"], [{"label": "1 DAY KEY", "amount": 150}])
 
-    def test_customer_and_admin_menus_are_english_and_include_emojis(self):
-        menus = [self.bot.user_menu(12001), self.bot.user_menu(9001), self.bot.admin_menu()]
+    def test_customer_and_admin_menus_use_ios_categories(self):
+        menus = [self.bot.user_menu(12001), self.bot.user_menu(9001), self.bot.keys_menu(12001), self.bot.admin_menu()]
         labels = [button["text"] for menu in menus for row in menu["inline_keyboard"] for button in row]
         text = " ".join(labels)
-        self.assertIn("⭐", text)
-        self.assertIn("⏱️", text)
-        self.assertIn("📦", text)
+        self.assertIn("Vesper Keys", text)
+        self.assertIn("Digital Files", text)
+        self.assertIn("Add digital product", text)
+        self.assertIn("Stars", text)
         for character in text:
             codepoint = ord(character)
             self.assertFalse(0x0600 <= codepoint <= 0x08FF, f"Arabic character found: {character}")
@@ -73,7 +74,7 @@ class TelegramStarsBotTests(unittest.TestCase):
         self.assertEqual(self.bot.plans()["d1"]["stars"], 999)
         self.assertEqual(self.bot.plans()["d1"]["display"], "custom day")
         self.assertEqual(self.bot._text("home"), "CUSTOM HOME {display}")
-        self.assertIn("999 Stars", str(self.bot.user_menu(12001)))
+        self.assertIn("999 Stars", str(self.bot.keys_menu(12001)))
         self.assertIn("admin_plans", str(self.bot.admin_menu()))
         self.assertIn("admin_texts", str(self.bot.admin_menu()))
 

@@ -295,7 +295,7 @@ class StarsKeyBot:
     def keys_menu(self, user_id: int):
         rows = []
         for code, plan in self.plans().items():
-            rows.append([{"text": f"⏱️ {plan['display']} — ⭐ {plan['stars']} Stars", "callback_data": f"buy:{code}"}])
+            rows.append([{"text": f"{plan['display']} - {plan['stars']} Stars", "callback_data": f"buy:{code}"}])
         rows.append([{"text": "Back to iOS", "callback_data": "platform:ios"}])
         return self.inline(rows)
 
@@ -303,13 +303,13 @@ class StarsKeyBot:
         return self.inline([
             [{"text": "Add Vesper keys", "callback_data": "admin_add"}],
             [{"text": "Add digital product", "callback_data": "files:add"}],
-            [{"text": "💰 Edit prices & plans", "callback_data": "admin_plans"}],
-            [{"text": "✍️ Edit bot texts", "callback_data": "admin_texts"}],
-            [{"text": "📦 View stock", "callback_data": "admin_stock"}],
-            [{"text": "🗑️ Remove unsold key", "callback_data": "admin_remove"}],
-            [{"text": "📊 Sales report", "callback_data": "admin_sales"}],
-            [{"text": "📁 Manage digital files", "callback_data": "files:admin"}],
-            [{"text": "↩️ Main menu", "callback_data": "home"}],
+            [{"text": "Edit prices & plans", "callback_data": "admin_plans"}],
+            [{"text": "Edit bot texts", "callback_data": "admin_texts"}],
+            [{"text": "View stock", "callback_data": "admin_stock"}],
+            [{"text": "Remove unsold key", "callback_data": "admin_remove"}],
+            [{"text": "Sales report", "callback_data": "admin_sales"}],
+            [{"text": "Manage digital files", "callback_data": "files:admin"}],
+            [{"text": "Main menu", "callback_data": "home"}],
         ])
 
     def admin_plans_menu(self):
