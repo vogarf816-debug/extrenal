@@ -75,16 +75,12 @@ jobs:
           assert 'appendingPathComponent(".v"' in library
           assert 'appendingPathComponent(".cache"' in library
           ui = Path("ThreeOneOSFive/ContentView.swift").read_text()
-          assert '"RETRY INJECT" : "INJECT"' in ui
-          assert "INJECTING…" in ui
-          assert "INJECTED" in ui
+          assert "patchCard(" in ui
+          assert 'Text(isEnabled ? "INJECTED" : target)' in ui
           assert "injectRemotePatch(remote, targetBundleID: targetBundleID)" in ui
-          remote_button = ui.split("if hasPreparedProject || isRemoteActive {", 1)[1].split("if patchStore.hasManifestSyncError", 1)[0]
-          assert "arrow.down.circle.fill" not in remote_button
-          assert "RoundedRectangle(cornerRadius: 7, style: .continuous)" in remote_button
-          assert ".frame(minWidth: 82, minHeight: 32)" in remote_button
-          assert ".padding(.horizontal, 10)" in remote_button
-          assert '.font(.system(size: 11, weight: .bold, design: .rounded))' in remote_button
+          assert ".frame(width: 92, height: 32, alignment: .center)" in ui
+          assert ".shadow(color: .clear, radius: 0, y: 0)" in ui
+          assert "CATALOG FAILED — TAP TO RETRY" not in ui
           assert "INJECT STATUS" not in ui
           assert "patchStatusBanner" not in ui
           assert "patchMessage" not in ui
