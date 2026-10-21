@@ -591,68 +591,17 @@ struct ContentView: View {
                     ForEach(Array(remotePatches.enumerated()), id: \.element.id) { index, remote in
                         let color = index.isMultiple(of: 2) ? AppTheme.accent : AppTheme.secondaryAccent
                         let remoteKey = patchStore.remotePatchKey(for: remote)
-                        let hasPreparedProject = patchStore.hasPreparedRemoteProject(for: remote)
-                        let isRemoteActive = patchStore.isRemotePatchActive(remote)
-                        if hasPreparedProject || isRemoteActive {
-                            patchCard(
-                                name: remote.name,
-                                target: targetTitle,
-                                package: remoteKey,
-                                color: color,
-                                imageURL: VesperDashRemoteSync.validImageURL(for: remote),
-                                statusText: remote.displayStatusText,
-                                state: patchBinding(for: remoteKey, targetBundleID: targetBundleID),
-                                targetBundleID: targetBundleID,
-                                remote: remote
-                            )
-                        } else {
-                            HStack(spacing: 10) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(remote.name)
-                                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                                        .foregroundStyle(AppTheme.paper)
-                                    if !remote.displayStatusText.isEmpty {
-                                        Text(remote.displayStatusText)
-                                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                                            .foregroundStyle(AppTheme.secondaryAccent.opacity(0.82))
-                                            .lineLimit(2)
-                                    }
-                                }
-                                Spacer()
-                                Button {
-                                    injectRemotePatch(remote, targetBundleID: targetBundleID)
-                                } label: {
-                                    Text(injectingRemotePatchKey == remoteKey
-                                         ? "INJECTING…"
-                                         : (patchStore.failedRemotePatchKeys.contains(remoteKey) ? "RETRY INJECT" : "INJECT"))
-                                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                                        .foregroundStyle(patchStore.failedRemotePatchKeys.contains(remoteKey) ? .orange : AppTheme.secondaryAccent)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.8)
-                                        .padding(.horizontal, 10)
-                                        .frame(minWidth: 82, minHeight: 32)
-                                        .background(
-                                            AppTheme.secondaryAccent.opacity(0.12),
-                                            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                        )
-                                        .overlay {
-                                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                                .stroke(
-                                                    patchStore.failedRemotePatchKeys.contains(remoteKey)
-                                                        ? Color.orange.opacity(0.82)
-                                                        : AppTheme.secondaryAccent.opacity(0.72),
-                                                    lineWidth: 1.2
-                                                )
-                                        }
-                                }
-                                .buttonStyle(.plain)
-                                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                                .disabled(patchOperationBusy || patchStore.preparingRemotePatchKeys.contains(remoteKey))
-                                .accessibilityLabel("Inject \(remote.name)")
-                            }
-                            .padding(14)
-                            .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
+                        patchCard(
+                            name: remote.name,
+                            target: targetTitle,
+                            package: remoteKey,
+                            color: color,
+                            imageURL: VesperDashRemoteSync.validImageURL(for: remote),
+                            statusText: remote.displayStatusText,
+                            state: patchBinding(for: remoteKey, targetBundleID: targetBundleID),
+                            targetBundleID: targetBundleID,
+                            remote: remote
+                        )
                     }
                 }
             } else {
@@ -737,12 +686,18 @@ struct ContentView: View {
             isRestoring: restoringPatchKey == stateKey,
             isBusy: patchOperationBusy
         ) {
-            togglePatch(
-                packageFilename: package,
-                state: state,
-                targetBundleID: targetBundleID,
-                remote: remote
-            )
+            if let remote,
+               !patchStore.hasPreparedRemoteProject(for: remote),
+               !patchStore.isRemotePatchActive(remote) {
+                injectRemotePatch(remote, targetBundleID: targetBundleID)
+            } else {
+                togglePatch(
+                    packageFilename: package,
+                    state: state,
+                    targetBundleID: targetBundleID,
+                    remote: remote
+                )
+            }
         }
     }
 
@@ -1269,6 +1224,9 @@ private struct PatchOptionCard: View {
                 Text(name)
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(height: 20, alignment: .leading)
                 Text(isEnabled ? "INJECTED" : target)
                     .font(.system(size: 9, weight: .bold, design: .rounded))
                     .tracking(0.8)
@@ -1288,14 +1246,14 @@ private struct PatchOptionCard: View {
                     .font(.system(size: 9, weight: .black, design: .rounded))
                     .lineLimit(1)
                     .frame(width: 92, height: 32, alignment: .center)
-                .foregroundStyle(isRestoring ? AppTheme.accent : (isEnabled ? AppTheme.secondaryAccent : color))
+                .foregroundStyle(AppTheme.secondaryAccent)
                 .background(
-                    (isEnabled ? AppTheme.secondaryAccent : color).opacity(0.12),
+                    AppTheme.secondaryAccent.opacity(0.12),
                     in: RoundedRectangle(cornerRadius: 7, style: .continuous)
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke((isEnabled ? AppTheme.secondaryAccent : color).opacity(0.72), lineWidth: 1.1)
+                        .stroke(AppTheme.secondaryAccent.opacity(0.72), lineWidth: 1.1)
                 }
             }
             .buttonStyle(.plain)
@@ -1311,7 +1269,7 @@ private struct PatchOptionCard: View {
                 endPoint: .trailing
             )
         )
-        .shadow(color: isEnabled ? color.opacity(0.28) : .clear, radius: 12, y: 3)
+        .shadow(color: .clear, radius: 0, y: 0)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(statusText.isEmpty ? "\(name), \(target), \(isEnabled ? "Injected" : "Not injected")" : "\(name), \(target), \(statusText), \(isEnabled ? "Injected" : "Not injected")")
     }
