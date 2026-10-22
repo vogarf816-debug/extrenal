@@ -135,7 +135,7 @@ jobs:
               raise SystemExit("M3SB build secrets are missing (values hidden).")
           with plist_path.open("rb") as stream:
               info = plistlib.load(stream)
-          if info.get("CFBundleVersion") != "35":
+          if info.get("CFBundleVersion") != "36":
               raise SystemExit("Expected VESPER Build 36.")
           if info.get("CFBundleDisplayName") != "VESPER" or info.get("CFBundleExecutable") != "VESPER":
               raise SystemExit("The VESPER app display name or executable name is incorrect.")
