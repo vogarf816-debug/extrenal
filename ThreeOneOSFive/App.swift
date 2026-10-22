@@ -10,6 +10,9 @@ struct ThreeOneOSFiveApp: App {
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @AppStorage("vesperWelcomeShownOnce") private var hasShownWelcome = false
     @State private var showWelcome = false
+    @State private var updateRequired = false
+    @State private var releaseDownloadURL: URL?
+    @State private var releaseUpdateMessage = "IPA UPDATED, PLEASE DOWNLOAD NEW VERSION"
     @State private var identityViolation: Bool
     @Environment(\.scenePhase) private var scenePhase
 
@@ -27,7 +30,9 @@ struct ThreeOneOSFiveApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if identityViolation {
+            if updateRequired {
+                VesperBuildUpdateRequiredView(downloadURL: releaseDownloadURL, message: releaseUpdateMessage)
+            } else if identityViolation {
                 VesperSecurityAlertView()
             } else {
                 Group {
@@ -55,6 +60,7 @@ struct ThreeOneOSFiveApp: App {
                 presentWelcomeOnce()
             }
             .onAppear {
+                checkReleasePolicy()
                 if licenseManager.isActive {
                     appState.detectSupport()
                     presentWelcomeOnce()
@@ -63,6 +69,7 @@ struct ThreeOneOSFiveApp: App {
             }
             .onChange(of: scenePhase) { phase in
                 if phase == .active {
+                    checkReleasePolicy()
                     guard licenseManager.hasRememberedKey else { return }
                     licenseManager.beginLaunchSession()
                 } else {
@@ -84,6 +91,66 @@ struct ThreeOneOSFiveApp: App {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
             showWelcome = false
         }
+    }
+
+    private func checkReleasePolicy() {
+        Task {
+            guard let policy = try? await VesperDashRemoteSync.fetchReleasePolicy() else {
+                // Keep existing behavior during temporary network outages.
+                return
+            }
+            let currentBuild = Int(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0") ?? 0
+            let blocked = policy.minimumBuild > 0 && currentBuild < policy.minimumBuild
+            await MainActor.run {
+                updateRequired = blocked
+                releaseDownloadURL = policy.downloadURL
+                releaseUpdateMessage = policy.displayUpdateMessage
+            }
+        }
+    }
+}
+
+private struct VesperBuildUpdateRequiredView: View {
+    let downloadURL: URL?
+    let message: String
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: 18) {
+                Image(systemName: "arrow.down.app.fill")
+                    .font(.system(size: 46, weight: .semibold))
+                    .foregroundStyle(AppTheme.accent)
+                Text(message)
+                    .font(.system(size: 21, weight: .black, design: .rounded))
+                    .tracking(0.7)
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                Text("This build is no longer supported. Download the latest IPA to continue.")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .multilineTextAlignment(.center)
+                if let downloadURL {
+                    Link(destination: downloadURL) {
+                        Text("DOWNLOAD NEW VERSION")
+                            .font(.system(size: 14, weight: .bold))
+                            .tracking(0.8)
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 22)
+                            .padding(.vertical, 14)
+                            .background(AppTheme.accent, in: Capsule())
+                    }
+                    .padding(.top, 4)
+                }
+            }
+            .padding(28)
+            .frame(maxWidth: 360)
+            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(.white.opacity(0.14), lineWidth: 1))
+            .padding(24)
+        }
+        .preferredColorScheme(.dark)
+        .accessibilityIdentifier("vesper-build-update-required")
     }
 }
 

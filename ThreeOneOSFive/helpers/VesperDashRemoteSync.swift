@@ -23,6 +23,25 @@ struct VesperDashManifest: Decodable {
     let package_passwords: [String]?
 }
 
+struct VesperReleasePolicy: Decodable {
+    let latestBuild: Int
+    let minimumBuild: Int
+    let downloadURL: URL
+    let updateMessage: String
+
+    private enum CodingKeys: String, CodingKey {
+        case latestBuild = "latest_build"
+        case minimumBuild = "minimum_build"
+        case downloadURL = "download_url"
+        case updateMessage = "update_message"
+    }
+
+    var displayUpdateMessage: String {
+        let value = updateMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? "IPA UPDATED, PLEASE DOWNLOAD NEW VERSION" : String(value.prefix(240))
+    }
+}
+
 struct RemotePatch: Codable, Identifiable, Sendable {
     let id: String
     let name: String
@@ -73,6 +92,32 @@ private struct ManifestHTTPError: LocalizedError {
 
 enum VesperDashRemoteSync {
     static let manifestURL = URL(string: VesperStringVault.vesperDashPatchesURL)!
+
+    static func fetchReleasePolicy() async throws -> VesperReleasePolicy {
+        var components = URLComponents(url: manifestURL, resolvingAgainstBaseURL: false)!
+        components.path = "/api/release-policy"
+        components.query = nil
+        components.fragment = nil
+        guard let url = components.url else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let policy = try JSONDecoder().decode(VesperReleasePolicy.self, from: data)
+        guard policy.latestBuild >= 1,
+              policy.minimumBuild >= 0,
+              policy.minimumBuild <= policy.latestBuild,
+              policy.downloadURL.scheme?.lowercased() == "https",
+              policy.downloadURL.user == nil,
+              policy.downloadURL.password == nil else {
+            throw URLError(.cannotParseResponse)
+        }
+        return policy
+    }
 
     static func downloadPackageFile(
         for remote: RemotePatch,

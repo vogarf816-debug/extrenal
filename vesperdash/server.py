@@ -37,7 +37,7 @@ VESPERDASH_PACKAGE_PASSWORDS = os.environ.get("VESPERDASH_PACKAGE_PASSWORDS", ""
 MAX_UPLOAD = int(os.environ.get("VESPERDASH_MAX_UPLOAD", str(80 * 1024 * 1024)))
 ALLOWED_BUNDLES = {"com.dts.freefireth", "com.dts.freefiremax"}
 ALLOWED_CATEGORIES = {"aim", "esp", "hologram", "skin"}
-VESPER_IPA_DOWNLOAD_URL = "https://github.com/vogarf816-debug/extrenal/releases/download/vesper-build-39532761081/VESPER-Build-34-unsigned.ipa"
+VESPER_IPA_DOWNLOAD_URL = "https://github.com/vogarf816-debug/extrenal/releases/latest/download/VESPER-Build-36-unsigned.ipa"
 
 app = Flask(__name__, static_folder=str(ROOT / "static"), static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD
@@ -266,7 +266,7 @@ def default_release_policy(tenant="vesper"):
         "latest_build": 36,
         "minimum_build": 0,
         "download_url": VESPER_IPA_DOWNLOAD_URL,
-        "update_message": "A new VESPER version is available. Update to keep using patches.",
+        "update_message": "IPA UPDATED, PLEASE DOWNLOAD NEW VERSION",
     }
 
 def load_release_policy(tenant="vesper"):
