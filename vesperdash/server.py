@@ -261,6 +261,75 @@ def save_settings():
     temporary.replace(settings_file)
     return jsonify(payload)
 
+def default_release_policy(tenant="vesper"):
+    return {
+        "latest_build": 36,
+        "minimum_build": 0,
+        "download_url": VESPER_IPA_DOWNLOAD_URL,
+        "update_message": "A new VESPER version is available. Update to keep using patches.",
+    }
+
+def load_release_policy(tenant="vesper"):
+    defaults = default_release_policy(tenant)
+    conn = db()
+    row = conn.execute("SELECT value FROM settings WHERE key=?", (f"release_policy_{tenant}",)).fetchone()
+    conn.close()
+    if not row:
+        return defaults
+    try:
+        stored = json.loads(row["value"])
+    except (TypeError, json.JSONDecodeError):
+        return defaults
+    if not isinstance(stored, dict):
+        return defaults
+    defaults.update({key: stored[key] for key in defaults if key in stored})
+    return defaults
+
+def valid_release_policy(payload):
+    if not isinstance(payload, dict):
+        return None
+    try:
+        latest = int(payload.get("latest_build"))
+        minimum = int(payload.get("minimum_build"))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    url = str(payload.get("download_url", "")).strip()
+    message = str(payload.get("update_message", "")).strip()
+    if not (1 <= latest <= 2147483647 and 0 <= minimum <= latest):
+        return None
+    if not url.startswith("https://") or len(url) > 500 or len(message) > 240:
+        return None
+    return {
+        "latest_build": latest,
+        "minimum_build": minimum,
+        "download_url": url,
+        "update_message": message or "A new app version is available.",
+    }
+
+@app.get("/api/release-policy")
+def public_release_policy():
+    return jsonify(load_release_policy(requested_tenant()))
+
+@app.get("/api/admin/release-policy")
+@auth_required
+def admin_release_policy():
+    return jsonify(load_release_policy(requested_tenant()))
+
+@app.post("/api/admin/release-policy")
+@auth_required
+def save_release_policy():
+    payload = valid_release_policy(request.get_json(silent=True))
+    if payload is None:
+        return jsonify(error="invalid release policy; use valid build numbers and an HTTPS download URL"), 400
+    conn = db()
+    conn.execute(
+        "INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        (f"release_policy_{requested_tenant()}", json.dumps(payload, ensure_ascii=False, separators=(",", ":"))),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify(payload)
+
 
 def default_resellers(tenant="vesper"):
     if tenant == "jefry":
