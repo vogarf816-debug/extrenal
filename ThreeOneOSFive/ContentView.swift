@@ -17,10 +17,23 @@ struct ContentView: View {
     @State private var injectingRemotePatchKey: String?
     @State private var restoringPatchKey: String?
     @State private var patchEnabled: [String: Bool] = [:]
+    @AppStorage("vesper.selectedPatchGame") private var selectedPatchGame = "normal"
     @AppStorage("keepPatchesActiveAfterExit") private var keepPatchesActiveAfterExit = true
     private let fileNames: [String] = []
     private let normalPatchFiles: [String] = []
     private let maxPatchFiles: [String] = []
+
+    private var selectedPatchBundleID: String {
+        selectedPatchGame == "max" ? "com.dts.freefiremax" : "com.dts.freefireth"
+    }
+
+    private var selectedPatchGameTitle: String {
+        selectedPatchGame == "max" ? "FREE FIRE MAX" : "FF NORMAL"
+    }
+
+    private var selectedPatchTargetTitle: String {
+        selectedPatchGame == "max" ? "FREE FIRE • MAX" : "FREE FIRE • NORMAL"
+    }
 
     var body: some View {
         TabView {
@@ -138,12 +151,13 @@ struct ContentView: View {
     private var aimTab: some View {
         VStack(spacing: 16) {
             gameIntro(title: "AIM", subtitle: "ONLINE AIM PATCHES", icon: "scope")
+            patchGameSelector
             patchOptions(
-                files: normalPatchFiles,
+                files: selectedPatchGame == "max" ? maxPatchFiles : normalPatchFiles,
                 category: "aim",
-                sectionTitle: "FF NORMAL",
-                targetTitle: "FREE FIRE • NORMAL",
-                targetBundleID: "com.dts.freefireth"
+                sectionTitle: selectedPatchGameTitle,
+                targetTitle: selectedPatchTargetTitle,
+                targetBundleID: selectedPatchBundleID
             )
         }
     }
@@ -151,15 +165,50 @@ struct ContentView: View {
     private var hologramTab: some View {
         VStack(spacing: 16) {
             gameIntro(title: "HOLOGRAM", subtitle: "ONLINE HOLOGRAM PATCHES", icon: "cube.transparent")
-            patchOptions(files: [], category: "hologram", sectionTitle: "FF NORMAL", targetTitle: "FREE FIRE • NORMAL", targetBundleID: "com.dts.freefireth")
+            patchGameSelector
+            patchOptions(files: [], category: "hologram", sectionTitle: selectedPatchGameTitle, targetTitle: selectedPatchTargetTitle, targetBundleID: selectedPatchBundleID)
         }
     }
 
     private var skinModTab: some View {
         VStack(spacing: 16) {
             gameIntro(title: "SKIN MOD", subtitle: "ONLINE SKIN PATCHES", icon: "sparkles")
-            patchOptions(files: [], category: "skin", sectionTitle: "FF NORMAL", targetTitle: "FREE FIRE • NORMAL", targetBundleID: "com.dts.freefireth")
+            patchGameSelector
+            patchOptions(files: [], category: "skin", sectionTitle: selectedPatchGameTitle, targetTitle: selectedPatchTargetTitle, targetBundleID: selectedPatchBundleID)
         }
+    }
+
+    private var patchGameSelector: some View {
+        HStack(spacing: 8) {
+            patchGameButton(title: "FREE FIRE", subtitle: "NORMAL", game: "normal")
+            patchGameButton(title: "FREE FIRE MAX", subtitle: "MAX", game: "max")
+        }
+        .padding(6)
+        .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.24), lineWidth: 1))
+    }
+
+    private func patchGameButton(title: String, subtitle: String, game: String) -> some View {
+        let isSelected = selectedPatchGame == game
+        return Button {
+            selectedPatchGame = game
+        } label: {
+            VStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(subtitle)
+                    .font(.system(size: 8, weight: .bold, design: .rounded))
+                    .tracking(1)
+            }
+            .foregroundStyle(isSelected ? AppTheme.paper : AppTheme.paper.opacity(0.58))
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(isSelected ? AppTheme.accent.opacity(0.20) : Color.clear, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(isSelected ? AppTheme.accent.opacity(0.78) : Color.clear, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var fileStatusTab: some View {

@@ -31,7 +31,7 @@ jobs:
           set -o pipefail
           xcodebuild clean build \
             -project ThreeOneOSFive.xcodeproj \
-            -scheme JVZTXNX \
+            -scheme 3105 \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
@@ -43,7 +43,7 @@ jobs:
           set -o pipefail
           xcodebuild analyze \
             -project ThreeOneOSFive.xcodeproj \
-            -scheme JVZTXNX \
+            -scheme 3105 \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
