@@ -22,7 +22,6 @@
       <div class="mark">V</div><p class="eyebrow">Secure admin access</p><h2 style="margin-top:5px">Welcome back</h2><p class="helper">Sign in to manage the Vesper catalog, app settings, and official contacts.</p>
       <form id="loginForm" style="margin-top:20px"><div class="grid"><div class="field"><label for="username">Username</label><input class="input" id="username" autocomplete="username" required></div><div class="field"><label for="password">Password</label><input class="input" id="password" type="password" autocomplete="current-password" required></div></div><div class="form-actions"><button class="button primary" type="submit">Open dashboard</button><span id="loginStatus" class="status"></span></div></form>
       <div class="notice" style="margin-top:18px"><div><strong>Vesper IPA</strong><span>Latest unsigned build · Build 34</span></div><a class="button success" href="/download/vesper.ipa">Download IPA</a></div>
-      <details class="access"><summary>Use legacy admin token</summary><input class="input" id="token" type="password" placeholder="X-Admin-Token"><button class="button" type="button" onclick="connectWithToken()">Connect</button></details>
     </section>
 
     <main id="dashboard" class="layout hidden">
@@ -41,7 +40,7 @@
   </div>
 <script>
   const $=s=>document.querySelector(s); let globalPaused=false, patchesById={}, allPatches=[], currentTenant='';
-  const token=()=>$('#token').value.trim(); const headers=()=>token()?{'X-Admin-Token':token()}:{};
+  const token=()=>''; const headers=()=>({});
   const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   function setStatus(id,text,kind=''){const e=$(id);e.textContent=text;e.className='status '+kind}
   function showDashboard(){ $('#loginView').classList.add('hidden');$('#dashboard').classList.remove('hidden');$('#topActions').classList.remove('hidden');loadDashboard();loadSettings();loadResellers(); }
