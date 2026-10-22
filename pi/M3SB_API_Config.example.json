@@ -1,5 +1,5 @@
 {
-  "api_base_url": "https://api.m3sbapi.shop",
+  "api_base_url": "https://provider.example.invalid",
   "token": "SERVER_ONLY_REPLACE_WITH_M3SB_PACKAGE_TOKEN",
   "hmac_secret": "SERVER_ONLY_REPLACE_WITH_M3SB_HMAC_SECRET",
   "package_id": 78,

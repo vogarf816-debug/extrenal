@@ -4,7 +4,6 @@ import MachO
 import Security
 import UIKit
 import CoreFoundation
-import CryptoKit
 
 @MainActor
 final class LicenseManager: ObservableObject {
@@ -176,73 +175,24 @@ final class LicenseManager: ObservableObject {
     }
 
     private func verify(key: String, silent: Bool) {
-        guard let configuration = APIConfiguration.load() else {
-            finishVerification(.failure(.message("M3SB activation configuration is missing")), key: key, silent: silent)
-            return
-        }
         let deviceID = deviceIdentifier()
-        let body: [String: String] = [
-            "token": configuration.token,
+        let body: [String: Any] = [
             "key": key,
             "device_id": deviceID,
             "dylibs": String(injectedDylibCount()),
-            "udid": sha256(deviceID),
-            "device_hash": sha256(deviceID),
             "device_name": UIDevice.current.name,
             "system_info": "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)",
             "os_info": UIDevice.current.systemVersion
         ]
-        let verifyPath = VesperStringVault.m3sbVerifyPath
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes]),
-              let url = URL(string: configuration.baseURL + verifyPath) else {
-            finishVerification(.failure(.message("M3SB activation configuration is invalid")), key: key, silent: silent)
-            return
-        }
-        let timestamp = String(Int(Date().timeIntervalSince1970))
-        let nonce = UUID().uuidString.replacingOccurrences(of: "-", with: "")
-        let bodyHash = sha256(bodyData)
-        let canonical = ["M3SB-API-SIGNATURE-V3", "POST", verifyPath, timestamp, nonce, bodyHash, configuration.token, key, deviceID].joined(separator: "\n")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.httpBody = bodyData
-        request.timeoutInterval = 20
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("APON/3.0 (iOS)", forHTTPHeaderField: "X-APON-Client")
-        request.setValue("3", forHTTPHeaderField: "X-M3SB-Signature-Version")
-        request.setValue(timestamp, forHTTPHeaderField: "X-M3SB-Timestamp")
-        request.setValue(nonce, forHTTPHeaderField: "X-M3SB-Nonce")
-        request.setValue(bodyHash, forHTTPHeaderField: "X-M3SB-Body-SHA256")
-        request.setValue(Self.hmac(canonical, secret: configuration.secret), forHTTPHeaderField: "X-M3SB-Signature")
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            let result = Self.parseProviderResponse(data: data, response: response, error: error, secret: configuration.secret)
-            DispatchQueue.main.async {
-                guard let self else { return }
-                switch result {
-                case .failure(let error):
-                    self.finishVerification(.failure(error), key: key, silent: silent)
-                case .success(let providerResult):
-                    let providerState = APIState(json: providerResult)
-                    guard providerState.valid else {
-                        self.finishVerification(.success(providerState), key: key, silent: silent)
-                        return
-                    }
-                    self.exchangeProviderResult(providerResult, key: key, deviceID: deviceID, silent: silent)
-                }
-            }
-        }.resume()
-    }
-
-    private func exchangeProviderResult(_ providerResult: [String: Any], key: String, deviceID: String, silent: Bool) {
-        let body: [String: Any] = ["key": key, "device_id": deviceID, "provider_result": providerResult]
-        guard let bodyData = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes]),
-              let url = URL(string: VesperStringVault.vesperDashClientSessionURL + "/bridge") else {
-            finishVerification(.failure(.message("VesperDash session service is not configured")), key: key, silent: silent)
+              let url = URL(string: VesperStringVault.vesperDashClientSessionURL) else {
+            finishVerification(.failure(.message("VesperDash activation service is not configured")), key: key, silent: silent)
             return
         }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.httpBody = bodyData
-        request.timeoutInterval = 15
+        request.timeoutInterval = 35
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             let result = Self.parseResponse(data: data, response: response, error: error)
@@ -348,66 +298,6 @@ final class LicenseManager: ObservableObject {
         return .success(state)
     }
 
-    private static func parseProviderResponse(data: Data?, response: URLResponse?, error: Error?, secret: String) -> Result<[String: Any], APIError> {
-        if let error { return .failure(.message("M3SB connection failed: \(error.localizedDescription)")) }
-        guard let http = response as? HTTPURLResponse, let data else {
-            return .failure(.message("M3SB returned an invalid response"))
-        }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return .failure(.message("M3SB returned a non-JSON response (HTTP \(http.statusCode))"))
-        }
-        if !(200..<300).contains(http.statusCode) {
-            let status = json["status"] as? String
-            let serverMessage = json["message"] as? String
-            let message = serverMessage ?? status ?? "HTTP \(http.statusCode)"
-            if http.statusCode == 403 && (json["valid"] as? Bool == false) {
-                return .failure(.revoked(message))
-            }
-            return .failure(.message("M3SB rejected the request: \(message)"))
-        }
-        let state = APIState(json: json)
-        guard !state.valid || verifyProviderResponse(json: json, secret: secret) else {
-            return .failure(.message("M3SB response could not be trusted"))
-        }
-        return .success(json)
-    }
-
-    private static func verifyProviderResponse(json: [String: Any], secret: String) -> Bool {
-        guard let signature = json["sig_v2"] as? String, !signature.isEmpty,
-              let rawTimestamp = json["ts"] as? NSNumber,
-              CFGetTypeID(rawTimestamp) != CFBooleanGetTypeID() else { return false }
-        let rawTime = rawTimestamp.doubleValue
-        let timestamp = rawTime > 10_000_000_000 ? rawTime / 1000.0 : rawTime
-        guard abs(Date().timeIntervalSince1970 - timestamp) <= 300 else { return false }
-        let fields = ["valid", "status", "license", "device_hash", "expires_at", "devices_left", "allow_inject", "ts"]
-        let payload = fields.map { field -> String in
-            guard let value = json[field], !(value is NSNull) else { return "\(field)=" }
-            if CFGetTypeID(value as CFTypeRef) == CFBooleanGetTypeID() {
-                return "\(field)=\(((value as? Bool) ?? false) ? "true" : "false")"
-            }
-            if let value = value as? NSNumber { return "\(field)=\(value.stringValue)" }
-            return "\(field)=\(value)"
-        }.joined(separator: "&")
-        let expected = hmac(payload, secret: secret)
-        let actualBytes = Array(signature.utf8)
-        let expectedBytes = Array(expected.utf8)
-        guard actualBytes.count == expectedBytes.count else { return false }
-        var difference: UInt8 = 0
-        for index in actualBytes.indices { difference |= actualBytes[index] ^ expectedBytes[index] }
-        return difference == 0
-    }
-
-    private func sha256(_ value: String) -> String { sha256(Data(value.utf8)) }
-
-    private func sha256(_ data: Data) -> String {
-        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    }
-
-    private static func hmac(_ value: String, secret: String) -> String {
-        let key = SymmetricKey(data: Data(secret.utf8))
-        return HMAC<SHA256>.authenticationCode(for: Data(value.utf8), using: key).map { String(format: "%02x", $0) }.joined()
-    }
-
     private func deviceIdentifier() -> String {
         if let existing = string(for: deviceAccount, service: deviceService) { return existing }
         let value = UUID().uuidString
@@ -446,27 +336,6 @@ final class LicenseManager: ObservableObject {
 private enum APIError: Error {
     case message(String)
     case revoked(String)
-}
-
-private struct APIConfiguration {
-    let baseURL: String
-    let token: String
-    let secret: String
-
-    static func load() -> APIConfiguration? {
-        guard let encodedToken = Bundle.main.object(forInfoDictionaryKey: "M3SB_PACKAGE_TOKEN_OBFUSCATED") as? String,
-              let encodedSecret = Bundle.main.object(forInfoDictionaryKey: "M3SB_HMAC_SECRET_OBFUSCATED") as? String,
-              let token = decode(encodedToken), let secret = decode(encodedSecret),
-              !token.isEmpty, !secret.isEmpty,
-              let url = URL(string: VesperStringVault.m3sbAPIBaseURL), url.scheme == "https", url.host != nil else { return nil }
-        return APIConfiguration(baseURL: VesperStringVault.m3sbAPIBaseURL, token: token, secret: secret)
-    }
-
-    private static func decode(_ value: String) -> String? {
-        guard let encoded = Data(base64Encoded: value) else { return nil }
-        let bytes = encoded.map { $0 ^ 0x5A }
-        return String(bytes: bytes, encoding: .utf8)
-    }
 }
 
 private struct APIState {

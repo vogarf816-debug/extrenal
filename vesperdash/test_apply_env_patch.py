@@ -11,7 +11,7 @@ from vesperdash.apply_env_patch import MANAGED_KEYS, systemd_quote, update_env_f
 class EnvPatchTests(unittest.TestCase):
     def payload(self):
         return {
-            "VESPERDASH_M3SB_API_BASE_URL": "https://api.m3sbapi.shop",
+            "VESPERDASH_M3SB_API_BASE_URL": "https://license.invalid",
             "VESPERDASH_M3SB_PACKAGE_TOKEN": "fresh-package-token-value",
             "VESPERDASH_M3SB_HMAC_SECRET": "fresh-hmac-secret-value",
             "VESPERDASH_PACKAGE_PASSWORDS": json.dumps(["a" * 32]),

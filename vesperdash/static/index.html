@@ -21,8 +21,7 @@
     <section id="loginView" class="card login-card">
       <div class="mark">V</div><p class="eyebrow">Secure admin access</p><h2 style="margin-top:5px">Welcome back</h2><p class="helper">Sign in to manage the Vesper catalog, app settings, and official contacts.</p>
       <form id="loginForm" style="margin-top:20px"><div class="grid"><div class="field"><label for="username">Username</label><input class="input" id="username" autocomplete="username" required></div><div class="field"><label for="password">Password</label><input class="input" id="password" type="password" autocomplete="current-password" required></div></div><div class="form-actions"><button class="button primary" type="submit">Open dashboard</button><span id="loginStatus" class="status"></span></div></form>
-      <div class="notice" style="margin-top:18px"><div><strong>Vesper IPA</strong><span>Latest unsigned build · Build 34</span></div><a class="button success" href="/download/vesper.ipa">Download IPA</a></div>
-      <details class="access"><summary>Use legacy admin token</summary><input class="input" id="token" type="password" placeholder="X-Admin-Token"><button class="button" type="button" onclick="connectWithToken()">Connect</button></details>
+      <div class="notice" style="margin-top:18px"><div><strong>Vesper IPA</strong><span>Latest unsigned build · Build 35</span></div><a class="button success" href="/download/vesper.ipa">Download IPA</a></div>
     </section>
 
     <main id="dashboard" class="layout hidden">
@@ -41,11 +40,10 @@
   </div>
 <script>
   const $=s=>document.querySelector(s); let globalPaused=false, patchesById={}, allPatches=[], currentTenant='';
-  const token=()=>$('#token').value.trim(); const headers=()=>token()?{'X-Admin-Token':token()}:{};
+  const token=()=>''; const headers=()=>({});
   const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   function setStatus(id,text,kind=''){const e=$(id);e.textContent=text;e.className='status '+kind}
   function showDashboard(){ $('#loginView').classList.add('hidden');$('#dashboard').classList.remove('hidden');$('#topActions').classList.remove('hidden');loadDashboard();loadSettings();loadResellers(); }
-  async function connectWithToken(){if(!token()){setStatus('#loginStatus','Enter a token first','error');return}await loadDashboard(true)}
   $('#loginForm').onsubmit=async e=>{e.preventDefault();setStatus('#loginStatus','Signing in…');let r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({username:$('#username').value,password:$('#password').value})});if(!r.ok){setStatus('#loginStatus','Login failed: '+await r.text(),'error');return}$('#password').value='';let d=await r.json();$('#sessionLabel').textContent=d.username?'Signed in as '+d.username:'Signed in';if(d.owner==='jefry'){document.title='Jefry External · Control Center';$('#brandTitle').textContent='Jefry External';document.querySelector('.login-card h2').textContent='Jefry External workspace'}showDashboard()};
   async function loadDashboard(fromToken=false){let r=await fetch('/api/admin/patches',{headers:headers(),credentials:'same-origin'});if(!r.ok){if(fromToken)setStatus('#loginStatus','Connection failed: '+await r.text(),'error');else{setStatus('#loginStatus','Session expired. Please sign in again.','error');$('#dashboard').classList.add('hidden');$('#topActions').classList.add('hidden');$('#loginView').classList.remove('hidden')}return}let d=await r.json();currentTenant=d.tenant||'vesper';$('#tenantBadge').textContent=currentTenant.toUpperCase()+' WORKSPACE';$('#tenantBadge').classList.remove('hidden');$('#sessionLabel').textContent=token()?'Connected with admin token':'Admin session active';globalPaused=!!d.global_paused;allPatches=d.patches||[];patchesById=Object.fromEntries(allPatches.map(p=>[p.id,p]));updateGlobal();renderFiltered();updateStats(allPatches);if(fromToken)showDashboard()}
   function updateStats(ps){$('#totalStat').textContent=ps.length;$('#enabledStat').textContent=ps.filter(p=>p.enabled).length;$('#pausedStat').textContent=ps.filter(p=>p.paused).length;$('#categoryStat').textContent=new Set(ps.map(p=>p.category)).size}

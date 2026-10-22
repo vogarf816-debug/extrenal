@@ -2,8 +2,6 @@ enum VesperStringVault {
     private static func decode(_ bytes: [UInt8]) -> String {
         String(decoding: bytes.map { $0 ^ 0x5A }, as: UTF8.self)
     }
-    static let m3sbAPIBaseURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 55, 105, 41, 56, 59, 42, 51, 116, 41, 50, 53, 42])
-    static let m3sbVerifyPath = decode([117, 59, 42, 51, 117, 41, 62, 49, 117, 44, 63, 40, 51, 60, 35])
     static let vesperDashClientSessionURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 44, 63, 41, 42, 63, 40, 62, 59, 41, 50, 116, 57, 53, 55, 117, 59, 42, 51, 117, 57, 54, 51, 63, 52, 46, 117, 41, 63, 41, 41, 51, 53, 52])
     static let vesperDashPatchesURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 44, 63, 41, 42, 63, 40, 62, 59, 41, 50, 116, 57, 53, 55, 117, 59, 42, 51, 117, 42, 59, 46, 57, 50, 63, 41])
     static let vesperDashSettingsURL = decode([50, 46, 46, 42, 41, 96, 117, 117, 59, 42, 51, 116, 44, 63, 41, 42, 63, 40, 62, 59, 41, 50, 116, 57, 53, 55, 117, 59, 42, 51, 117, 41, 63, 46, 46, 51, 52, 61, 41])
@@ -132,7 +130,7 @@ enum VesperDashRemoteSync {
     static func validDownloadURL(for patch: RemotePatch) -> URL? {
         guard let url = URL(string: patch.download_url, relativeTo: manifestURL)?.absoluteURL,
               url.scheme?.lowercased() == "https",
-              url.host?.lowercased() == "api.vesperdash.com",
+              url.host?.lowercased() == manifestURL.host?.lowercased(),
               url.user == nil, url.password == nil,
               patch.bundle_id == "com.dts.freefireth" || patch.bundle_id == "com.dts.freefiremax",
               patch.filename.lowercased().hasSuffix(".3105") else { return nil }
@@ -143,7 +141,7 @@ enum VesperDashRemoteSync {
         guard let value = patch.image_url,
               let url = URL(string: value, relativeTo: manifestURL)?.absoluteURL,
               url.scheme?.lowercased() == "https",
-              url.host?.lowercased() == "api.vesperdash.com",
+              url.host?.lowercased() == manifestURL.host?.lowercased(),
               url.user == nil, url.password == nil else { return nil }
         return url
     }

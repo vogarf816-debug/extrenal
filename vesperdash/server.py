@@ -30,14 +30,14 @@ JEFRY_USERNAME = os.environ.get("VESPERDASH_JEFRY_USERNAME", "jefry")
 JEFRY_PASSWORD = os.environ.get("VESPERDASH_JEFRY_PASSWORD", "")
 SESSION_TTL = int(os.environ.get("VESPERDASH_SESSION_TTL", str(7 * 24 * 60 * 60)))
 CLIENT_SESSION_TTL = int(os.environ.get("VESPERDASH_CLIENT_SESSION_TTL", str(60 * 60)))
-M3SB_API_BASE_URL = os.environ.get("VESPERDASH_M3SB_API_BASE_URL", os.environ.get("M3SB_API_BASE_URL", "https://api.m3sbapi.shop")).rstrip("/")
+M3SB_API_BASE_URL = os.environ.get("VESPERDASH_M3SB_API_BASE_URL", "").rstrip("/")
 M3SB_PACKAGE_TOKEN = os.environ.get("VESPERDASH_M3SB_PACKAGE_TOKEN", os.environ.get("M3SB_PACKAGE_TOKEN", ""))
 M3SB_HMAC_SECRET = os.environ.get("VESPERDASH_M3SB_HMAC_SECRET", os.environ.get("M3SB_HMAC_SECRET", ""))
 VESPERDASH_PACKAGE_PASSWORDS = os.environ.get("VESPERDASH_PACKAGE_PASSWORDS", "")
 MAX_UPLOAD = int(os.environ.get("VESPERDASH_MAX_UPLOAD", str(80 * 1024 * 1024)))
 ALLOWED_BUNDLES = {"com.dts.freefireth", "com.dts.freefiremax"}
 ALLOWED_CATEGORIES = {"aim", "esp", "hologram", "skin"}
-VESPER_IPA_DOWNLOAD_URL = "https://github.com/vogarf816-debug/extrenal/releases/download/vesper-build-39532761081/VESPER-Build-34-unsigned.ipa"
+VESPER_IPA_DOWNLOAD_URL = "https://github.com/vogarf816-debug/extrenal/releases/latest/download/VESPER-Build-35-unsigned.ipa"
 
 app = Flask(__name__, static_folder=str(ROOT / "static"), static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD
@@ -467,7 +467,7 @@ class LicenseProviderHTTPError(RuntimeError):
 
 
 def _verify_license_with_m3sb(key, device_id, body):
-    if not M3SB_PACKAGE_TOKEN or not M3SB_HMAC_SECRET:
+    if not M3SB_API_BASE_URL or not M3SB_PACKAGE_TOKEN or not M3SB_HMAC_SECRET:
         raise RuntimeError("license service is not configured")
     payload = {
         "token": M3SB_PACKAGE_TOKEN,
@@ -611,41 +611,6 @@ def _issue_client_session(result, key, device_id):
     )
     response.headers["Cache-Control"] = "no-store"
     return response
-
-
-@app.post("/api/client/session/bridge")
-def exchange_m3sb_result_for_client_session():
-    if not M3SB_HMAC_SECRET:
-        return jsonify(valid=False, message="license response verification is not configured"), 503
-    if request.content_length is not None and request.content_length > 65536:
-        return jsonify(valid=False, message="provider response is too large"), 413
-    body = request.get_json(silent=True)
-    if not isinstance(body, dict):
-        return jsonify(valid=False, message="invalid request"), 400
-    key = str(body.get("key", "")).strip()
-    device_id = str(body.get("device_id", "")).strip()
-    result = body.get("provider_result")
-    if not 8 <= len(key) <= 256 or not 8 <= len(device_id) <= 128 or not isinstance(result, dict):
-        return jsonify(valid=False, message="key, device identifier or provider response is invalid"), 400
-    if result.get("valid") is not True:
-        return jsonify(
-            valid=False,
-            status=str(result.get("status", "invalid"))[:80],
-            message=str(result.get("message", "license is not active"))[:180],
-        ), 403
-    device_hash = hashlib.sha256(device_id.encode()).hexdigest()
-    trust_error = _m3sb_response_trust_error(result, key, device_hash)
-    if trust_error:
-        messages = {
-            "signature_missing": "M3SB response is missing its signature",
-            "timestamp_invalid": "M3SB response timestamp is invalid",
-            "timestamp_expired": "M3SB response timestamp is outside the five-minute window",
-            "signature_mismatch": "M3SB signature mismatch; confirm the VPS HMAC secret matches the iOS build secret",
-            "license_identity_mismatch": "signed license identity does not match the submitted license key",
-            "device_identity_mismatch": "signed device identity does not match this device",
-        }
-        return jsonify(valid=False, status=trust_error, message=messages[trust_error]), 403
-    return _issue_client_session(result, key, device_id)
 
 
 @app.post("/api/client/session/logout")

@@ -1,4 +1,4 @@
-name: Build VESPER IPA with obfuscated M3SB activation
+name: Build VESPER IPA with server-side activation
 
 on:
   workflow_dispatch:
@@ -24,6 +24,9 @@ jobs:
           python3 -m venv .venv-server-tests
           .venv-server-tests/bin/python -m pip install -r vesperdash/requirements.txt
 
+      - name: Validate VPS deployment scripts
+        run: bash -n vesperdash/deploy_from_vps.sh vesperdash/deploy_update.sh vesperdash/reset_dashboard_admin.sh
+
       - name: Test authenticated client API
         run: .venv-server-tests/bin/python -m unittest discover -s vesperdash -v
 
@@ -35,7 +38,7 @@ jobs:
           swiftc ThreeOneOSFive/helpers/EmbeddedLocalizations.generated.swift verify_embedded_localizations.swift -o "$RUNNER_TEMP/vesper-localization-test"
           "$RUNNER_TEMP/vesper-localization-test"
 
-      - name: Verify private storage and release stripping
+      - name: Verify private storage and server-side activation configuration
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -44,6 +47,7 @@ jobs:
               info = plistlib.load(stream)
           assert info.get("UIFileSharingEnabled") is False
           assert info.get("LSSupportsOpeningDocumentsInPlace") is False
+          assert not any(str(key).startswith("M3SB_") for key in info)
           project = Path("ThreeOneOSFive.xcodeproj/project.pbxproj").read_text()
           release = project.split("3105A602 /* Release */ = {", 1)[1].split("name = Release;", 1)[0]
           for setting in ("COPY_PHASE_STRIP = YES;", "STRIP_INSTALLED_PRODUCT = YES;", 'SWIFT_OPTIMIZATION_LEVEL = "-O";', "SWIFT_COMPILATION_MODE = wholemodule;"):
@@ -86,27 +90,33 @@ jobs:
           assert "patchMessage" not in ui
           assert "RESTORING…" in ui
           assert "hasPreparedRemoteProject" in ui
-          assert 'm3sbVerifyPath' in Path("ThreeOneOSFive/helpers/VesperDashRemoteSync.swift").read_text()
-          print("Verified: private storage, on-demand AES-GCM encrypted single-file remote package vault, and Release stripping are configured.")
+          manager = Path("ThreeOneOSFive/helpers/LicenseManager.swift").read_text()
+          vault_strings = Path("ThreeOneOSFive/helpers/VesperDashRemoteSync.swift").read_text()
+          assert "M3SB_PACKAGE_TOKEN" not in manager and "M3SB_HMAC_SECRET" not in manager
+          assert "M3SB_PACKAGE_TOKEN_OBFUSCATED" not in manager and "M3SB_HMAC_SECRET_OBFUSCATED" not in manager
+          assert "client/session/bridge" not in manager
+          assert "m3sbAPIBaseURL" not in vault_strings and "m3sbVerifyPath" not in vault_strings
+          dashboard = Path("vesperdash/static/index.html").read_text()
+          assert "Use legacy admin token" not in dashboard and "X-Admin-Token" not in dashboard
+          assert "--new-admin" in Path("vesperdash/deploy_from_vps.sh").read_text()
+          assert Path("vesperdash/reset_dashboard_admin.sh").is_file()
+          print("Verified: encrypted private storage and server-side-only M3SB credentials; admin dashboard uses account login.")
           PY
 
       - name: Build unsigned IPA
         run: |
           chmod +x build_unsigned.sh build_esign_ready_ipa.sh
           ./build_unsigned.sh
-        env:
-          M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
-          M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - name: Prepare IPA
-        run: ./build_esign_ready_ipa.sh build/VESPER-Build-34-unsigned.ipa
+        run: ./build_esign_ready_ipa.sh build/VESPER-Build-35-unsigned.ipa
 
-      - name: Verify obfuscated configuration and executable padding
+      - name: Verify no provider secrets or raw API endpoints in IPA
         run: |
           set -euo pipefail
           rm -rf /tmp/vesper-ipa-check
           mkdir -p /tmp/vesper-ipa-check
-          unzip -q build/VESPER-Build-34-unsigned.ipa -d /tmp/vesper-ipa-check
+          unzip -q build/VESPER-Build-35-unsigned.ipa -d /tmp/vesper-ipa-check
           APP_DIR="$(find /tmp/vesper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)"
           APP_PLIST="$APP_DIR/Info.plist"
           APP_EXECUTABLE="$APP_DIR/VESPER"
@@ -121,39 +131,32 @@ jobs:
           test "$EXECUTABLE_BYTES" -ge 690000000 || { echo '690 MB executable padding is missing' >&2; exit 1; }
           python3 embed_app_resources.py --verify "$APP_DIR"
           python3 - "$APP_DIR" "$APP_PLIST" <<'PY'
-          import base64
-          import os
           import plistlib
           import sys
           from pathlib import Path
 
           app_dir = Path(sys.argv[1])
           plist_path = Path(sys.argv[2])
-          token = os.environ.get("M3SB_PACKAGE_TOKEN", "").encode("utf-8")
-          secret = os.environ.get("M3SB_HMAC_SECRET", "").encode("utf-8")
-          if not token or not secret:
-              raise SystemExit("M3SB build secrets are missing (values hidden).")
           with plist_path.open("rb") as stream:
               info = plistlib.load(stream)
-          if info.get("CFBundleVersion") != "34":
-              raise SystemExit("Expected VESPER Build 34.")
+          if info.get("CFBundleVersion") != "35":
+              raise SystemExit("Expected VESPER Build 35.")
           if info.get("CFBundleDisplayName") != "VESPER" or info.get("CFBundleExecutable") != "VESPER":
               raise SystemExit("The VESPER app display name or executable name is incorrect.")
           if info.get("UIFileSharingEnabled") or info.get("LSSupportsOpeningDocumentsInPlace"):
               raise SystemExit("App-wide Documents sharing must remain disabled.")
-          if "M3SB_PACKAGE_TOKEN" in info or "M3SB_HMAC_SECRET" in info:
-              raise SystemExit("Plaintext M3SB keys must not appear in Info.plist.")
-          for name, expected in (("M3SB_PACKAGE_TOKEN_OBFUSCATED", token), ("M3SB_HMAC_SECRET_OBFUSCATED", secret)):
-              encoded = info.get(name)
-              if not isinstance(encoded, str):
-                  raise SystemExit("Obfuscated M3SB configuration is missing.")
-              try:
-                  decoded = bytes(byte ^ 0x5A for byte in base64.b64decode(encoded, validate=True))
-              except Exception:
-                  raise SystemExit("Obfuscated M3SB configuration is invalid.")
-              if decoded != expected:
-                  raise SystemExit("Obfuscated M3SB configuration does not match the configured build secret.")
-          needles = (token, secret, b"api.m3sbapi.shop", b"/api/sdk/verify", "/api/sdk/verify".encode("utf-16le"))
+          if any(str(key).startswith("M3SB_") for key in info):
+              raise SystemExit("M3SB configuration must not appear in Info.plist.")
+          def reveal(values):
+              return bytes(value ^ 0x5A for value in values)
+          needles = (
+              reveal([59, 42, 51, 116, 55, 105, 41, 56, 59, 42, 51, 116, 41, 50, 53, 42]),
+              reveal([117, 59, 42, 51, 117, 41, 62, 49, 117, 44, 63, 40, 51, 60, 35]),
+              reveal([59, 42, 51, 116, 44, 63, 41, 42, 63, 40, 62, 59, 41, 50, 116, 57, 53, 55]),
+              b"/api/client/session/bridge",
+              b"M3SB_PACKAGE_TOKEN",
+              b"M3SB_HMAC_SECRET",
+          )
           overlap_size = max(map(len, needles)) - 1
           for path in app_dir.rglob("*"):
               if not path.is_file():
@@ -166,23 +169,22 @@ jobs:
                           break
                       data = overlap + chunk
                       if any(needle in data for needle in needles):
-                          raise SystemExit("A plaintext M3SB credential was found in the app bundle.")
+                          raise SystemExit("Provider secrets or a raw M3SB/API endpoint was found in the app bundle.")
                       overlap = data[-overlap_size:] if overlap_size > 0 else b""
-          print("Verified: M3SB credentials and API endpoint strings are absent as plaintext; executable padding is present.")
+          if any(path.is_file() and path.suffix.lower() == ".3105" for path in app_dir.rglob("*")):
+              raise SystemExit("A patch package was found inside the IPA.")
+          print("Verified: Build 35 contains no M3SB credentials, raw provider endpoints, or patch packages.")
           PY
-          IPA_BYTES="$(wc -c < build/VESPER-Build-34-unsigned.ipa | tr -d ' ')"
+          IPA_BYTES="$(wc -c < build/VESPER-Build-35-unsigned.ipa | tr -d ' ')"
           echo "Compressed IPA size: ${IPA_BYTES} bytes"
-        env:
-          M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
-          M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - name: Publish IPA release asset
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="vesper-build-${GITHUB_RUN_ID}"
-          gh release create "$TAG" build/VESPER-Build-34-unsigned.ipa \
+          gh release create "$TAG" build/VESPER-Build-35-unsigned.ipa \
             --repo "$GITHUB_REPOSITORY" \
             --title "VESPER Build ${GITHUB_RUN_ID}" \
-            --notes "Unsigned VESPER IPA built from ${GITHUB_SHA}." \
+            --notes "Unsigned VESPER Build 35 with server-side licensing, built from ${GITHUB_SHA}." \
             --target "$GITHUB_SHA"
