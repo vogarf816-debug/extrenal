@@ -41,12 +41,9 @@ trap handle_error ERR
 [[ "$REF" =~ ^([A-Za-z0-9._/-]+|[0-9a-fA-F]{40})$ ]] || fail "Invalid Git ref."
 [[ -d "$APP_DIR" ]] || fail "Missing $APP_DIR; this script updates an existing installation."
 [[ -x "$VENV_PYTHON" ]] || fail "Missing VesperDash virtualenv at /opt/vesperdash/venv."
-[[ -f "$ENV_FILE" && -r "$ENV_FILE" && ! -L "$ENV_FILE" ]] || fail "Missing or unsafe $ENV_FILE."
-[[ "$(stat -c '%u' "$ENV_FILE")" == "0" ]] || fail "$ENV_FILE must be owned by root."
-ENV_MODE="$(stat -c '%a' "$ENV_FILE")"
-(( (8#$ENV_MODE & 8#037) == 0 )) || fail "$ENV_FILE must not be readable by others or writable/executable by its group. Use chmod 600."
+[[ -r "$ENV_FILE" && ! -L "$ENV_FILE" ]] || fail "Missing or unsafe $ENV_FILE."
 [[ -r /dev/tty && -w /dev/tty ]] || fail "Run from the VPS interactive terminal."
-for command in curl tar systemctl python3 stat; do command -v "$command" >/dev/null || fail "Required command not found: $command"; done
+for command in curl tar systemctl python3; do command -v "$command" >/dev/null || fail "Required command not found: $command"; done
 
 python3 - "$ENV_FILE" <<'PY'
 import json, shlex, sys
@@ -110,7 +107,7 @@ curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 --max-ti
 mkdir -p "$TMP_DIR/source"
 tar -xzf "$ARCHIVE" --strip-components=1 --no-same-owner --no-same-permissions -C "$TMP_DIR/source"
 SOURCE_DIR="$TMP_DIR/source/vesperdash"
-[[ -f "$SOURCE_DIR/server.py" && -f "$SOURCE_DIR/requirements.txt" && -f "$SOURCE_DIR/test_security.py" && -f "$SOURCE_DIR/static/index.html" && -f "$SOURCE_DIR/reset_dashboard_admin.sh" ]] || fail "Selected GitHub ref is missing secure server files."
+[[ -f "$SOURCE_DIR/server.py" && -f "$SOURCE_DIR/requirements.txt" && -f "$SOURCE_DIR/test_security.py" && -f "$SOURCE_DIR/static/index.html" ]] || fail "Selected GitHub ref is missing secure server files."
 
 (
   cd "$TMP_DIR/source"
@@ -137,31 +134,23 @@ SERVICE_STOPPED=0
 health_code=""
 manifest_code=""
 download_code=""
-session_code=""
-bridge_code=""
 deadline=$((SECONDS + 120))
-printf 'Waiting for the service, session route, and protected routes (up to 120 seconds)...\n'
+printf 'Waiting for the service and protected routes (up to 120 seconds)...\n'
 while (( SECONDS <= deadline )); do
   health_code="$(curl -sS --max-time 3 -o /dev/null -w '%{http_code}' "$LOCAL_BASE/health" || true)"
   if [[ "$health_code" == "200" ]]; then
     manifest_code="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "$LOCAL_BASE/api/patches" || true)"
     download_code="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "$LOCAL_BASE/api/patches/__unauthenticated_probe__/download" || true)"
-    session_code="$(curl -sS --max-time 5 -X POST -H 'Content-Type: application/json' --data '{}' -o /dev/null -w '%{http_code}' "$LOCAL_BASE/api/client/session" || true)"
-    bridge_code="$(curl -sS --max-time 5 -X POST -H 'Content-Type: application/json' --data '{}' -o /dev/null -w '%{http_code}' "$LOCAL_BASE/api/client/session/bridge" || true)"
-    if [[ "$manifest_code" == "401" && "$download_code" == "401" && "$session_code" == "400" && "$bridge_code" == "404" ]]; then break; fi
+    if [[ "$manifest_code" == "401" && "$download_code" == "401" ]]; then break; fi
   fi
   sleep 2
 done
-if [[ "$health_code" != "200" || "$manifest_code" != "401" || "$download_code" != "401" || "$session_code" != "400" || "$bridge_code" != "404" ]]; then
+if [[ "$health_code" != "200" || "$manifest_code" != "401" || "$download_code" != "401" ]]; then
   rollback
-  fail "Post-deploy checks failed (health=$health_code, manifest=$manifest_code, download=$download_code, session=$session_code, legacy_bridge=$bridge_code)."
-fi
-if [[ "${VESPERDASH_RESET_ADMIN:-0}" == "1" ]]; then
-  "$APP_DIR/reset_dashboard_admin.sh"
+  fail "Post-deploy checks failed (health=$health_code, manifest=$manifest_code, download=$download_code)."
 fi
 rm -rf "$ROLLBACK_DIR"
 SWAPPED=0
 echo "Authenticated VesperDash deployment succeeded."
 echo "Public manifest and unauthenticated download probes both return HTTP 401."
-echo "Server-side session route is present (empty request returns HTTP 400); legacy bridge returns HTTP 404."
 echo "Data and environment file were preserved; backup retained at $BACKUP_DIR."

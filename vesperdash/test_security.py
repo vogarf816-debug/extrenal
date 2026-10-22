@@ -21,13 +21,11 @@ os.environ["VESPERDASH_PACKAGE_PASSWORDS"] = json.dumps([
     "test-package-password-00000001",
     "test-package-password-00000002",
 ])
-os.environ["VESPERDASH_M3SB_API_BASE_URL"] = "https://license.invalid"
 os.environ["M3SB_PACKAGE_TOKEN"] = "test-server-only-package-token"
 os.environ["M3SB_HMAC_SECRET"] = "test-server-only-hmac-secret"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import server  # noqa: E402
 
-server.M3SB_API_BASE_URL = "https://license.invalid"
 server.app.config.update(TESTING=True)
 
 
@@ -80,15 +78,20 @@ class ClientSessionSecurityTests(unittest.TestCase):
         self.assertEqual(conn.execute("PRAGMA journal_mode").fetchone()[0].lower(), "wal")
         conn.close()
 
-    def test_legacy_client_session_bridge_is_disabled(self):
-        response = self.client.post(
-            "/api/client/session/bridge",
-            json={"key": self.key, "device_id": self.device_id, "provider_result": {"valid": True}},
-        )
-        self.assertEqual(response.status_code, 404)
-        self.assertNotIn(b"client_session", response.data)
+    def test_signed_provider_proof_exchanges_for_download_session(self):
+        provider_result = signed_license(self.key, self.device_id)
+        with patch.object(server.urllib.request, "urlopen", side_effect=AssertionError("must not contact M3SB")):
+            response = self.client.post(
+                "/api/client/session/bridge",
+                json={"key": self.key, "device_id": self.device_id, "provider_result": provider_result},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("no-store", response.headers.get("Cache-Control", ""))
+        token = response.get_json()["client_session"]
+        manifest = self.client.get("/api/patches", headers={"Authorization": f"Bearer {token}"})
+        self.assertEqual(manifest.status_code, 200)
 
-    def test_server_session_migrates_legacy_client_sessions_table_in_place(self):
+    def test_bridge_migrates_legacy_client_sessions_table_in_place(self):
         legacy_db = TEST_ROOT / "legacy-client-sessions.sqlite3"
         legacy_device = "legacy-device-0001"
         legacy_token_hash = "legacy-token-hash"
@@ -104,8 +107,12 @@ class ClientSessionSecurityTests(unittest.TestCase):
         conn.commit()
         conn.close()
 
+        provider_result = signed_license(self.key, self.device_id)
         with patch.object(server, "DB", legacy_db):
-            response = self._activate()
+            response = self.client.post(
+                "/api/client/session/bridge",
+                json={"key": self.key, "device_id": self.device_id, "provider_result": provider_result},
+            )
             self.assertEqual(response.status_code, 200)
             token = response.get_json()["client_session"]
             new_token_hash = hashlib.sha256(token.encode()).hexdigest()
@@ -125,31 +132,54 @@ class ClientSessionSecurityTests(unittest.TestCase):
         self.assertEqual(row[0], hashlib.sha256(legacy_device.encode()).hexdigest())
         self.assertGreater(created_at[0], 0)
 
-    def test_server_rejects_provider_signature_mismatch(self):
-        provider_result = signed_license(self.key, self.device_id)
-        with patch.object(server, "M3SB_HMAC_SECRET", "different-test-secret"), patch.object(
-            server, "_verify_license_with_m3sb", return_value=provider_result
-        ):
-            response = self.client.post(
-                "/api/client/session", json={"key": self.key, "device_id": self.device_id}
-            )
-        self.assertEqual(response.status_code, 502)
+    def test_bridge_rejects_tampered_or_wrong_device_provider_proof(self):
+        tampered = signed_license(self.key, self.device_id)
+        tampered["status"] = "banned"
+        response = self.client.post(
+            "/api/client/session/bridge",
+            json={"key": self.key, "device_id": self.device_id, "provider_result": tampered},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["status"], "signature_mismatch")
         self.assertNotIn("client_session", response.get_json())
 
-    def test_server_session_fails_closed_without_hmac_secret(self):
+        other_device = signed_license(self.key, "another-device")
+        response = self.client.post(
+            "/api/client/session/bridge",
+            json={"key": self.key, "device_id": self.device_id, "provider_result": other_device},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["status"], "device_identity_mismatch")
+        self.assertNotIn("client_session", response.get_json())
+
+        banned = signed_license(self.key, self.device_id, status="banned")
+        response = self.client.post(
+            "/api/client/session/bridge",
+            json={"key": self.key, "device_id": self.device_id, "provider_result": banned},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn("client_session", response.get_json())
+
+    def test_bridge_reports_hmac_secret_mismatch_without_exposing_proof(self):
+        provider_result = signed_license(self.key, self.device_id)
+        with patch.object(server, "M3SB_HMAC_SECRET", "different-test-secret"):
+            response = self.client.post(
+                "/api/client/session/bridge",
+                json={"key": self.key, "device_id": self.device_id, "provider_result": provider_result},
+            )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["status"], "signature_mismatch")
+        self.assertIn("HMAC secret", response.get_json()["message"])
+        self.assertNotIn("sig_v2", response.get_json())
+
+    def test_bridge_is_disabled_without_server_hmac_secret(self):
+        provider_result = signed_license(self.key, self.device_id)
         with patch.object(server, "M3SB_HMAC_SECRET", ""):
             response = self.client.post(
-                "/api/client/session", json={"key": self.key, "device_id": self.device_id}
+                "/api/client/session/bridge",
+                json={"key": self.key, "device_id": self.device_id, "provider_result": provider_result},
             )
-        self.assertEqual(response.status_code, 502)
-        self.assertNotIn("client_session", response.get_json())
-
-    def test_server_session_fails_closed_without_provider_base_url(self):
-        with patch.object(server, "M3SB_API_BASE_URL", ""):
-            response = self.client.post(
-                "/api/client/session", json={"key": self.key, "device_id": self.device_id}
-            )
-        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.status_code, 503)
         self.assertNotIn("client_session", response.get_json())
 
     def test_public_manifest_is_rejected(self):
