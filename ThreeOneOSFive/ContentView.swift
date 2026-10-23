@@ -17,6 +17,8 @@ struct ContentView: View {
     @State private var injectingRemotePatchKey: String?
     @State private var restoringPatchKey: String?
     @State private var patchEnabled: [String: Bool] = [:]
+    @State private var isAimActivationNoticeVisible = false
+    @State private var aimActivationNoticeID = UUID()
     @AppStorage("vesper.selectedPatchGame") private var selectedPatchGame = "normal"
     @AppStorage("keepPatchesActiveAfterExit") private var keepPatchesActiveAfterExit = true
     private let fileNames: [String] = []
@@ -33,6 +35,17 @@ struct ContentView: View {
 
     private var selectedPatchTargetTitle: String {
         selectedPatchGame == "max" ? "FREE FIRE • MAX" : "FREE FIRE • NORMAL"
+    }
+
+    private var selectedAimPatchIsActive: Bool {
+        let bundleID = selectedPatchBundleID
+        let remoteIsActive = patchStore.remoteEntries(category: "aim", bundleID: bundleID)
+            .contains { patchStore.isRemotePatchActive($0) }
+        let localFiles = selectedPatchGame == "max" ? maxPatchFiles : normalPatchFiles
+        let localIsActive = localFiles.contains {
+            patchEnabled[patchStateKey($0, targetBundleID: bundleID), default: false]
+        }
+        return remoteIsActive || localIsActive
     }
 
     var body: some View {
@@ -150,7 +163,24 @@ struct ContentView: View {
 
     private var aimTab: some View {
         VStack(spacing: 16) {
-            gameIntro(title: "AIM", subtitle: "ONLINE AIM PATCHES", icon: "scope")
+            gameIntro(
+                title: "AIM",
+                subtitle: "ONLINE AIM PATCHES",
+                icon: "scope",
+                status: selectedAimPatchIsActive ? "ACTIVATED" : nil
+            )
+            if isAimActivationNoticeVisible {
+                Label("AIM HEAD ACTIVATED", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .tracking(0.7)
+                    .foregroundStyle(.green)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .background(Color.green.opacity(0.12), in: Capsule())
+                    .overlay(Capsule().stroke(Color.green.opacity(0.42), lineWidth: 1))
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
             patchGameSelector
             patchOptions(
                 files: selectedPatchGame == "max" ? maxPatchFiles : normalPatchFiles,
@@ -528,7 +558,7 @@ struct ContentView: View {
         }
     }
 
-    private func gameIntro(title: String, subtitle: String, icon: String) -> some View {
+    private func gameIntro(title: String, subtitle: String, icon: String, status: String? = nil) -> some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
                 .font(.system(size: 25, weight: .black))
@@ -548,7 +578,19 @@ struct ContentView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
-            Spacer()
+            if let status {
+                Label(status, systemImage: "checkmark.seal.fill")
+                    .font(.system(size: 8, weight: .black, design: .rounded))
+                    .tracking(0.4)
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 7)
+                    .background(Color.green.opacity(0.12), in: Capsule())
+                    .overlay(Capsule().stroke(Color.green.opacity(0.4), lineWidth: 1))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            Spacer(minLength: 0)
         }
         .padding(16)
         .background(
@@ -644,6 +686,7 @@ struct ContentView: View {
                             name: remote.name,
                             target: targetTitle,
                             package: remoteKey,
+                            category: category,
                             color: color,
                             imageURL: VesperDashRemoteSync.validImageURL(for: remote),
                             statusText: remote.displayStatusText,
@@ -703,6 +746,9 @@ struct ContentView: View {
                 patchStore.finishRemoteActivation(remote)
                 setPatchState(for: remoteKey, targetBundleID: targetBundleID, enabled: true)
                 syncPatchStates()
+                if remote.normalizedCategory == "aim" {
+                    presentAimActivationNotification()
+                }
                 PatchAudioFeedback.bypassActivated()
             } catch {
                 patchStore.discardRemoteProjectMapping(for: remote)
@@ -717,6 +763,7 @@ struct ContentView: View {
         name: String,
         target: String,
         package: String,
+        category: String,
         color: Color,
         imageURL: URL?,
         statusText: String,
@@ -744,6 +791,7 @@ struct ContentView: View {
                     packageFilename: package,
                     state: state,
                     targetBundleID: targetBundleID,
+                    category: category,
                     remote: remote
                 )
             }
@@ -1120,6 +1168,7 @@ struct ContentView: View {
         packageFilename: String,
         state: Binding<Bool>,
         targetBundleID: String = "com.dts.freefireth",
+        category: String = "aim",
         remote: RemotePatch? = nil
     ) {
         guard !patchOperationBusy else { return }
@@ -1203,6 +1252,9 @@ struct ContentView: View {
                 switch result {
                 case .applied:
                     self.setPatchState(for: packageFilename, targetBundleID: targetBundleID, enabled: true)
+                    if category == "aim" {
+                        self.presentAimActivationNotification()
+                    }
                     if let remote {
                         self.patchStore.finishRemoteActivation(remote)
                         self.syncPatchStates()
@@ -1226,6 +1278,20 @@ struct ContentView: View {
                     }
                 }
                 self.patchOperationBusy = false
+            }
+        }
+    }
+
+    private func presentAimActivationNotification() {
+        let noticeID = UUID()
+        aimActivationNoticeID = noticeID
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
+            isAimActivationNoticeVisible = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            guard aimActivationNoticeID == noticeID else { return }
+            withAnimation(.easeOut(duration: 0.22)) {
+                isAimActivationNoticeVisible = false
             }
         }
     }
@@ -1265,8 +1331,6 @@ private struct PatchOptionCard: View {
                 .frame(width: 48, height: 48)
                 .background(Color.black.opacity(0.28))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            } else {
-                Color.clear.frame(width: 24)
             }
 
             VStack(alignment: .leading, spacing: 4) {
