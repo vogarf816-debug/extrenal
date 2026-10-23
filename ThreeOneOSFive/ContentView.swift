@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var isAimActivationNoticeVisible = false
     @State private var aimActivationNoticeID = UUID()
     @AppStorage("vesper.selectedPatchGame") private var selectedPatchGame = "normal"
+    @AppStorage("vesper.selectedBodyWeaponsCategory") private var selectedBodyWeaponsCategory = "body"
     @AppStorage("keepPatchesActiveAfterExit") private var keepPatchesActiveAfterExit = true
     private let fileNames: [String] = []
     private let normalPatchFiles: [String] = []
@@ -51,7 +52,7 @@ struct ContentView: View {
     var body: some View {
         TabView {
             appTab(title: appLanguage.text("vesper.tab.aim"), icon: "scope") { aimTab }
-            appTab(title: appLanguage.text("vesper.tab.hologram"), icon: "cube.transparent") { hologramTab }
+            appTab(title: appLanguage.text("vesper.tab.hologram"), icon: "square.stack.3d.up") { bodyWeaponsTab }
             appTab(title: appLanguage.text("vesper.tab.skin_mod"), icon: "sparkles") { skinModTab }
             appTab(title: appLanguage.text("vesper.tab.compatibility"), icon: "iphone") { supportedDeviceTab }
             appTab(title: appLanguage.text("vesper.tab.profile"), icon: "person.crop.circle") { profileTab }
@@ -192,12 +193,52 @@ struct ContentView: View {
         }
     }
 
-    private var hologramTab: some View {
+    private var bodyWeaponsTab: some View {
         VStack(spacing: 16) {
-            gameIntro(title: "HOLOGRAM", subtitle: "ONLINE HOLOGRAM PATCHES", icon: "cube.transparent")
+            gameIntro(title: "BODY / WEAPONS", subtitle: "ONLINE BODY & WEAPONS PATCHES", icon: "square.stack.3d.up")
             patchGameSelector
-            patchOptions(files: [], category: "hologram", sectionTitle: selectedPatchGameTitle, targetTitle: selectedPatchTargetTitle, targetBundleID: selectedPatchBundleID)
+            bodyWeaponsCategorySelector
+            patchOptions(
+                files: [],
+                category: selectedBodyWeaponsCategory == "weapons" ? "weapons" : "body",
+                sectionTitle: selectedPatchGameTitle,
+                targetTitle: selectedPatchTargetTitle,
+                targetBundleID: selectedPatchBundleID
+            )
         }
+    }
+
+    private var bodyWeaponsCategorySelector: some View {
+        HStack(spacing: 8) {
+            bodyWeaponsCategoryButton(title: "BODY", category: "body", icon: "person.fill")
+            bodyWeaponsCategoryButton(title: "WEAPONS", category: "weapons", icon: "scope")
+        }
+        .padding(6)
+        .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.24), lineWidth: 1))
+    }
+
+    private func bodyWeaponsCategoryButton(title: String, category: String, icon: String) -> some View {
+        let isSelected = selectedBodyWeaponsCategory == category
+        return Button {
+            selectedBodyWeaponsCategory = category
+        } label: {
+            VStack(spacing: 4) {
+                Label(title, systemImage: icon)
+                    .font(.system(size: 10, weight: .black, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(isSelected ? "SELECTED" : "PATCH TYPE")
+                    .font(.system(size: 8, weight: .bold, design: .rounded))
+                    .tracking(0.8)
+            }
+            .foregroundStyle(isSelected ? AppTheme.paper : AppTheme.paper.opacity(0.58))
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(isSelected ? AppTheme.accent.opacity(0.20) : Color.clear, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(isSelected ? AppTheme.accent.opacity(0.78) : Color.clear, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var skinModTab: some View {
@@ -669,7 +710,8 @@ struct ContentView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                panelTitle(sectionTitle, icon: category == "skin" ? "sparkles" : (category == "esp" ? "eye.fill" : (category == "hologram" ? "cube.transparent" : "bolt.fill")))
+                let categoryIcon = category == "skin" ? "sparkles" : (category == "esp" ? "eye.fill" : (category == "body" ? "person.fill" : (category == "weapons" ? "scope" : (category == "hologram" ? "cube.transparent" : "bolt.fill"))))
+                panelTitle(sectionTitle, icon: categoryIcon)
                 Spacer()
                 Text("SELECT PATCH")
                     .font(.system(size: 9, weight: .bold, design: .rounded))

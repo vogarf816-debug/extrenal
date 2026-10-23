@@ -501,7 +501,7 @@
 
 /* VESPER Profile, startup, and navigation */
 "vesper.tab.aim" = "AIM";
-"vesper.tab.hologram" = "HOLOGRAM";
+"vesper.tab.hologram" = "BODY / WEAPONS";
 "vesper.tab.skin_mod" = "SKIN MOD";
 "vesper.tab.compatibility" = "COMPATIBILITY";
 "vesper.tab.profile" = "PROFILE";

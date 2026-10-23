@@ -289,5 +289,33 @@ class ClientSessionSecurityTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/patches", headers=headers).status_code, 401)
 
 
+class PatchCategoryUploadTests(unittest.TestCase):
+    def setUp(self):
+        shutil.rmtree(TEST_ROOT / "data", ignore_errors=True)
+        server._DB_INITIALIZED.clear()
+        self.client = server.app.test_client()
+
+    def test_body_and_weapons_categories_are_uploadable(self):
+        with patch.object(server, "ADMIN_TOKEN", "test-category-admin-token"):
+            for category in ("body", "weapons"):
+                response = self.client.post(
+                    "/api/admin/patches",
+                    headers={"X-Admin-Token": "test-category-admin-token"},
+                    data={
+                        "id": f"{category}-normal",
+                        "name": f"{category.upper()} NORMAL",
+                        "category": category,
+                        "game": "normal",
+                        "bundle_id": "com.dts.freefireth",
+                        "version": "1.0",
+                        "sort_order": "10",
+                        "file": (io.BytesIO(b"3105PATCH\x00test-payload"), f"{category}.3105"),
+                    },
+                    content_type="multipart/form-data",
+                )
+                self.assertEqual(response.status_code, 201, response.get_data(as_text=True))
+                self.assertEqual(response.get_json()["patch"]["category"], category)
+
+
 if __name__ == "__main__":
     unittest.main()

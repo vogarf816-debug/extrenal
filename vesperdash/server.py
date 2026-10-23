@@ -36,8 +36,8 @@ M3SB_HMAC_SECRET = os.environ.get("VESPERDASH_M3SB_HMAC_SECRET", os.environ.get(
 VESPERDASH_PACKAGE_PASSWORDS = os.environ.get("VESPERDASH_PACKAGE_PASSWORDS", "")
 MAX_UPLOAD = int(os.environ.get("VESPERDASH_MAX_UPLOAD", str(80 * 1024 * 1024)))
 ALLOWED_BUNDLES = {"com.dts.freefireth", "com.dts.freefiremax"}
-ALLOWED_CATEGORIES = {"aim", "esp", "hologram", "skin"}
-VESPER_IPA_DOWNLOAD_URL = "https://github.com/vogarf816-debug/extrenal/releases/latest/download/VESPER-Build-37-unsigned.ipa"
+ALLOWED_CATEGORIES = {"aim", "esp", "body", "weapons", "hologram", "skin"}
+VESPER_IPA_DOWNLOAD_URL = "https://github.com/vogarf816-debug/extrenal/releases/latest/download/VESPER-Build-38-unsigned.ipa"
 
 app = Flask(__name__, static_folder=str(ROOT / "static"), static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD

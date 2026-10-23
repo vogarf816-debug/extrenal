@@ -62,7 +62,8 @@ struct RemotePatch: Codable, Identifiable, Sendable {
 
     var normalizedCategory: String {
         let value = (category ?? "aim").lowercased()
-        return ["aim", "esp", "hologram", "skin"].contains(value) ? value : "aim"
+        if value == "hologram" { return "weapons" }
+        return ["aim", "esp", "body", "weapons", "skin"].contains(value) ? value : "aim"
     }
 
     var normalizedStatus: String {

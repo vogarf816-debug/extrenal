@@ -748,16 +748,16 @@ final class PatchProjectStore: ObservableObject {
         })
         guard let remote else {
             // A package can be selected before the first catalog metadata pass
-            // finishes. Recover only AIM/Magic packages here; Hologram must
+            // finishes. Recover only AIM/Magic packages here; BODY/WEAPONS must
             // keep its package target and never receive the cache_res target.
             let name = item.displayName.lowercased()
             guard name.contains("aim") || name.contains("magic") else { return nil }
             return "Documents/contentcache/Compulsory/ios/gameassetbundles/cache_res.GkLlYqzsX4AtTdE55sDMRh9s-JOI~3D"
         }
 
-        // All Hologram weapon variants use the active Optional shaders asset.
-        // Never inherit an old AIM/cache_res path for this category.
-        if remote.normalizedCategory == "hologram" {
+        // Legacy Hologram entries and new WEAPONS variants use the active Optional shaders asset.
+        // Never inherit an old AIM/cache_res target for this category.
+        if remote.normalizedCategory == "weapons" {
             return "Documents/contentcache/Optional/ios/gameassetbundles/shaders.P0K3UG2TfecMBhWMMV~2Fu8ReudIk~3D"
         }
 

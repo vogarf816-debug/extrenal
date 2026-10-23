@@ -515,7 +515,7 @@
 
 /* VESPER Profile, startup, and navigation */
 "vesper.tab.aim" = "AIM";
-"vesper.tab.hologram" = "ẢO ẢNH";
+"vesper.tab.hologram" = "BODY / VŨ KHÍ";
 "vesper.tab.skin_mod" = "MOD GIAO DIỆN";
 "vesper.tab.compatibility" = "TƯƠNG THÍCH";
 "vesper.tab.profile" = "HỒ SƠ";

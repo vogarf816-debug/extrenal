@@ -515,7 +515,7 @@
 
 /* VESPER Profile, startup, and navigation */
 "vesper.tab.aim" = "瞄准";
-"vesper.tab.hologram" = "全息";
+"vesper.tab.hologram" = "身体 / 武器";
 "vesper.tab.skin_mod" = "皮肤修改";
 "vesper.tab.compatibility" = "兼容性";
 "vesper.tab.profile" = "个人资料";
