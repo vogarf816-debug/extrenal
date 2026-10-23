@@ -20,7 +20,7 @@ struct ContentView: View {
     @State private var isAimActivationNoticeVisible = false
     @State private var aimActivationNoticeID = UUID()
     @State private var selectedAppTab = 0
-    @Namespace private var tabSelectionAnimation
+    @State private var tabContentOpacity = 1.0
     @AppStorage("vesper.selectedPatchGame") private var selectedPatchGame = "normal"
     @AppStorage("vesper.selectedBodyWeaponsCategory") private var selectedBodyWeaponsCategory = "body"
     @AppStorage("keepPatchesActiveAfterExit") private var keepPatchesActiveAfterExit = true
@@ -53,24 +53,24 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selectedAppTab) {
-            appTab(title: appLanguage.text("vesper.tab.aim")) { aimTab }
+            appTab(title: appLanguage.text("vesper.tab.aim"), tabTitle: appLanguage.text("vesper.tab.aim"), icon: "scope") { aimTab }
                 .tag(0)
-            appTab(title: appLanguage.text("vesper.tab.hologram")) { bodyWeaponsTab }
+            appTab(title: appLanguage.text("vesper.tab.hologram"), tabTitle: "HOLOGRAM", icon: "cube.transparent") { bodyWeaponsTab }
                 .tag(1)
-            appTab(title: appLanguage.text("vesper.tab.skin_mod")) { skinModTab }
+            appTab(title: appLanguage.text("vesper.tab.skin_mod"), tabTitle: appLanguage.text("vesper.tab.skin_mod"), icon: "sparkles") { skinModTab }
                 .tag(2)
-            appTab(title: appLanguage.text("vesper.tab.compatibility")) { supportedDeviceTab }
+            appTab(title: appLanguage.text("vesper.tab.compatibility"), tabTitle: appLanguage.text("vesper.tab.compatibility"), icon: "iphone") { supportedDeviceTab }
                 .tag(3)
-            appTab(title: appLanguage.text("vesper.tab.profile")) { profileTab }
+            appTab(title: appLanguage.text("vesper.tab.profile"), tabTitle: appLanguage.text("vesper.tab.profile"), icon: "person.crop.circle") { profileTab }
                 .tag(4)
-            appTab(title: appLanguage.text("vesper.tab.developer")) { developerTab }
+            appTab(title: appLanguage.text("vesper.tab.developer"), tabTitle: appLanguage.text("vesper.tab.developer"), icon: "person.crop.circle") { developerTab }
                 .tag(5)
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .safeAreaInset(edge: .bottom, spacing: 0) { bottomNavigationBar }
-        .animation(.easeInOut(duration: 0.28), value: selectedAppTab)
         .preferredColorScheme(.dark)
         .tint(AppTheme.accent)
+        .toolbarBackground(AppTheme.consoleBackground.opacity(0.96), for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarColorScheme(.dark, for: .tabBar)
         .overlay {
             if patchStore.isRemoteDisabled {
                 RemotePauseView()
@@ -86,6 +86,14 @@ struct ContentView: View {
         }
         .onChange(of: patchStore.isBusy) { isBusy in
             if !isBusy { syncPatchStates() }
+        }
+        .onChange(of: selectedAppTab) { _ in
+            tabContentOpacity = 0
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                withAnimation(.easeOut(duration: 0.30)) {
+                    tabContentOpacity = 1
+                }
+            }
         }
         .onChange(of: licenseManager.clientSessionRevision) { _ in
             patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false)
@@ -144,7 +152,7 @@ struct ContentView: View {
         }
     }
 
-    private func appTab<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func appTab<Content: View>(title: String, tabTitle: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
         NavigationStack {
             ZStack {
                 AnimatedHyperBackdrop().ignoresSafeArea()
@@ -161,63 +169,14 @@ struct ContentView: View {
             .navigationTitle(Text(verbatim: title))
             .navigationBarTitleDisplayMode(.inline)
         }
-    }
-
-    private var bottomNavigationBar: some View {
-        HStack(spacing: 2) {
-            navigationTab(title: appLanguage.text("vesper.tab.aim"), icon: "scope", index: 0)
-            navigationTab(title: "HOLOGRAM", icon: "square.stack.3d.up", index: 1)
-            navigationTab(title: appLanguage.text("vesper.tab.skin_mod"), icon: "sparkles", index: 2)
-            navigationTab(title: appLanguage.text("vesper.tab.compatibility"), icon: "iphone", index: 3)
-            navigationTab(title: appLanguage.text("vesper.tab.profile"), icon: "person.crop.circle", index: 4)
-            navigationTab(title: "MORE", icon: "ellipsis", index: 5)
-        }
-        .padding(.horizontal, 6)
-        .padding(.top, 8)
-        .padding(.bottom, 5)
-        .background {
-            AppTheme.consoleBackground.opacity(0.98)
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(AppTheme.secondaryAccent.opacity(0.16))
-                        .frame(height: 0.5)
-                }
-                .ignoresSafeArea(edges: .bottom)
-        }
-    }
-
-    private func navigationTab(title: String, icon: String, index: Int) -> some View {
-        let isSelected = selectedAppTab == index
-        return Button {
-            guard selectedAppTab != index else { return }
-            withAnimation(.easeInOut(duration: 0.28)) {
-                selectedAppTab = index
-            }
-        } label: {
-            VStack(spacing: 4) {
+        .tabItem {
+            Label {
+                Text(verbatim: tabTitle)
+            } icon: {
                 Image(systemName: icon)
-                    .font(.system(size: 17, weight: isSelected ? .semibold : .regular))
-                    .frame(height: 20)
-                Text(title)
-                    .font(.system(size: 7.5, weight: isSelected ? .black : .medium, design: .rounded))
-                    .tracking(0.15)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
             }
-            .foregroundStyle(isSelected ? AppTheme.accent : AppTheme.paper.opacity(0.54))
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .background {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(AppTheme.accent.opacity(0.12))
-                        .matchedGeometryEffect(id: "selected-app-tab", in: tabSelectionAnimation)
-                }
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title == "COMPAT." ? "COMPATIBILITY" : title)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .opacity(tabContentOpacity)
     }
 
     private var aimTab: some View {
@@ -249,7 +208,6 @@ struct ContentView: View {
                 targetBundleID: selectedPatchBundleID
             )
         }
-        .animation(.easeInOut(duration: 0.24), value: selectedPatchGame)
     }
 
     private var bodyWeaponsTab: some View {
@@ -265,8 +223,6 @@ struct ContentView: View {
                 targetBundleID: selectedPatchBundleID
             )
         }
-        .animation(.easeInOut(duration: 0.24), value: selectedBodyWeaponsCategory)
-        .animation(.easeInOut(duration: 0.24), value: selectedPatchGame)
     }
 
     private var bodyWeaponsCategorySelector: some View {
@@ -282,9 +238,7 @@ struct ContentView: View {
     private func bodyWeaponsCategoryButton(title: String, category: String, icon: String) -> some View {
         let isSelected = selectedBodyWeaponsCategory == category
         return Button {
-            withAnimation(.easeInOut(duration: 0.24)) {
-                selectedBodyWeaponsCategory = category
-            }
+            selectedBodyWeaponsCategory = category
         } label: {
             VStack(spacing: 4) {
                 Label(title, systemImage: icon)
@@ -325,9 +279,7 @@ struct ContentView: View {
     private func patchGameButton(title: String, subtitle: String, game: String) -> some View {
         let isSelected = selectedPatchGame == game
         return Button {
-            withAnimation(.easeInOut(duration: 0.24)) {
-                selectedPatchGame = game
-            }
+            selectedPatchGame = game
         } label: {
             VStack(spacing: 4) {
                 Text(title)

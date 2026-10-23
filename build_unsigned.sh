@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$ROOT/build"
-ARCHIVE="$BUILD_DIR/VESPER-Build-39.xcarchive"
-IPA="$BUILD_DIR/VESPER-Build-39-unsigned.ipa"
+ARCHIVE="$BUILD_DIR/VESPER-Build-40.xcarchive"
+IPA="$BUILD_DIR/VESPER-Build-40-unsigned.ipa"
 echo "Building repository revision: $(git -C "$ROOT" rev-parse --short HEAD)"
 
 if [[ -z "${M3SB_PACKAGE_TOKEN:-}" || -z "${M3SB_HMAC_SECRET:-}" ]]; then
