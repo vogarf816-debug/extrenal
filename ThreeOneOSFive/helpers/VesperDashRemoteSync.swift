@@ -86,7 +86,7 @@ struct RemotePatch: Codable, Identifiable, Sendable {
     }
 }
 
-private struct ManifestHTTPError: LocalizedError {
+struct ManifestHTTPError: LocalizedError {
     let statusCode: Int
     var errorDescription: String? { "API returned HTTP \(statusCode)" }
 }
@@ -145,34 +145,21 @@ enum VesperDashRemoteSync {
     }
 
     static func fetchManifest(sessionToken: String) async throws -> VesperDashManifest {
-        let deadline = Date().addingTimeInterval(120)
-        var lastError: Error = URLError(.timedOut)
-        while Date() < deadline {
-            do {
-                var request = URLRequest(url: manifestURL)
-                request.timeoutInterval = 15
-                request.cachePolicy = .reloadIgnoringLocalCacheData
-                request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
-                let (data, response) = try await URLSession.shared.data(for: request)
-                guard let http = response as? HTTPURLResponse else {
-                    throw URLError(.badServerResponse)
-                }
-                guard (200..<300).contains(http.statusCode) else {
-                    if (400..<500).contains(http.statusCode) && http.statusCode != 408 && http.statusCode != 429 {
-                        throw ManifestHTTPError(statusCode: http.statusCode)
-                    }
-                    throw URLError(.badServerResponse)
-                }
-                return try JSONDecoder().decode(VesperDashManifest.self, from: data)
-            } catch let error as ManifestHTTPError {
-                throw error
-            } catch {
-                lastError = error
-            }
-            guard Date() < deadline else { break }
-            try await Task.sleep(nanoseconds: 2_000_000_000)
+        var request = URLRequest(url: manifestURL)
+        request.timeoutInterval = 15
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
         }
-        throw lastError
+        guard (200..<300).contains(http.statusCode) else {
+            if (400..<500).contains(http.statusCode) && http.statusCode != 408 && http.statusCode != 429 {
+                throw ManifestHTTPError(statusCode: http.statusCode)
+            }
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(VesperDashManifest.self, from: data)
     }
 
     static func validDownloadURL(for patch: RemotePatch) -> URL? {

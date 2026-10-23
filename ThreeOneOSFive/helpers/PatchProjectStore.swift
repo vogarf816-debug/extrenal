@@ -232,6 +232,10 @@ final class PatchProjectStore: ObservableObject {
         for attempt in 0..<3 {
             do {
                 return try await VesperDashRemoteSync.fetchManifest(sessionToken: sessionToken)
+            } catch is DecodingError {
+                throw PatchPackageError.remoteImportFailed
+            } catch let error as ManifestHTTPError {
+                throw error
             } catch {
                 lastError = error
                 if attempt < 2 {
@@ -607,9 +611,11 @@ final class PatchProjectStore: ObservableObject {
             // one tab (for example ESP and Hologram). Deduplicate only within
             // the same category and target bundle, not by digest alone.
             let key = [
+                entry.id,
                 entry.normalizedCategory,
                 entry.bundle_id.lowercased(),
-                entry.sha256.lowercased()
+                entry.sha256.lowercased(),
+                entry.normalizedTargetPaths.sorted().joined(separator: "\u{0}")
             ].joined(separator: "|")
             return seenEntries.insert(key).inserted
         }

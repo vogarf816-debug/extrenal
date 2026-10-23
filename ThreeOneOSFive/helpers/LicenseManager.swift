@@ -31,6 +31,7 @@ final class LicenseManager: ObservableObject {
     private var lastAttemptAt: Date?
     private var silentCheckWorkItem: DispatchWorkItem?
     private var silentCheckID: UUID?
+    private var activeVerificationID: UUID?
 
     init() {
         // Keep the app available from the saved key while any revalidation runs silently.
@@ -71,7 +72,9 @@ final class LicenseManager: ObservableObject {
             guard !self.isBusy, let key = self.string(for: self.keyAccount) else { return }
             self.recordCheckAttempt()
             self.isBusy = true
-            self.verify(key: key, silent: true)
+            let verificationID = UUID()
+            self.activeVerificationID = verificationID
+            self.verify(key: key, silent: true, verificationID: verificationID)
         }
         silentCheckWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: workItem)
@@ -96,7 +99,9 @@ final class LicenseManager: ObservableObject {
         isLoadingScreen = true
         message = "Checking access key…"
         recordCheckAttempt()
-        verify(key: trimmed, silent: false)
+        let verificationID = UUID()
+        activeVerificationID = verificationID
+        verify(key: trimmed, silent: false, verificationID: verificationID)
     }
 
     func rememberedKey() -> String? { string(for: keyAccount) }
@@ -107,6 +112,8 @@ final class LicenseManager: ObservableObject {
 
     func deactivate() {
         cancelPendingSilentCheck()
+        activeVerificationID = nil
+        isBusy = false
         revokeClientSession()
         delete(keyAccount)
         delete(clientSessionAccount)
@@ -175,9 +182,9 @@ final class LicenseManager: ObservableObject {
         URLSession.shared.dataTask(with: request).resume()
     }
 
-    private func verify(key: String, silent: Bool) {
+    private func verify(key: String, silent: Bool, verificationID: UUID) {
         guard let configuration = APIConfiguration.load() else {
-            finishVerification(.failure(.message("M3SB activation configuration is missing")), key: key, silent: silent)
+            finishVerification(.failure(.message("M3SB activation configuration is missing")), key: key, silent: silent, verificationID: verificationID)
             return
         }
         let deviceID = deviceIdentifier()
@@ -195,7 +202,7 @@ final class LicenseManager: ObservableObject {
         let verifyPath = VesperStringVault.m3sbVerifyPath
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes]),
               let url = URL(string: configuration.baseURL + verifyPath) else {
-            finishVerification(.failure(.message("M3SB activation configuration is invalid")), key: key, silent: silent)
+            finishVerification(.failure(.message("M3SB activation configuration is invalid")), key: key, silent: silent, verificationID: verificationID)
             return
         }
         let timestamp = String(Int(Date().timeIntervalSince1970))
@@ -216,27 +223,28 @@ final class LicenseManager: ObservableObject {
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             let result = Self.parseProviderResponse(data: data, response: response, error: error, secret: configuration.secret)
             DispatchQueue.main.async {
-                guard let self else { return }
+                guard let self, self.activeVerificationID == verificationID else { return }
                 switch result {
                 case .failure(let error):
-                    self.finishVerification(.failure(error), key: key, silent: silent)
+                    self.finishVerification(.failure(error), key: key, silent: silent, verificationID: verificationID)
                 case .success(let providerResult):
                     let providerState = APIState(json: providerResult)
                     guard providerState.valid else {
-                        self.finishVerification(.success(providerState), key: key, silent: silent)
+                        self.finishVerification(.success(providerState), key: key, silent: silent, verificationID: verificationID)
                         return
                     }
-                    self.exchangeProviderResult(providerResult, key: key, deviceID: deviceID, silent: silent)
+                    self.exchangeProviderResult(providerResult, key: key, deviceID: deviceID, silent: silent, verificationID: verificationID)
                 }
             }
         }.resume()
     }
 
-    private func exchangeProviderResult(_ providerResult: [String: Any], key: String, deviceID: String, silent: Bool) {
+    private func exchangeProviderResult(_ providerResult: [String: Any], key: String, deviceID: String, silent: Bool, verificationID: UUID) {
+        guard activeVerificationID == verificationID else { return }
         let body: [String: Any] = ["key": key, "device_id": deviceID, "provider_result": providerResult]
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes]),
               let url = URL(string: VesperStringVault.vesperDashClientSessionURL + "/bridge") else {
-            finishVerification(.failure(.message("VesperDash session service is not configured")), key: key, silent: silent)
+            finishVerification(.failure(.message("VesperDash session service is not configured")), key: key, silent: silent, verificationID: verificationID)
             return
         }
         var request = URLRequest(url: url)
@@ -247,12 +255,14 @@ final class LicenseManager: ObservableObject {
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             let result = Self.parseResponse(data: data, response: response, error: error)
             DispatchQueue.main.async {
-                self?.finishVerification(result, key: key, silent: silent)
+                self?.finishVerification(result, key: key, silent: silent, verificationID: verificationID)
             }
         }.resume()
     }
 
-    private func finishVerification(_ result: Result<APIState, APIError>, key: String, silent: Bool) {
+    private func finishVerification(_ result: Result<APIState, APIError>, key: String, silent: Bool, verificationID: UUID) {
+        guard activeVerificationID == verificationID else { return }
+        activeVerificationID = nil
         isBusy = false
         if !silent { isLoadingScreen = false }
         switch result {

@@ -397,9 +397,12 @@ enum PatchTransaction {
                 fileManager: fileManager
             )
 
-            if requirePatchedDigest {
-                guard fileManager.fileExists(atPath: target.path),
-                      try digestFile(target) == record.replacementDigest else {
+            let targetExists = fileManager.fileExists(atPath: target.path)
+            if requirePatchedDigest, targetExists {
+                let targetDigest = try digestFile(target)
+                let targetMatchesReplacement = targetDigest == record.replacementDigest
+                let targetMatchesOriginal = record.originalExisted && targetDigest == record.originalDigest
+                guard targetMatchesReplacement || targetMatchesOriginal else {
                     throw PatchPackageError.restoreFailed
                 }
             }

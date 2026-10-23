@@ -9,6 +9,7 @@ struct AppDataBrowserView: View {
     @State private var apps: [InstalledApp] = []
     @State private var isLoading = false
     @State private var isResolving = false
+    @State private var reloadID = UUID()
     @State private var searchText = ""
     @State private var errorMessage: String?
     @State private var hasLoaded = false
@@ -264,6 +265,8 @@ struct AppDataBrowserView: View {
     }
 
     private func reload() {
+        let requestID = UUID()
+        reloadID = requestID
         isLoading = true
         isResolving = true
         errorMessage = nil
@@ -296,6 +299,7 @@ struct AppDataBrowserView: View {
                 ContainerPresentationPolicy.shouldShow(bundleID: $0.bundleID)
             }
             DispatchQueue.main.async {
+                guard reloadID == requestID else { return }
                 apps = preliminary
                 isLoading = false
             }
@@ -330,6 +334,7 @@ struct AppDataBrowserView: View {
                     $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
                 }
                 DispatchQueue.main.async {
+                    guard reloadID == requestID else { return }
                     apps = progressiveResult
                 }
             }
@@ -364,6 +369,7 @@ struct AppDataBrowserView: View {
             }
 
             DispatchQueue.main.async {
+                guard reloadID == requestID else { return }
                 apps = result
                 isLoading = false
                 isResolving = false
