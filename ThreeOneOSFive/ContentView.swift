@@ -951,7 +951,7 @@ struct ContentView: View {
                 Text("Developer information and official social links")
                     .font(.system(size: 11, weight: .regular, design: .rounded))
                     .foregroundStyle(AppTheme.paper.opacity(0.66))
-                Text("developed by yagami")
+                Text("developed by RYBK")
                     .font(.system(size: 10, weight: .light, design: .rounded))
                     .tracking(0.8)
                     .foregroundStyle(AppTheme.secondaryAccent)

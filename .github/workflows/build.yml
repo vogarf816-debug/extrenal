@@ -99,14 +99,14 @@ jobs:
           M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - name: Prepare IPA
-        run: ./build_esign_ready_ipa.sh build/SAKK-EXTERNAL-Build-43-unsigned.ipa
+        run: ./build_esign_ready_ipa.sh build/SAKK-EXTERNAL-Build-44-unsigned.ipa
 
       - name: Verify obfuscated configuration, app identity and executable padding
         run: |
           set -euo pipefail
           rm -rf /tmp/sakk-external-ipa-check
           mkdir -p /tmp/sakk-external-ipa-check
-          unzip -q build/SAKK-EXTERNAL-Build-43-unsigned.ipa -d /tmp/sakk-external-ipa-check
+          unzip -q build/SAKK-EXTERNAL-Build-44-unsigned.ipa -d /tmp/sakk-external-ipa-check
           APP_DIR="$(find /tmp/sakk-external-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)"
           APP_PLIST="$APP_DIR/Info.plist"
           APP_EXECUTABLE="$APP_DIR/SAK"
@@ -135,8 +135,8 @@ jobs:
               raise SystemExit("M3SB build secrets are missing (values hidden).")
           with plist_path.open("rb") as stream:
               info = plistlib.load(stream)
-          if info.get("CFBundleVersion") != "43":
-              raise SystemExit("Expected SAKK EXTERNAL Build 43.")
+          if info.get("CFBundleVersion") != "44":
+              raise SystemExit("Expected SAKK EXTERNAL Build 44.")
           if info.get("CFBundleDisplayName") != "SAKK EXTERNAL" or info.get("CFBundleExecutable") != "SAK":
               raise SystemExit("The SAKK EXTERNAL app display name or executable name is incorrect.")
           if info.get("UIFileSharingEnabled") or info.get("LSSupportsOpeningDocumentsInPlace"):
@@ -170,7 +170,7 @@ jobs:
                       overlap = data[-overlap_size:] if overlap_size > 0 else b""
           print("Verified: M3SB credentials and API endpoint strings are absent as plaintext; executable padding is present.")
           PY
-          IPA_BYTES="$(wc -c < build/SAKK-EXTERNAL-Build-43-unsigned.ipa | tr -d ' ')"
+          IPA_BYTES="$(wc -c < build/SAKK-EXTERNAL-Build-44-unsigned.ipa | tr -d ' ')"
           echo "Compressed IPA size: ${IPA_BYTES} bytes"
         env:
           M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
@@ -181,7 +181,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="sakk-external-build-${GITHUB_RUN_ID}"
-          gh release create "$TAG" build/SAKK-EXTERNAL-Build-43-unsigned.ipa \
+          gh release create "$TAG" build/SAKK-EXTERNAL-Build-44-unsigned.ipa \
             --repo "$GITHUB_REPOSITORY" \
             --title "SAKK EXTERNAL Build ${GITHUB_RUN_ID}" \
             --notes "Unsigned SAKK EXTERNAL IPA built from ${GITHUB_SHA}." \
