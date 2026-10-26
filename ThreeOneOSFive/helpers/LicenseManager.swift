@@ -244,7 +244,7 @@ final class LicenseManager: ObservableObject {
         let body: [String: Any] = ["key": key, "device_id": deviceID, "provider_result": providerResult]
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes]),
               let url = URL(string: VesperStringVault.vesperDashClientSessionURL + "/bridge") else {
-            finishVerification(.failure(.message("VesperDash session service is not configured")), key: key, silent: silent, verificationID: verificationID)
+            finishVerification(.failure(.message("SAKK session service is not configured")), key: key, silent: silent, verificationID: verificationID)
             return
         }
         var request = URLRequest(url: url)

@@ -37,7 +37,7 @@ VESPERDASH_PACKAGE_PASSWORDS = os.environ.get("VESPERDASH_PACKAGE_PASSWORDS", ""
 MAX_UPLOAD = int(os.environ.get("VESPERDASH_MAX_UPLOAD", str(80 * 1024 * 1024)))
 ALLOWED_BUNDLES = {"com.dts.freefireth", "com.dts.freefiremax"}
 ALLOWED_CATEGORIES = {"aim", "esp", "body", "weapons", "hologram", "skin"}
-VESPER_IPA_DOWNLOAD_URL = "https://github.com/vogarf816-debug/extrenal/releases/latest/download/VESPER-Build-42-unsigned.ipa"
+SAKK_EXTERNAL_IPA_DOWNLOAD_URL = "https://github.com/vogarf816-debug/extrenal/releases/latest/download/SAKK-EXTERNAL-Build-43-unsigned.ipa"
 
 app = Flask(__name__, static_folder=str(ROOT / "static"), static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD
@@ -197,16 +197,16 @@ def default_settings(tenant="vesper"):
     if tenant == "jefry":
         return {"app_name":"Jefry External","developer_name":"Jefry","developer_subtitle":"Jefry External Control","channel_name":"Jefry Official Channel","channel_handle":"@JefryExternal","channel_url":"https://t.me/JefryExternal","owner_name":"Jefry","owner_handle":"@JefryExternal","owner_url":"https://t.me/JefryExternal","footer_text":"JEFRY • READY"}
     return {
-        "app_name": "Vesper",
-        "developer_name": "Vesper",
-        "developer_subtitle": "Vesper Developer",
-        "channel_name": "Vesper Official Channel",
-        "channel_handle": "@VesperExtrenal",
-        "channel_url": "https://t.me/VesperExtrenal",
-        "owner_name": "Vesper Owner",
-        "owner_handle": "@VesperExtrenal",
-        "owner_url": "https://t.me/VesperExtrenal",
-        "footer_text": "VESPER • READY"
+        "app_name": "SAKK EXTERNAL",
+        "developer_name": "Yagami",
+        "developer_subtitle": "SAKK EXTERNAL Developer",
+        "channel_name": "SAKK EXTERNAL Telegram Group",
+        "channel_handle": "SAKK EXTERNAL Community",
+        "channel_url": "https://t.me/+ZegxsHIiQ5w5M2Q5",
+        "owner_name": "SAKK EXTERNAL Owner",
+        "owner_handle": "@sagk1082",
+        "owner_url": "https://t.me/sagk1082",
+        "footer_text": "SAKK EXTERNAL • READY"
     }
 
 
@@ -219,7 +219,14 @@ def load_settings(tenant="vesper"):
     try:
         payload = json.loads(scoped_file(SETTINGS_FILE, tenant).read_text())
         if isinstance(payload, dict):
-            result = default_settings(tenant); result.update(payload); return result
+            result = default_settings(tenant)
+            for key, value in payload.items():
+                if key not in result:
+                    continue
+                if isinstance(value, str) and "vesper" in value.lower():
+                    continue
+                result[key] = value
+            return result
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         pass
     return default_settings(tenant)
@@ -263,9 +270,9 @@ def save_settings():
 
 def default_release_policy(tenant="vesper"):
     return {
-        "latest_build": 36,
+        "latest_build": 43,
         "minimum_build": 0,
-        "download_url": VESPER_IPA_DOWNLOAD_URL,
+        "download_url": SAKK_EXTERNAL_IPA_DOWNLOAD_URL,
         "update_message": "IPA UPDATED, PLEASE DOWNLOAD NEW VERSION",
     }
 
@@ -424,8 +431,8 @@ def health():
 
 @app.get("/download/vesper.ipa")
 def download_vesper_ipa():
-    """Stable website URL for the current Vesper unsigned IPA release."""
-    return redirect(VESPER_IPA_DOWNLOAD_URL, code=302)
+    """Stable website URL for the current SAKK EXTERNAL unsigned IPA release."""
+    return redirect(SAKK_EXTERNAL_IPA_DOWNLOAD_URL, code=302)
 
 
 @app.post("/api/auth/login")

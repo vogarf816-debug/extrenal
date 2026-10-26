@@ -173,7 +173,7 @@ def verify(app_dir: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("app_dir", type=Path, help="path to VESPER.app")
+    parser.add_argument("app_dir", type=Path, help="path to SAKK EXTERNAL.app")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--strip-audio", action="store_true", help="remove audio files after checking embedded copies")
     mode.add_argument("--verify", action="store_true", help="verify the embedded payload and bundle state")

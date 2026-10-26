@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$ROOT/build"
-ARCHIVE="$BUILD_DIR/VESPER-Build-42.xcarchive"
-IPA="$BUILD_DIR/VESPER-Build-42-unsigned.ipa"
+ARCHIVE="$BUILD_DIR/SAKK-EXTERNAL-Build-43.xcarchive"
+IPA="$BUILD_DIR/SAKK-EXTERNAL-Build-43-unsigned.ipa"
 echo "Building repository revision: $(git -C "$ROOT" rev-parse --short HEAD)"
 
 if [[ -z "${M3SB_PACKAGE_TOKEN:-}" || -z "${M3SB_HMAC_SECRET:-}" ]]; then
@@ -28,7 +28,7 @@ xcodebuild \
   CODE_SIGN_IDENTITY='' \
   archive
 
-APP="$ARCHIVE/Products/Applications/VESPER.app"
+APP="$ARCHIVE/Products/Applications/SAKK EXTERNAL.app"
 test -d "$APP"
 # Remote patches must never be embedded in the signed app. Remove packages
 # from every possible Xcode resource layout, not only from the app root.
@@ -66,9 +66,9 @@ print("Embedded obfuscated M3SB configuration in the app bundle.")
 PY
 
 test -f "$APP/SAK"
-PAD_MB="${VESPER_EXECUTABLE_PADDING_MB:-690}"
-[[ "$PAD_MB" =~ ^[0-9]+$ ]] || { echo 'VESPER_EXECUTABLE_PADDING_MB must be a non-negative integer' >&2; exit 2; }
-(( PAD_MB == 690 )) || { echo 'VESPER_EXECUTABLE_PADDING_MB must be exactly 690 MB for this build.' >&2; exit 2; }
+PAD_MB="${SAKK_EXECUTABLE_PADDING_MB:-690}"
+[[ "$PAD_MB" =~ ^[0-9]+$ ]] || { echo 'SAKK_EXECUTABLE_PADDING_MB must be a non-negative integer' >&2; exit 2; }
+(( PAD_MB == 690 )) || { echo 'SAKK_EXECUTABLE_PADDING_MB must be exactly 690 MB for this build.' >&2; exit 2; }
 python3 - "$APP/SAK" "$PAD_MB" <<'PY'
 import os, sys
 path, megabytes = sys.argv[1], int(sys.argv[2])

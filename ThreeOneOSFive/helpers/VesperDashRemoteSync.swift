@@ -209,16 +209,16 @@ struct VesperAppSettings: Decodable {
     let footerText: String
 
     static let fallback = VesperAppSettings(
-        appName: "Vesper",
+        appName: "SAKK EXTERNAL",
         developerName: "Yagami",
-        developerSubtitle: "Vesper Developer",
-        channelName: "Vesper Telegram Group",
-        channelHandle: "Vesper Community",
+        developerSubtitle: "SAKK EXTERNAL Developer",
+        channelName: "SAKK EXTERNAL Telegram Group",
+        channelHandle: "SAKK EXTERNAL Community",
         channelURL: "https://t.me/+ZegxsHIiQ5w5M2Q5",
-        ownerName: "Vesper Owner",
+        ownerName: "SAKK EXTERNAL Owner",
         ownerHandle: "@sagk1082",
         ownerURL: "https://t.me/sagk1082",
-        footerText: "VESPER • READY"
+        footerText: "SAKK EXTERNAL • READY"
     )
 
     init(appName: String, developerName: String, developerSubtitle: String, channelName: String, channelHandle: String, channelURL: String, ownerName: String, ownerHandle: String, ownerURL: String, footerText: String) {
@@ -230,16 +230,20 @@ struct VesperAppSettings: Decodable {
     init(from decoder: Decoder) throws {
         let d = try decoder.container(keyedBy: CodingKeys.self)
         let f = VesperAppSettings.fallback
-        appName = try d.decodeIfPresent(String.self, forKey: .appName) ?? f.appName
-        developerName = try d.decodeIfPresent(String.self, forKey: .developerName) ?? f.developerName
-        developerSubtitle = try d.decodeIfPresent(String.self, forKey: .developerSubtitle) ?? f.developerSubtitle
-        channelName = try d.decodeIfPresent(String.self, forKey: .channelName) ?? f.channelName
-        channelHandle = try d.decodeIfPresent(String.self, forKey: .channelHandle) ?? f.channelHandle
-        channelURL = try d.decodeIfPresent(String.self, forKey: .channelURL) ?? f.channelURL
-        ownerName = try d.decodeIfPresent(String.self, forKey: .ownerName) ?? f.ownerName
-        ownerHandle = try d.decodeIfPresent(String.self, forKey: .ownerHandle) ?? f.ownerHandle
-        ownerURL = try d.decodeIfPresent(String.self, forKey: .ownerURL) ?? f.ownerURL
-        footerText = try d.decodeIfPresent(String.self, forKey: .footerText) ?? f.footerText
+        func currentValue(_ key: CodingKeys, fallback: String) throws -> String {
+            let value = try d.decodeIfPresent(String.self, forKey: key) ?? fallback
+            return value.lowercased().contains("vesper") ? fallback : value
+        }
+        appName = try currentValue(.appName, fallback: f.appName)
+        developerName = try currentValue(.developerName, fallback: f.developerName)
+        developerSubtitle = try currentValue(.developerSubtitle, fallback: f.developerSubtitle)
+        channelName = try currentValue(.channelName, fallback: f.channelName)
+        channelHandle = try currentValue(.channelHandle, fallback: f.channelHandle)
+        channelURL = try currentValue(.channelURL, fallback: f.channelURL)
+        ownerName = try currentValue(.ownerName, fallback: f.ownerName)
+        ownerHandle = try currentValue(.ownerHandle, fallback: f.ownerHandle)
+        ownerURL = try currentValue(.ownerURL, fallback: f.ownerURL)
+        footerText = try currentValue(.footerText, fallback: f.footerText)
     }
 }
 

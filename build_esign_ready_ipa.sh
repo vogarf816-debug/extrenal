@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-IPA="${1:-$ROOT/build/VESPER-Build-42-unsigned.ipa}"
+IPA="${1:-$ROOT/build/SAKK-EXTERNAL-Build-43-unsigned.ipa}"
 
 if ! command -v unzip >/dev/null 2>&1; then
   echo "Error: unzip is required." >&2
@@ -14,7 +14,7 @@ if [[ ! -f "$IPA" ]]; then
   "$ROOT/build_unsigned.sh"
 fi
 
-WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vesper-esign.XXXXXX")"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sakk-esign.XXXXXX")"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 unzip -q "$IPA" -d "$WORK_DIR/unpacked"

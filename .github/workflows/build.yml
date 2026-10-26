@@ -1,4 +1,4 @@
-name: Build VESPER IPA with obfuscated M3SB activation
+name: Build SAKK EXTERNAL IPA with obfuscated M3SB activation
 
 on:
   workflow_dispatch:
@@ -32,8 +32,8 @@ jobs:
 
       - name: Runtime localization smoke test
         run: |
-          swiftc ThreeOneOSFive/helpers/EmbeddedLocalizations.generated.swift verify_embedded_localizations.swift -o "$RUNNER_TEMP/vesper-localization-test"
-          "$RUNNER_TEMP/vesper-localization-test"
+          swiftc ThreeOneOSFive/helpers/EmbeddedLocalizations.generated.swift verify_embedded_localizations.swift -o "$RUNNER_TEMP/sakk-external-localization-test"
+          "$RUNNER_TEMP/sakk-external-localization-test"
 
       - name: Verify private storage and release stripping
         run: |
@@ -99,26 +99,26 @@ jobs:
           M3SB_HMAC_SECRET: ${{ secrets.M3SB_HMAC_SECRET }}
 
       - name: Prepare IPA
-        run: ./build_esign_ready_ipa.sh build/VESPER-Build-42-unsigned.ipa
+        run: ./build_esign_ready_ipa.sh build/SAKK-EXTERNAL-Build-43-unsigned.ipa
 
-      - name: Verify obfuscated configuration and executable padding
+      - name: Verify obfuscated configuration, app identity and executable padding
         run: |
           set -euo pipefail
-          rm -rf /tmp/vesper-ipa-check
-          mkdir -p /tmp/vesper-ipa-check
-          unzip -q build/VESPER-Build-42-unsigned.ipa -d /tmp/vesper-ipa-check
-          APP_DIR="$(find /tmp/vesper-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)"
+          rm -rf /tmp/sakk-external-ipa-check
+          mkdir -p /tmp/sakk-external-ipa-check
+          unzip -q build/SAKK-EXTERNAL-Build-43-unsigned.ipa -d /tmp/sakk-external-ipa-check
+          APP_DIR="$(find /tmp/sakk-external-ipa-check/Payload -maxdepth 1 -name '*.app' -type d -print -quit)"
           APP_PLIST="$APP_DIR/Info.plist"
           APP_EXECUTABLE="$APP_DIR/SAK"
-          test "$(basename "$APP_DIR")" = "VESPER.app"
+          test "$(basename "$APP_DIR")" = "SAKK EXTERNAL.app"
           test -f "$APP_PLIST"
           test -f "$APP_EXECUTABLE"
-          if find "$APP_DIR" -type d -name '*.lproj' -print -quit | grep -q .; then
-            echo 'Localized .lproj folders should be embedded in the VESPER executable.' >&2
-            exit 1
-          fi
           EXECUTABLE_BYTES="$(wc -c < "$APP_EXECUTABLE" | tr -d ' ')"
           test "$EXECUTABLE_BYTES" -ge 690000000 || { echo '690 MB executable padding is missing' >&2; exit 1; }
+          if find "$APP_DIR" -type d -name '*.lproj' -print -quit | grep -q .; then
+            echo 'Localized .lproj folders should be embedded in the SAK executable.' >&2
+            exit 1
+          fi
           python3 embed_app_resources.py --verify "$APP_DIR"
           python3 - "$APP_DIR" "$APP_PLIST" <<'PY'
           import base64
@@ -135,10 +135,10 @@ jobs:
               raise SystemExit("M3SB build secrets are missing (values hidden).")
           with plist_path.open("rb") as stream:
               info = plistlib.load(stream)
-          if info.get("CFBundleVersion") != "42":
-              raise SystemExit("Expected VESPER Build 42.")
-          if info.get("CFBundleDisplayName") != "VESPER" or info.get("CFBundleExecutable") != "SAK":
-              raise SystemExit("The VESPER app display name or executable name is incorrect.")
+          if info.get("CFBundleVersion") != "43":
+              raise SystemExit("Expected SAKK EXTERNAL Build 43.")
+          if info.get("CFBundleDisplayName") != "SAKK EXTERNAL" or info.get("CFBundleExecutable") != "SAK":
+              raise SystemExit("The SAKK EXTERNAL app display name or executable name is incorrect.")
           if info.get("UIFileSharingEnabled") or info.get("LSSupportsOpeningDocumentsInPlace"):
               raise SystemExit("App-wide Documents sharing must remain disabled.")
           if "M3SB_PACKAGE_TOKEN" in info or "M3SB_HMAC_SECRET" in info:
@@ -170,7 +170,7 @@ jobs:
                       overlap = data[-overlap_size:] if overlap_size > 0 else b""
           print("Verified: M3SB credentials and API endpoint strings are absent as plaintext; executable padding is present.")
           PY
-          IPA_BYTES="$(wc -c < build/VESPER-Build-42-unsigned.ipa | tr -d ' ')"
+          IPA_BYTES="$(wc -c < build/SAKK-EXTERNAL-Build-43-unsigned.ipa | tr -d ' ')"
           echo "Compressed IPA size: ${IPA_BYTES} bytes"
         env:
           M3SB_PACKAGE_TOKEN: ${{ secrets.M3SB_PACKAGE_TOKEN }}
@@ -180,9 +180,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="vesper-build-${GITHUB_RUN_ID}"
-          gh release create "$TAG" build/VESPER-Build-42-unsigned.ipa \
+          TAG="sakk-external-build-${GITHUB_RUN_ID}"
+          gh release create "$TAG" build/SAKK-EXTERNAL-Build-43-unsigned.ipa \
             --repo "$GITHUB_REPOSITORY" \
-            --title "VESPER Build ${GITHUB_RUN_ID}" \
-            --notes "Unsigned VESPER IPA built from ${GITHUB_SHA}." \
+            --title "SAKK EXTERNAL Build ${GITHUB_RUN_ID}" \
+            --notes "Unsigned SAKK EXTERNAL IPA built from ${GITHUB_SHA}." \
             --target "$GITHUB_SHA"
