@@ -134,11 +134,11 @@ struct ContentView: View {
     private struct RemotePauseView: View {
         var body: some View {
             ZStack {
-                Color.black.opacity(0.94).ignoresSafeArea()
+                AppTheme.pageBackground.opacity(0.96).ignoresSafeArea()
                 VStack(spacing: 18) {
                     Image(systemName: "pause.circle.fill")
                         .font(.system(size: 64))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(AppTheme.secondaryAccent)
                     Text("SERVICE PAUSED")
                         .font(.system(size: 26, weight: .black, design: .rounded))
                     Text("This IPA has been paused by the administrator. Try again later.")
@@ -397,6 +397,7 @@ struct ContentView: View {
     private var developerTab: some View {
         VStack(spacing: 16) {
             developerCard
+            tiktokCard
             telegramCard
             ownerCard
         }
@@ -515,7 +516,7 @@ struct ContentView: View {
 
     private var profileSupportCard: some View {
         Button {
-            guard let url = URL(string: "https://t.me/YAGAMIxIOS") else { return }
+            guard let url = URL(string: "https://t.me/sagk1082") else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 13) {
@@ -575,11 +576,11 @@ struct ContentView: View {
             }
             .font(.system(size: 12, weight: .black, design: .rounded))
             .tracking(1)
-            .foregroundStyle(.black)
+            .foregroundStyle(AppTheme.ink)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white, lineWidth: 1))
+            .background(AppTheme.secondaryAccent, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.paper.opacity(0.72), lineWidth: 1))
         }
         .buttonStyle(.plain)
         .accessibilityHint("Removes the saved key from this device and returns to Enter Key")
@@ -663,10 +664,11 @@ struct ContentView: View {
         HStack(spacing: 14) {
             Image("VesperEmblem")
                 .resizable()
-                .scaledToFill()
-                .frame(width: 48, height: 48)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(AppTheme.accent.opacity(0.65), lineWidth: 1))
+                .scaledToFit()
+                .frame(width: 54, height: 54)
+                .background(AppTheme.pageBackground, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.72), lineWidth: 1))
             VStack(alignment: .leading, spacing: 3) {
                 Text("VESPER")
                     .font(.system(size: 18, weight: .black, design: .rounded))
@@ -936,7 +938,7 @@ struct ContentView: View {
                 .scaledToFit()
                 .frame(maxWidth: .infinity)
                 .frame(height: 176)
-                .background(.black, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(AppTheme.pageBackground, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             VStack(spacing: 4) {
                 Text("VESPER")
@@ -961,9 +963,42 @@ struct ContentView: View {
         .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(AppTheme.accent.opacity(0.42), lineWidth: 1))
     }
 
+    private var tiktokCard: some View {
+        Button {
+            guard let url = URL(string: "https://www.tiktok.com/@rey_rd03?_r=1&_t=ZP-9AriZwe4u1W") else { return }
+            UIApplication.shared.open(url)
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "play.rectangle.fill")
+                    .font(.system(size: 20, weight: .black))
+                    .foregroundStyle(AppTheme.paper)
+                    .frame(width: 48, height: 48)
+                    .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("OFFICIAL TIKTOK")
+                        .font(.system(size: 9, weight: .black, design: .rounded))
+                        .tracking(0.8)
+                        .foregroundStyle(AppTheme.secondaryAccent)
+                    Text("@rey_rd03")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.paper)
+                }
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(AppTheme.secondaryAccent)
+            }
+            .padding(15)
+            .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.48), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open official Vesper TikTok @rey_rd03")
+    }
+
     private var telegramCard: some View {
         Button {
-            guard let url = URL(string: "https://t.me/VesperExternal") else { return }
+            guard let url = URL(string: "https://t.me/+ZegxsHIiQ5w5M2Q5") else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 14) {
@@ -973,13 +1008,13 @@ struct ContentView: View {
                     .frame(width: 48, height: 48)
                     .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("OFFICIAL TELEGRAM CHANNEL")
+                    Text("OFFICIAL TELEGRAM GROUP")
                         .font(.system(size: 9, weight: .black, design: .rounded))
                         .tracking(0.8)
                         .foregroundStyle(AppTheme.secondaryAccent)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
-                    Text("VESPER • TELEGRAM")
+                    Text("VESPER • COMMUNITY")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.paper)
                         .lineLimit(1)
@@ -988,19 +1023,19 @@ struct ContentView: View {
                 Spacer()
                 Image(systemName: "arrow.up.right")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(AppTheme.accent)
+                    .foregroundStyle(AppTheme.secondaryAccent)
             }
             .padding(15)
-            .background(AppTheme.paper.opacity(0.11), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.accent.opacity(0.55), lineWidth: 1))
+            .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.48), lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open Vesper Telegram channel")
+        .accessibilityLabel("Open Vesper Telegram group")
     }
 
     private var ownerCard: some View {
         Button {
-            guard let url = URL(string: "https://t.me/YAGAMIxIOS") else { return }
+            guard let url = URL(string: "https://t.me/sagk1082") else { return }
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 14) {
@@ -1388,7 +1423,7 @@ private struct PatchOptionCard: View {
                     }
                 }
                 .frame(width: 48, height: 48)
-                .background(Color.black.opacity(0.28))
+                .background(AppTheme.pageBackground.opacity(0.7))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
 
@@ -1436,11 +1471,13 @@ private struct PatchOptionCard: View {
         .padding(.horizontal, 14)
         .background(
             LinearGradient(
-                colors: [AppTheme.referenceCard.opacity(0.92), Color.black.opacity(0.28)],
+                colors: [AppTheme.referenceCard.opacity(0.96), AppTheme.consoleBackground.opacity(0.82)],
                 startPoint: .leading,
                 endPoint: .trailing
-            )
+            ),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(color.opacity(0.32), lineWidth: 1))
         .shadow(color: .clear, radius: 0, y: 0)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(statusText.isEmpty ? "\(name), \(target), \(isEnabled ? "Injected" : "Not injected")" : "\(name), \(target), \(statusText), \(isEnabled ? "Injected" : "Not injected")")
@@ -1618,7 +1655,7 @@ struct AnimatedHyperBackdrop: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [AppTheme.pageBackground, Color.black, AppTheme.consoleBackground],
+                colors: [AppTheme.pageBackground, AppTheme.consoleBackground, AppTheme.referenceCard],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )

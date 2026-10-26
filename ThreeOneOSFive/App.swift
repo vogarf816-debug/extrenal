@@ -116,7 +116,7 @@ private struct VesperBuildUpdateRequiredView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.pageBackground.ignoresSafeArea()
             VStack(spacing: 18) {
                 Image(systemName: "arrow.down.app.fill")
                     .font(.system(size: 46, weight: .semibold))
@@ -159,7 +159,7 @@ private struct VesperSecurityAlertView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.pageBackground.ignoresSafeArea()
             VStack(alignment: .leading, spacing: 12) {
                 Text("Security Alert")
                     .font(.system(size: 20, weight: .bold))

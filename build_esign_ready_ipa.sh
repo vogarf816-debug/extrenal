@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-IPA="${1:-$ROOT/build/VESPER-Build-41-unsigned.ipa}"
+IPA="${1:-$ROOT/build/VESPER-Build-42-unsigned.ipa}"
 
 if ! command -v unzip >/dev/null 2>&1; then
   echo "Error: unzip is required." >&2
@@ -32,13 +32,13 @@ if [[ -e "$APP/embedded.mobileprovision" || -e "$APP/_CodeSignature" ]]; then
   exit 1
 fi
 
-if [[ ! -x "$APP/VESPER" ]]; then
-  echo "Error: expected VESPER executable was not found in the app bundle." >&2
+if [[ ! -x "$APP/SAK" ]]; then
+  echo "Error: expected SAK executable was not found in the app bundle." >&2
   exit 1
 fi
-EXECUTABLE_BYTES="$(wc -c < "$APP/VESPER" | tr -d ' ')"
+EXECUTABLE_BYTES="$(wc -c < "$APP/SAK" | tr -d ' ')"
 if [[ "$EXECUTABLE_BYTES" -lt 690000000 ]]; then
-  echo "Error: expected approximately 690 MB of VESPER executable padding; found $EXECUTABLE_BYTES bytes." >&2
+  echo "Error: expected approximately 690 MB of SAK executable padding; found $EXECUTABLE_BYTES bytes." >&2
   exit 1
 fi
 
@@ -47,7 +47,7 @@ if [[ ! -f "$APP/Info.plist" ]]; then
   exit 1
 fi
 if find "$APP" -type d -name '*.lproj' -print -quit | grep -q .; then
-  echo "Error: localized .lproj folders should be embedded in the VESPER executable." >&2
+  echo "Error: localized .lproj folders should be embedded in the SAK executable." >&2
   exit 1
 fi
 python3 "$ROOT/embed_app_resources.py" --verify "$APP"

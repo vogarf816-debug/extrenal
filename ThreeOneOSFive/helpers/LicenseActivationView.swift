@@ -14,7 +14,7 @@ struct LicenseActivationView: View {
                 LoginBackdrop()
                     .ignoresSafeArea()
 
-                Color.black.opacity(0.16)
+                AppTheme.pageBackground.opacity(0.34)
                     .ignoresSafeArea()
 
                 ScrollViewReader { proxy in
@@ -113,11 +113,11 @@ struct LicenseActivationView: View {
 
             Image("VesperEmblem")
                 .resizable()
-                .scaledToFill()
-                .frame(width: 86, height: 86)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(AppTheme.accent.opacity(0.82), lineWidth: 1.5))
-                .shadow(color: AppTheme.accent.opacity(logoBreathing ? 0.34 : 0.12), radius: logoBreathing ? 22 : 10)
+                .scaledToFit()
+                .frame(width: 88, height: 88)
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.82), lineWidth: 1.5))
+                .shadow(color: AppTheme.secondaryAccent.opacity(logoBreathing ? 0.34 : 0.12), radius: logoBreathing ? 22 : 10)
         }
         .scaleEffect(logoBreathing ? 1.02 : 0.96)
         .animation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true), value: logoBreathing)
@@ -181,7 +181,7 @@ struct LicenseActivationView: View {
                 }
                 .padding(.horizontal, 14)
                 .frame(height: 54)
-                .background(Color.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .background(AppTheme.pageBackground.opacity(0.86), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 15, style: .continuous)
                         .stroke(keyFocused ? AppTheme.accent.opacity(0.85) : .white.opacity(0.12), lineWidth: keyFocused ? 1.4 : 1)
@@ -193,7 +193,7 @@ struct LicenseActivationView: View {
                 Text("You Don't Have Key?")
                     .foregroundStyle(.white.opacity(0.68))
                 Button("Contact") {
-                    if let url = URL(string: "https://t.me/YAGAMIxIOS") {
+                    if let url = URL(string: "https://t.me/sagk1082") {
                         UIApplication.shared.open(url)
                     }
                 }
@@ -218,10 +218,10 @@ struct LicenseActivationView: View {
                 .foregroundStyle(AppTheme.ink)
                 .frame(maxWidth: .infinity, minHeight: 54)
                 .background(
-                    LinearGradient(colors: [Color.white, Color.white], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    LinearGradient(colors: [AppTheme.secondaryAccent, AppTheme.accent], startPoint: .topLeading, endPoint: .bottomTrailing),
                     in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                 )
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(.white.opacity(0.16), lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.52), lineWidth: 1))
                 .shadow(color: AppTheme.accent.opacity(0.32), radius: 14, y: 6)
             }
             .buttonStyle(.plain)
@@ -245,10 +245,10 @@ struct LicenseActivationView: View {
         }
         .padding(20)
         .background(.ultraThinMaterial.opacity(0.78), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .background(Color.black.opacity(0.92), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(AppTheme.consoleBackground.opacity(0.96), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(LinearGradient(colors: [AppTheme.accent.opacity(0.62), .white.opacity(0.10), AppTheme.accent.opacity(0.20)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
+                .stroke(LinearGradient(colors: [AppTheme.secondaryAccent.opacity(0.68), AppTheme.accent.opacity(0.16), AppTheme.accent.opacity(0.48)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.28), radius: 20, y: 12)
         .animation(.easeOut(duration: 0.22), value: manager.message)
@@ -267,7 +267,7 @@ struct LoginBackdrop: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color.black, Color.black, Color.black],
+                colors: [AppTheme.pageBackground, AppTheme.consoleBackground, AppTheme.pageBackground],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )

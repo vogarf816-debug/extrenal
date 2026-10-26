@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Embed audio and reference app icons in the VESPER executable.
+"""Embed audio and reference app icons in the SAK executable.
 
 The two audio files are read from the executable trailer at runtime and are
 removed from the app bundle. Info.plist and Assets.car stay at their standard
@@ -95,7 +95,7 @@ def read_embedded(executable: Path) -> dict[str, bytes]:
             if scan_start == 0:
                 break
             scan_end = scan_start + FOOTER_SIZE - 1
-    raise ValueError("VESPER executable has no valid embedded-resource footer")
+    raise ValueError("SAK executable has no valid embedded-resource footer")
 
 
 def encode_payload(resources: dict[str, bytes]) -> bytes:
@@ -108,7 +108,7 @@ def encode_payload(resources: dict[str, bytes]) -> bytes:
 
 
 def embed(app_dir: Path) -> None:
-    executable = app_dir / "VESPER"
+    executable = app_dir / "SAK"
     if not executable.is_file():
         raise ValueError(f"Missing executable: {executable}")
     resources: dict[str, bytes] = {}
@@ -125,7 +125,7 @@ def embed(app_dir: Path) -> None:
         pass
     else:
         if existing != resources:
-            raise ValueError("VESPER already has a different embedded-resource payload")
+            raise ValueError("SAK already has a different embedded-resource payload")
         print("Embedded resource payload already exists and is verified.")
         return
 
@@ -143,7 +143,7 @@ def embed(app_dir: Path) -> None:
 
 
 def strip_audio(app_dir: Path) -> None:
-    executable = app_dir / "VESPER"
+    executable = app_dir / "SAK"
     embedded = read_embedded(executable)
     for name in AUDIO_NAMES:
         path = app_dir / name
@@ -153,11 +153,11 @@ def strip_audio(app_dir: Path) -> None:
             raise ValueError(f"Embedded audio does not match bundle resource: {name}")
     for name in AUDIO_NAMES:
         (app_dir / name).unlink()
-    print("Removed audio bundle copies after verifying both sounds are embedded in VESPER.")
+    print("Removed audio bundle copies after verifying both sounds are embedded in SAK.")
 
 
 def verify(app_dir: Path) -> None:
-    embedded = read_embedded(app_dir / "VESPER")
+    embedded = read_embedded(app_dir / "SAK")
     for name in RESOURCE_NAMES:
         path = app_dir / name
         if name in AUDIO_NAMES:

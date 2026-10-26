@@ -212,12 +212,12 @@ struct VesperAppSettings: Decodable {
         appName: "Vesper",
         developerName: "Yagami",
         developerSubtitle: "Vesper Developer",
-        channelName: "Vesper Telegram",
-        channelHandle: "@VesperExternal",
-        channelURL: "https://t.me/VesperExternal",
-        ownerName: "Yagami",
-        ownerHandle: "@YAGAMIxIOS",
-        ownerURL: "https://t.me/YAGAMIxIOS",
+        channelName: "Vesper Telegram Group",
+        channelHandle: "Vesper Community",
+        channelURL: "https://t.me/+ZegxsHIiQ5w5M2Q5",
+        ownerName: "Vesper Owner",
+        ownerHandle: "@sagk1082",
+        ownerURL: "https://t.me/sagk1082",
         footerText: "VESPER • READY"
     )
 

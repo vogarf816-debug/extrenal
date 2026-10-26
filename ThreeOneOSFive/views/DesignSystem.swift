@@ -1,13 +1,13 @@
 import SwiftUI
 
 enum AppTheme {
-    static let accent = Color.white
-    static let secondaryAccent = Color.white
-    static let pageBackground = Color.black
-    static let consoleBackground = Color.black
-    static let referenceCard = Color.black
-    static let paper = Color.white
-    static let ink = Color.black
+    static let accent = Color(red: 0.12, green: 0.34, blue: 1.00)
+    static let secondaryAccent = Color(red: 0.20, green: 0.82, blue: 1.00)
+    static let pageBackground = Color(red: 0.012, green: 0.027, blue: 0.085)
+    static let consoleBackground = Color(red: 0.018, green: 0.055, blue: 0.14)
+    static let referenceCard = Color(red: 0.035, green: 0.090, blue: 0.19)
+    static let paper = Color(red: 0.94, green: 0.97, blue: 1.00)
+    static let ink = Color(red: 0.015, green: 0.035, blue: 0.10)
     static let pageInset: CGFloat = 16
     static let rowIconSize: CGFloat = 17
     static let rowIconFrame: CGFloat = 28
@@ -98,7 +98,7 @@ struct AppLogo: View {
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.black)
+                    .background(AppTheme.pageBackground)
             }
         }
         .frame(width: size, height: size)

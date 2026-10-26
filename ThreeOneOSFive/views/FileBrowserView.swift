@@ -250,7 +250,7 @@ struct FileBrowserView: View {
             ZStack {
                 if let activityText {
                     ZStack {
-                        Color.black.opacity(0.35)
+                        AppTheme.pageBackground.opacity(0.72)
                             .ignoresSafeArea()
                         ProgressView(activityText)
                             .padding()

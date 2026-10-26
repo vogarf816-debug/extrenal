@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$ROOT/build"
-ARCHIVE="$BUILD_DIR/VESPER-Build-41.xcarchive"
-IPA="$BUILD_DIR/VESPER-Build-41-unsigned.ipa"
+ARCHIVE="$BUILD_DIR/VESPER-Build-42.xcarchive"
+IPA="$BUILD_DIR/VESPER-Build-42-unsigned.ipa"
 echo "Building repository revision: $(git -C "$ROOT" rev-parse --short HEAD)"
 
 if [[ -z "${M3SB_PACKAGE_TOKEN:-}" || -z "${M3SB_HMAC_SECRET:-}" ]]; then
@@ -39,7 +39,7 @@ if find "$APP" -type f -name '*.3105' -print -quit | grep -q .; then
 fi
 echo "Verified no bundled local patch resources; patches are loaded only from VesperDash online."
 
-/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable VESPER" "$APP/Info.plist" || true
+/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable SAK" "$APP/Info.plist" || true
 /usr/libexec/PlistBuddy -c "Set :CFBundlePackageType APPL" "$APP/Info.plist" || true
 python3 - "$APP/Info.plist" <<'PY'
 import base64
@@ -65,11 +65,11 @@ with open(path, "wb") as stream:
 print("Embedded obfuscated M3SB configuration in the app bundle.")
 PY
 
-test -f "$APP/VESPER"
+test -f "$APP/SAK"
 PAD_MB="${VESPER_EXECUTABLE_PADDING_MB:-690}"
 [[ "$PAD_MB" =~ ^[0-9]+$ ]] || { echo 'VESPER_EXECUTABLE_PADDING_MB must be a non-negative integer' >&2; exit 2; }
 (( PAD_MB == 690 )) || { echo 'VESPER_EXECUTABLE_PADDING_MB must be exactly 690 MB for this build.' >&2; exit 2; }
-python3 - "$APP/VESPER" "$PAD_MB" <<'PY'
+python3 - "$APP/SAK" "$PAD_MB" <<'PY'
 import os, sys
 path, megabytes = sys.argv[1], int(sys.argv[2])
 remaining = megabytes * 1_000_000
