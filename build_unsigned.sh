@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$ROOT/build"
-ARCHIVE="$BUILD_DIR/SAKK-EXTERNAL-Build-45.xcarchive"
-IPA="$BUILD_DIR/SAKK-EXTERNAL-Build-45-unsigned.ipa"
+ARCHIVE="$BUILD_DIR/SAKK-EXTERNAL-Build-46.xcarchive"
+IPA="$BUILD_DIR/SAKK-EXTERNAL-Build-46-unsigned.ipa"
 echo "Building repository revision: $(git -C "$ROOT" rev-parse --short HEAD)"
 
 if [[ -z "${M3SB_PACKAGE_TOKEN:-}" || -z "${M3SB_HMAC_SECRET:-}" ]]; then

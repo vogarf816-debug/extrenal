@@ -53,33 +53,19 @@ struct ContentView: View {
     }
 
     var body: some View {
-        ZStack {
-            SAKKBackgroundVideoSurface(player: backgroundVideo.player)
-                .overlay {
-                    LinearGradient(
-                        colors: [AppTheme.pageBackground.opacity(0.32), AppTheme.pageBackground.opacity(0.66), AppTheme.pageBackground.opacity(0.78)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                }
-                .overlay(AppTheme.pageBackground.opacity(0.16))
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-
-            TabView(selection: $selectedAppTab) {
-            appTab(title: appLanguage.text("vesper.tab.aim"), tabTitle: appLanguage.text("vesper.tab.aim"), icon: "scope") { aimTab }
+        TabView(selection: $selectedAppTab) {
+            appTab(title: appLanguage.text("vesper.tab.aim"), tabTitle: appLanguage.text("vesper.tab.aim"), icon: "scope", tabIndex: 0) { aimTab }
                 .tag(0)
-            appTab(title: appLanguage.text("vesper.tab.hologram"), tabTitle: "HOLOGRAM", icon: "cube.transparent") { bodyWeaponsTab }
+            appTab(title: appLanguage.text("vesper.tab.hologram"), tabTitle: "HOLOGRAM", icon: "cube.transparent", tabIndex: 1) { bodyWeaponsTab }
                 .tag(1)
-            appTab(title: appLanguage.text("vesper.tab.skin_mod"), tabTitle: appLanguage.text("vesper.tab.skin_mod"), icon: "sparkles") { skinModTab }
+            appTab(title: appLanguage.text("vesper.tab.skin_mod"), tabTitle: appLanguage.text("vesper.tab.skin_mod"), icon: "sparkles", tabIndex: 2) { skinModTab }
                 .tag(2)
-            appTab(title: appLanguage.text("vesper.tab.compatibility"), tabTitle: appLanguage.text("vesper.tab.compatibility"), icon: "iphone") { supportedDeviceTab }
+            appTab(title: appLanguage.text("vesper.tab.compatibility"), tabTitle: appLanguage.text("vesper.tab.compatibility"), icon: "iphone", tabIndex: 3) { supportedDeviceTab }
                 .tag(3)
-            appTab(title: appLanguage.text("vesper.tab.profile"), tabTitle: appLanguage.text("vesper.tab.profile"), icon: "person.crop.circle") { profileTab }
+            appTab(title: appLanguage.text("vesper.tab.profile"), tabTitle: appLanguage.text("vesper.tab.profile"), icon: "person.crop.circle", tabIndex: 4) { profileTab }
                 .tag(4)
-            appTab(title: appLanguage.text("vesper.tab.developer"), tabTitle: appLanguage.text("vesper.tab.developer"), icon: "person.crop.circle") { developerTab }
+            appTab(title: appLanguage.text("vesper.tab.developer"), tabTitle: appLanguage.text("vesper.tab.developer"), icon: "person.crop.circle", tabIndex: 5) { developerTab }
                 .tag(5)
-            }
         }
         .background(AppTheme.pageBackground)
         .preferredColorScheme(.dark)
@@ -173,10 +159,24 @@ struct ContentView: View {
         }
     }
 
-    private func appTab<Content: View>(title: String, tabTitle: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
+    private func appTab<Content: View>(title: String, tabTitle: String, icon: String, tabIndex: Int, @ViewBuilder content: () -> Content) -> some View {
         NavigationStack {
             ZStack {
-                Color.clear.ignoresSafeArea()
+                if selectedAppTab == tabIndex {
+                    SAKKBackgroundVideoSurface(player: backgroundVideo.player)
+                        .overlay {
+                            LinearGradient(
+                                colors: [AppTheme.pageBackground.opacity(0.12), AppTheme.pageBackground.opacity(0.32), AppTheme.pageBackground.opacity(0.42)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        }
+                        .overlay(AppTheme.pageBackground.opacity(0.08))
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                } else {
+                    AppTheme.pageBackground.ignoresSafeArea()
+                }
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
                         brandHeader
@@ -249,22 +249,20 @@ struct ContentView: View {
     }
 
     private var bodyWeaponsCategorySelector: some View {
-        HStack(spacing: 8) {
-            bodyWeaponsCategoryButton(title: "BODY", category: "body", icon: "person.fill")
-            bodyWeaponsCategoryButton(title: "WEAPONS", category: "weapons", icon: "scope")
+        HStack(spacing: 28) {
+            bodyWeaponsCategoryButton(title: "BODY", category: "body")
+            bodyWeaponsCategoryButton(title: "WEAPONS", category: "weapons")
         }
-        .padding(6)
-        .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.24), lineWidth: 1))
+        .padding(.vertical, 6)
     }
 
-    private func bodyWeaponsCategoryButton(title: String, category: String, icon: String) -> some View {
+    private func bodyWeaponsCategoryButton(title: String, category: String) -> some View {
         let isSelected = selectedBodyWeaponsCategory == category
         return Button {
             selectedBodyWeaponsCategory = category
         } label: {
             VStack(spacing: 4) {
-                Label(title, systemImage: icon)
+                Text(title)
                     .font(.system(size: 10, weight: .black, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -274,8 +272,6 @@ struct ContentView: View {
             }
             .foregroundStyle(isSelected ? AppTheme.paper : AppTheme.paper.opacity(0.58))
             .frame(maxWidth: .infinity, minHeight: 48)
-            .background(isSelected ? AppTheme.accent.opacity(0.20) : Color.clear, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(isSelected ? AppTheme.accent.opacity(0.78) : Color.clear, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -290,13 +286,11 @@ struct ContentView: View {
     }
 
     private var patchGameSelector: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 28) {
             patchGameButton(title: "FREE FIRE", subtitle: "NORMAL", game: "normal")
             patchGameButton(title: "FREE FIRE MAX", subtitle: "MAX", game: "max")
         }
-        .padding(6)
-        .background(AppTheme.referenceCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.secondaryAccent.opacity(0.24), lineWidth: 1))
+        .padding(.vertical, 6)
     }
 
     private func patchGameButton(title: String, subtitle: String, game: String) -> some View {
@@ -315,8 +309,6 @@ struct ContentView: View {
             }
             .foregroundStyle(isSelected ? AppTheme.paper : AppTheme.paper.opacity(0.58))
             .frame(maxWidth: .infinity, minHeight: 48)
-            .background(isSelected ? AppTheme.accent.opacity(0.20) : Color.clear, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(isSelected ? AppTheme.accent.opacity(0.78) : Color.clear, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -772,7 +764,6 @@ struct ContentView: View {
                             package: remoteKey,
                             category: category,
                             color: color,
-                            imageURL: VesperDashRemoteSync.validImageURL(for: remote),
                             statusText: remote.displayStatusText,
                             state: patchBinding(for: remoteKey, targetBundleID: targetBundleID),
                             targetBundleID: targetBundleID,
@@ -849,7 +840,6 @@ struct ContentView: View {
         package: String,
         category: String,
         color: Color,
-        imageURL: URL?,
         statusText: String,
         state: Binding<Bool>,
         targetBundleID: String,
@@ -860,7 +850,6 @@ struct ContentView: View {
             name: name,
             target: target,
             color: color,
-            imageURL: imageURL,
             statusText: statusText,
             isEnabled: state,
             isRestoring: restoringPatchKey == stateKey,
@@ -1426,7 +1415,6 @@ private struct PatchOptionCard: View {
     let name: String
     let target: String
     let color: Color
-    let imageURL: URL?
     let statusText: String
     @Binding var isEnabled: Bool
     let isRestoring: Bool
@@ -1434,23 +1422,7 @@ private struct PatchOptionCard: View {
     let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 14) {
-            if let imageURL {
-                AsyncImage(url: imageURL) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFill()
-                    } else if phase.error != nil {
-                        Image(systemName: "photo").foregroundStyle(color)
-                    } else {
-                        ProgressView().tint(color)
-                    }
-                }
-                .frame(width: 48, height: 48)
-                .background(AppTheme.pageBackground.opacity(0.7))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            }
-
+        HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(name)
                     .font(.system(size: 15, weight: .bold, design: .rounded))
@@ -1476,33 +1448,16 @@ private struct PatchOptionCard: View {
                 Text(isRestoring ? "RESTORING…" : (isEnabled ? "INJECTED" : "INJECT"))
                     .font(.system(size: 9, weight: .black, design: .rounded))
                     .lineLimit(1)
-                    .frame(width: 92, height: 32, alignment: .center)
-                .foregroundStyle(AppTheme.secondaryAccent)
-                .background(
-                    AppTheme.secondaryAccent.opacity(0.12),
-                    in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke(AppTheme.secondaryAccent.opacity(0.72), lineWidth: 1.1)
-                }
+                    .foregroundStyle(isEnabled ? AppTheme.secondaryAccent : color)
+                    .frame(width: 92, height: 40, alignment: .center)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(isBusy)
         }
-        }
-        .frame(maxWidth: .infinity, minHeight: 58)
-        .padding(.horizontal, 14)
-        .background(
-            LinearGradient(
-                colors: [AppTheme.referenceCard.opacity(0.96), AppTheme.consoleBackground.opacity(0.82)],
-                startPoint: .leading,
-                endPoint: .trailing
-            ),
-            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-        )
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(color.opacity(0.32), lineWidth: 1))
-        .shadow(color: .clear, radius: 0, y: 0)
+        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(statusText.isEmpty ? "\(name), \(target), \(isEnabled ? "Injected" : "Not injected")" : "\(name), \(target), \(statusText), \(isEnabled ? "Injected" : "Not injected")")
     }
