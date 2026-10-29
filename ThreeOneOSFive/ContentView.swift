@@ -1712,9 +1712,10 @@ private final class SAKKBackgroundVideoPlayer: ObservableObject {
 }
 
 private struct SAKKBackgroundVideoSurface: UIViewRepresentable {
+    typealias UIViewType = UIView
     let player: AVPlayer
 
-    func makeUIView(context: Context) -> BackgroundPlayerView {
+    func makeUIView(context: Context) -> UIView {
         let view = BackgroundPlayerView()
         view.playerLayer.player = player
         view.playerLayer.videoGravity = .resizeAspectFill
@@ -1723,9 +1724,10 @@ private struct SAKKBackgroundVideoSurface: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ uiView: BackgroundPlayerView, context: Context) {
-        if uiView.playerLayer.player !== player {
-            uiView.playerLayer.player = player
+    func updateUIView(_ uiView: UIView, context: Context) {
+        guard let view = uiView as? BackgroundPlayerView else { return }
+        if view.playerLayer.player !== player {
+            view.playerLayer.player = player
         }
     }
 
