@@ -75,6 +75,7 @@
 
 		3105R200 /* ACTIVADA.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 3105R100; };
 		3105R201 /* DESACTIVADA.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 3105R101; };
+		3105R202 /* SAKKBackground.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 3105R102; };
 
 /* End PBXBuildFile section */
 
@@ -168,6 +169,7 @@
 
 		3105R100 /* ACTIVADA.m4a */ = {isa = PBXFileReference; lastKnownFileType = audio.m4a; path = "ThreeOneOSFive/Resources/ACTIVADA.m4a"; sourceTree = "<group>"; };
 		3105R101 /* DESACTIVADA.m4a */ = {isa = PBXFileReference; lastKnownFileType = audio.m4a; path = "ThreeOneOSFive/Resources/DESACTIVADA.m4a"; sourceTree = "<group>"; };
+		3105R102 /* SAKKBackground.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; path = SAKKBackground.mp4; sourceTree = "<group>"; };
 
 /* End PBXFileReference section */
 
@@ -198,10 +200,11 @@
 				3105A020 /* App.swift */,
 				3105A021 /* ContentView.swift */,
 				3105A403 /* exploit */,
-				3105A404 /* views */,
-				3105A405 /* helpers */,
-				3105A406 /* kexploit */,
-				3105A120 /* Localizable.strings */,
+					3105A404 /* views */,
+					3105A405 /* helpers */,
+					3105A406 /* kexploit */,
+					3105A407 /* Resources */,
+					3105A120 /* Localizable.strings */,
 					3105A031 /* Assets.xcassets */,
 			);
 			path = ThreeOneOSFive;
@@ -213,6 +216,14 @@
 				3105A010 /* SAKK EXTERNAL.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		3105A407 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				3105R102 /* SAKKBackground.mp4 */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		3105A403 /* exploit */ = {
@@ -385,6 +396,7 @@
 				3105W202,
 					3105R200,
 					3105R201,
+					3105R202,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -475,7 +487,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -511,7 +523,7 @@
 				COPY_PHASE_STRIP = YES;
 				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 45;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;

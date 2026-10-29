@@ -37,7 +37,7 @@ VESPERDASH_PACKAGE_PASSWORDS = os.environ.get("VESPERDASH_PACKAGE_PASSWORDS", ""
 MAX_UPLOAD = int(os.environ.get("VESPERDASH_MAX_UPLOAD", str(80 * 1024 * 1024)))
 ALLOWED_BUNDLES = {"com.dts.freefireth", "com.dts.freefiremax"}
 ALLOWED_CATEGORIES = {"aim", "esp", "body", "weapons", "hologram", "skin"}
-SAKK_EXTERNAL_IPA_DOWNLOAD_URL = "https://github.com/vogarf816-debug/extrenal/releases/latest/download/SAKK-EXTERNAL-Build-44-unsigned.ipa"
+SAKK_EXTERNAL_IPA_DOWNLOAD_URL = "https://github.com/vogarf816-debug/extrenal/releases/latest/download/SAKK-EXTERNAL-Build-45-unsigned.ipa"
 
 app = Flask(__name__, static_folder=str(ROOT / "static"), static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD
@@ -270,7 +270,7 @@ def save_settings():
 
 def default_release_policy(tenant="vesper"):
     return {
-        "latest_build": 44,
+        "latest_build": 45,
         "minimum_build": 0,
         "download_url": SAKK_EXTERNAL_IPA_DOWNLOAD_URL,
         "update_message": "IPA UPDATED, PLEASE DOWNLOAD NEW VERSION",

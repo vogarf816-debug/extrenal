@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var remoteSyncTask: Task<Void, Never>?
     @State private var fileSafety: [String: Bool] = [:]
     @StateObject private var patchStore = PatchProjectStore()
+    @StateObject private var backgroundVideo = SAKKBackgroundVideoPlayer()
     @State private var patchOperationBusy = false
     @State private var injectingRemotePatchKey: String?
     @State private var restoringPatchKey: String?
@@ -52,7 +53,20 @@ struct ContentView: View {
     }
 
     var body: some View {
-        TabView(selection: $selectedAppTab) {
+        ZStack {
+            SAKKBackgroundVideoSurface(player: backgroundVideo.player)
+                .overlay {
+                    LinearGradient(
+                        colors: [AppTheme.pageBackground.opacity(0.32), AppTheme.pageBackground.opacity(0.66), AppTheme.pageBackground.opacity(0.78)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+                .overlay(AppTheme.pageBackground.opacity(0.16))
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+            TabView(selection: $selectedAppTab) {
             appTab(title: appLanguage.text("vesper.tab.aim"), tabTitle: appLanguage.text("vesper.tab.aim"), icon: "scope") { aimTab }
                 .tag(0)
             appTab(title: appLanguage.text("vesper.tab.hologram"), tabTitle: "HOLOGRAM", icon: "cube.transparent") { bodyWeaponsTab }
@@ -65,7 +79,9 @@ struct ContentView: View {
                 .tag(4)
             appTab(title: appLanguage.text("vesper.tab.developer"), tabTitle: appLanguage.text("vesper.tab.developer"), icon: "person.crop.circle") { developerTab }
                 .tag(5)
+            }
         }
+        .background(AppTheme.pageBackground)
         .preferredColorScheme(.dark)
         .tint(AppTheme.accent)
         .toolbarBackground(AppTheme.consoleBackground.opacity(0.96), for: .tabBar)
@@ -80,6 +96,7 @@ struct ContentView: View {
             PatchUnlockPrompt(store: patchStore)
         }
         .onAppear {
+            backgroundVideo.play()
             syncPatchStates()
             patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false)
             startRemoteStateChecks()
@@ -99,6 +116,7 @@ struct ContentView: View {
             patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false)
         }
         .onDisappear {
+            backgroundVideo.pause()
             remoteSyncTask?.cancel()
             remoteSyncTask = nil
             // Do not restore patches here. When this option is enabled, the
@@ -109,11 +127,14 @@ struct ContentView: View {
         }
         .onChange(of: scenePhase) { phase in
             if phase == .background {
+                backgroundVideo.pause()
                 patchStore.discardPreparedRemoteProjects()
                 restoreActivePatches()
                 return
             }
-            guard phase == .active, !patchOperationBusy else { return }
+            guard phase == .active else { return }
+            backgroundVideo.play()
+            guard !patchOperationBusy else { return }
             syncPatchStates()
             patchStore.syncVesperDash(sessionToken: licenseManager.clientSessionToken(), showCompletionAlert: false)
         }
@@ -155,7 +176,7 @@ struct ContentView: View {
     private func appTab<Content: View>(title: String, tabTitle: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
         NavigationStack {
             ZStack {
-                AnimatedHyperBackdrop().ignoresSafeArea()
+                Color.clear.ignoresSafeArea()
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
                         brandHeader
@@ -164,8 +185,10 @@ struct ContentView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 14)
                     .padding(.bottom, 28)
+                    .background(Color.clear)
                 }
             }
+            .background(Color.clear)
             .navigationTitle(Text(verbatim: title))
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -1662,6 +1685,53 @@ struct AnimatedHyperBackdrop: View {
             )
             RadialGradient(colors: [AppTheme.accent.opacity(0.12), .clear], center: .topTrailing, startRadius: 8, endRadius: 260)
         }
+    }
+}
+
+@MainActor
+private final class SAKKBackgroundVideoPlayer: ObservableObject {
+    let player = AVQueuePlayer()
+    private var looper: AVPlayerLooper?
+
+    init() {
+        player.isMuted = true
+        player.volume = 0
+        player.preventsDisplaySleepDuringVideoPlayback = false
+        guard let url = Bundle.main.url(forResource: "SAKKBackground", withExtension: "mp4") else { return }
+        looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
+    }
+
+    func play() {
+        guard looper != nil, player.rate == 0 else { return }
+        player.play()
+    }
+
+    func pause() {
+        player.pause()
+    }
+}
+
+private struct SAKKBackgroundVideoSurface: UIViewRepresentable {
+    let player: AVPlayer
+
+    func makeUIView(context: Context) -> BackgroundPlayerView {
+        let view = BackgroundPlayerView()
+        view.playerLayer.player = player
+        view.playerLayer.videoGravity = .resizeAspectFill
+        view.backgroundColor = .clear
+        view.clipsToBounds = true
+        return view
+    }
+
+    func updateUIView(_ uiView: BackgroundPlayerView, context: Context) {
+        if uiView.playerLayer.player !== player {
+            uiView.playerLayer.player = player
+        }
+    }
+
+    private final class BackgroundPlayerView: UIView {
+        override class var layerClass: AnyClass { AVPlayerLayer.self }
+        var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
     }
 }
 

@@ -1450,9 +1450,9 @@ private struct FileEntryRow: View {
     }
 
     private var tint: Color {
-        if entry.isDirectory { return .blue }
+        if entry.isDirectory { return AppTheme.secondaryAccent }
         if ["jpg", "jpeg", "png", "gif", "heic", "webp"].contains(fileExtension) {
-            return .purple
+            return AppTheme.paper.opacity(0.82)
         }
         return AppTheme.accent
     }
