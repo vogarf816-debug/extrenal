@@ -78,8 +78,13 @@ jobs:
           assert "patchCard(" in ui
           assert 'Text(isEnabled ? "INJECTED" : target)' in ui
           assert "injectRemotePatch(remote, targetBundleID: targetBundleID)" in ui
-          assert ".frame(width: 92, height: 32, alignment: .center)" in ui
-          assert ".shadow(color: .clear, radius: 0, y: 0)" in ui
+          patch_card = ui.split("private struct PatchOptionCard: View", 1)[1].split("enum EmbeddedAppResources {", 1)[0]
+          assert ".frame(width: 92, height: 40, alignment: .center)" in patch_card
+          assert "RoundedRectangle" not in patch_card and ".background(" not in patch_card and ".overlay(" not in patch_card
+          assert "AsyncImage" not in patch_card
+          body_selector = ui.split("private var bodyWeaponsCategorySelector", 1)[1].split("private var skinModTab", 1)[0]
+          assert ".background(" not in body_selector and ".overlay(" not in body_selector
+          assert 'if selectedAppTab == tabIndex' in ui and "SAKKBackgroundVideoSurface(player: backgroundVideo.player)" in ui
           assert "CATALOG FAILED — TAP TO RETRY" not in ui
           assert "INJECT STATUS" not in ui
           assert "patchStatusBanner" not in ui
